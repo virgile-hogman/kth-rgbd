@@ -293,9 +293,6 @@ int captureDepth(const XnRGB24Pixel* pImageMap, const XnDepthPixel* pDepthMap, I
 			if (*pDepth != 0)
 				nHistValue = g_pDepthHist[*pDepth];
 			
-			if (x==g_depthMD.XRes()/2 && y==g_depthMD.YRes()/2)
-				fprintf(stderr, "Depth at center: %u ", *pDepth);
-			
 			// yellow pixels
 			tmp_depth->imageData[3*i+0] = 0;			//Blue
 			tmp_depth->imageData[3*i+1] = nHistValue;	//Green
@@ -333,7 +330,7 @@ int captureDepth(const XnRGB24Pixel* pImageMap, const XnDepthPixel* pDepthMap, I
 				else 
 				{
 					pt.x = (ind_x - ImageCenterX) * pDepthMap[depth_index] * constant;
-					pt.y = (ind_y - ImageCenterY) * pDepthMap[depth_index] * constant;
+					pt.y = (ImageCenterY - ind_y) * pDepthMap[depth_index] * constant;
 					pt.z = pDepthMap[depth_index] * 0.001 ; // because values are in mm
 					rgb = (((unsigned int)pImageMap[depth_index].nRed) << 16) | (((unsigned int)pImageMap[depth_index].nGreen) << 8) | ((unsigned int)pImageMap[depth_index].nBlue);
 					pt.rgb = *reinterpret_cast<float*>(&rgb);
@@ -369,13 +366,17 @@ void compareMouseHandler(int event, int x, int y, int flags, void *param) {
 }
 */
 
-int generate_frames(int &frameID)
+void generate_frames(int nbRemainingFrames, vector<int> &framesID)
 {
     XnStatus nRetVal = XN_STATUS_OK;
-	frameID = -1;
 	
-	while (! xnOSWasKeyboardHit())
+	framesID.clear();
+	
+	while (nbRemainingFrames > 0)
 	{
+		const XnDepthPixel* pDepthMap = NULL;
+		const XnRGB24Pixel* pImageMap = NULL;
+		
 		xnFPSMarkFrame(&xnFPS);
 		nRetVal = g_context.WaitAndUpdateAll();
 		if (nRetVal == XN_STATUS_OK)
@@ -383,18 +384,8 @@ int generate_frames(int &frameID)
 			g_depth.GetMetaData(g_depthMD);
 			g_image.GetMetaData(g_imageMD);
 	
-			const XnDepthPixel* pDepthMap = g_depthMD.Data();
-			const XnRGB24Pixel* pImageMap = g_image.GetRGB24ImageMap();
-			captureRGB(pImageMap, save_img_rgb,true);
-			frameID = captureDepth(pImageMap, pDepthMap,save_img_depth,true,true);
-			//usleep(100000);
-			
-			// allocate a new DepthMetaData instance
-			DepthMetaData *pDepthMD = new DepthMetaData;
-			// copy the underlying buffer
-			pDepthMD->CopyFrom(g_depthMD);
-			// store the instance pointer
-			g_vectDepthMD.push_back(pDepthMD);
+			pDepthMap = g_depthMD.Data();
+			pImageMap = g_image.GetRGB24ImageMap();
 			
 			printf("Test: Frame %02d (%dx%d) Middle point is: %u. FPS: %f\n",
 					g_depthMD.FrameID(),
@@ -403,15 +394,26 @@ int generate_frames(int &frameID)
 					g_depthMD(g_depthMD.XRes()/2, g_depthMD.YRes()/2),
 					xnFPSCalc(&xnFPS));
 		}
+		if (xnOSWasKeyboardHit())
+		{
+			char c = xnOSReadCharFromInput();	// to reset the keyboard hit
+			nbRemainingFrames--;
+
+			captureRGB(pImageMap, save_img_rgb,true);
+			int frameID = captureDepth(pImageMap, pDepthMap,save_img_depth,true,true);
+			//usleep(100000);
+			
+			printf("--- Adding frame %d in sequence ---\n", frameID);
+			framesID.push_back(frameID);
+			
+			// allocate a new DepthMetaData instance
+			DepthMetaData *pDepthMD = new DepthMetaData;
+			// copy the underlying buffer
+			pDepthMD->CopyFrom(g_depthMD);
+			// store the instance pointer
+			g_vectDepthMD.push_back(pDepthMD);
+		}
 	}
-	fflush(stdout);
-	char c = xnOSReadCharFromInput();	// to reset the keyboard hit
-	fflush(stdout);
-	
-	if (frameID != -1)
-		return 0;
-	else
-		return -1;
 }
 
 void computeInliersAndError(
@@ -468,7 +470,11 @@ void computeInliersAndError(
     }
 }
 
-void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_nbfeatures, int frameID1, int frameID2)
+void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_nbfeatures,
+		int frameID1,
+		int frameID2,
+		DepthMetaData *metaDataFrame1,
+		DepthMetaData *metaDataFrame2)
 {
     Timer tm;
 
@@ -573,8 +579,8 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 				nb_matches++;
 				
 				// read depth info
-				const XnDepthPixel* p1 = g_vectDepthMD[frameID1-1]->Data();
-				const XnDepthPixel* p2 = g_vectDepthMD[frameID2-1]->Data();
+				const XnDepthPixel* p1 = metaDataFrame1->Data();
+				const XnDepthPixel* p2 = metaDataFrame2->Data();
 				
 				const XnDepthPixel v1 = p1[cvRound(feat->y)*640 + cvRound(feat->x)];
 				const XnDepthPixel v2 = p2[cvRound(neighbour_features[0]->y)*640 + cvRound(neighbour_features[0]->x)];
@@ -597,8 +603,8 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 					assert (feat2 != NULL);
 					
 					// read depth info
-					const XnDepthPixel* p1 = g_vectDepthMD[frameID1-1]->Data();
-					const XnDepthPixel* p2 = g_vectDepthMD[frameID2-1]->Data();
+					const XnDepthPixel* p1 = metaDataFrame1->Data();
+					const XnDepthPixel* p2 = metaDataFrame2->Data();
 					
 					const XnDepthPixel d1 = p1[cvRound(feat1->y)*640 + cvRound(feat1->x)];
 					const XnDepthPixel d2 = p2[cvRound(feat2->y)*640 + cvRound(feat2->x)];
@@ -925,7 +931,7 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 
 int main(int argc, char** argv)
 {
-	bool savePointCloud = false;
+	bool savePointCloud = true;
 	
 	if (argc<1)
 	{
@@ -936,8 +942,18 @@ int main(int argc, char** argv)
     printf("Start\n");
     if (strcmp(argv[1], "--save") == 0)
     {
-    	if (argc>2 && atoi(argv[2])>0)
-    		savePointCloud = true;
+    	int nbFrames=2;
+    	if (argc>2)
+    		nbFrames = atoi(argv[2]);
+    	
+    	if (nbFrames<2)
+    	{
+    		printf("At least 2 frames are required");    		
+			return -1;
+    	}
+    		
+    	if (argc>3 && atoi(argv[3])<=0)
+    		savePointCloud = false;
     	
     	cout << "Using support size: " << g_support_size << endl;
     	
@@ -953,8 +969,11 @@ int main(int argc, char** argv)
         nRetVal = connectKinect();
         if (nRetVal == XN_STATUS_OK)
         {
-        	int frameID = -1;
-        	if (generate_frames(frameID) == 0)
+        	vector<int> framesID;
+        	
+        	generate_frames(nbFrames, framesID);
+        	
+        	if (framesID.size()>=2)
         	{
         		// store the previous image and feature
     			IplImage *p_img = NULL;	    		// OpenCV image type
@@ -963,8 +982,8 @@ int main(int argc, char** argv)
     			
         		// match frame to frame
     			// start from frames 2-3 as the frame 1 depth is inaccurate
-        		for (int iFrame=3; iFrame<frameID; iFrame++)
-        			match_SIFT(p_img, p_features, p_nb, iFrame-1, iFrame);
+        		for (int iFrame=1; iFrame<framesID.size(); iFrame++)
+        			match_SIFT(p_img, p_features, p_nb, framesID[iFrame-1], framesID[iFrame], g_vectDepthMD[iFrame-1], g_vectDepthMD[iFrame]);
         		
 				char buf_full[256];
 				sprintf(buf_full, "data/cloud_full.pcd");
@@ -978,6 +997,15 @@ int main(int argc, char** argv)
         		Eigen::Affine3f tfo;
         		Eigen::Matrix4f tfo_inv;
         		bool valid_sequence = true;
+        		
+    			if (savePointCloud)
+    			{
+					cout << "Initialize global point cloud ..." << std::endl;
+					char buf[256];
+					sprintf(buf, "data/cloud%d.pcd", framesID[0]);
+					pcl::io::loadPCDFile(buf, cloud_full);
+    			}
+        		
         		for (int iPose=0; iPose<g_transformations.size(); iPose++)
         		{
         			pose = g_transformations[iPose].inverse() * pose;
@@ -1007,12 +1035,12 @@ int main(int argc, char** argv)
         			
         			if (savePointCloud && valid_sequence)
         			{
-						cout << "Generating point cloud for frame " << iPose << "..." << std::endl;
+						cout << "Generating point cloud for frame " << framesID[iPose+1] << "(#" << iPose+1 << ")..." << std::endl;
 						char buf[256];
-						sprintf(buf, "data/cloud%d.pcd", iPose+2);
+						sprintf(buf, "data/cloud%d.pcd", framesID[iPose+1]);
 						pcl::io::loadPCDFile(buf, cloud_frame);
 
-						// correct axis orientation
+						/*// correct axis orientation
 						for (int ind_y =0; ind_y < g_depthMD.YRes(); ind_y++)
 						{
 							for (int ind_x=0; ind_x < g_depthMD.XRes(); ind_x++)
@@ -1021,7 +1049,7 @@ int main(int argc, char** argv)
 								pt.x = -pt.x;
 								pt.z = -pt.z;
 							}
-						}
+						}*/
 						
 						tfo_inv = cumulated_transformations.inverse();
 						tfo = tfo_inv;
@@ -1053,7 +1081,7 @@ int main(int argc, char** argv)
 						}
         			}
         		}
-    			if (savePointCloud)
+    			if (savePointCloud && cloud_full.size()>0)
     			{
     				//cout << "Saving global point cloud ASCII..." << std::endl;
     				//pcl::io::savePCDFile(buf_full, cloud_full);
