@@ -39,6 +39,9 @@ extern "C" {
 #include <vector>
 #include <Eigen/StdVector>
 
+using namespace xn;
+using namespace std;
+
 
 #define CHECK_RC(rc, what)                                            \
     if (rc != XN_STATUS_OK)                                            \
@@ -49,22 +52,29 @@ extern "C" {
 
 #define SAMPLE_XML_PATH "SamplesConfig.xml"
 
+#define NBPIXELS_X_HALF 320
+#define NBPIXELS_Y_HALF 240
 
-using namespace xn;
+/* the maximum number of keypoint NN candidates to check during BBF search */
+#define KDTREE_BBF_MAX_NN_CHKS 200
+/* threshold on squared ratio of distances between NN and 2nd NN */
+#define NN_SQ_DIST_RATIO_THR 0.49
 
-using namespace std;
+const double rgb_focal_length_VGA = 525;
 
+#define NB_RANSAC_ITERATIONS 20
+#define MIN_NB_INLIERS		10
 
 //---------------------------------------------------------------------------
 // Globals
 //---------------------------------------------------------------------------
-
 DepthGenerator g_depth;
 ImageGenerator g_image;
 DepthMetaData g_depthMD;
 ImageMetaData g_imageMD;
 Context g_context;
 XnFPSData xnFPS;
+XnUInt64 no_sample_value, shadow_value;
 
 vector<DepthMetaData*> g_vectDepthMD;
 //DepthMetaData g_arrayMD[50];
@@ -75,18 +85,18 @@ XnRGB24Pixel* g_pTexMap = NULL;
 unsigned int g_nTexMapX = 0;
 unsigned int g_nTexMapY = 0;
 
-
 IplImage* rgb_data=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 IplImage* depth_data=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
-/*
-IplImage* img1=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
-IplImage* img2=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
-*/
 
 IplImage* save_img_rgb = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 IplImage* save_img_depth = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 
 std::string saveFolderName = "data";
+
+// PCL
+float bad_point = std::numeric_limits<float>::quiet_NaN ();
+pcl::PointCloud<pcl::PointXYZRGB> cloud_save;
+
 
 typedef union
 {
@@ -102,30 +112,28 @@ typedef union
 } RGBValue;
 
 
+// -----------------------------------------------------------------------------------------------------
+//  Transformations
+// -----------------------------------------------------------------------------------------------------
 class PoseTransformation
 {
 public:
-	int is_valid;
-	Eigen::Matrix4f transformation;
+	bool			_is_valid;
+	Eigen::Matrix4f	_matrix;
+	double			_error;
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 // for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html
 };
 
-vector<PoseTransformation, Eigen::aligned_allocator<Eigen::Vector4f> > g_pose_transformations;
+vector<PoseTransformation, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
 
-vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
+//vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
 
-const double rgb_focal_length_VGA = 525;
 
-float g_support_size;
-
-/* the maximum number of keypoint NN candidates to check during BBF search */
-#define KDTREE_BBF_MAX_NN_CHKS 200
-/* threshold on squared ratio of distances between NN and 2nd NN */
-#define NN_SQ_DIST_RATIO_THR 0.49
-
-// ---------------------------------------
+// -----------------------------------------------------------------------------------------------------
+//  Timer for performance tracker
+// -----------------------------------------------------------------------------------------------------
 #include <cstdlib>
 #include <sys/time.h>
 
@@ -161,37 +169,16 @@ class Timer
         return static_cast<int>(secs * 1000 + usecs / 1000.0 + 0.5);
     }
 };
-// ---------------------------------------
 
-/*
-void annotateMouseHandler(int event, int x, int y, int flags, void *param) {
-    switch (event) {
-        case CV_EVENT_LBUTTONDOWN:
-            fprintf(stdout, "Left button down (%d, %d).\n", x, y);
-            break;
-        case CV_EVENT_RBUTTONDOWN:
-            fprintf(stdout, "Right button down (%d, %d).\n", x, y);
-            break;
-        case CV_EVENT_MOUSEMOVE:
-            img2 = cvCloneImage(img);
-            cvRectangle(img2, cvPoint(x - 15, y - 15), cvPoint(x + 15, y + 15), cvScalar(0, 0, 255, 0), 2, 8, 0);
-            cvShowImage("image2", img2);
-            break;
-        case CV_EVENT_MBUTTONDOWN:
-            IplImage*  temp_img_depth = cvLoadImage("frame0_depth.bmp", CV_LOAD_IMAGE_COLOR);
-            IplImage*  temp_img_rgb = cvLoadImage("frame0_rgb.bmp", CV_LOAD_IMAGE_COLOR);
-            cvShowImage("image", temp_img_depth);
-            sleep(1);
-            cvShowImage("image", temp_img_rgb);
-            break;
-    }
-}
-*/
 
-XnUInt64 no_sample_value, shadow_value;
-XnStatus connectKinect(){
+// -----------------------------------------------------------------------------------------------------
+//  connectKinect
+// -----------------------------------------------------------------------------------------------------
+XnStatus connectKinect()
+{
     //Connect to kinect
-    printf("Connecting to Kinect... ");   
+    printf("Connecting to Kinect... ");
+    fflush(stdout);
     XnStatus nRetVal = XN_STATUS_OK;
     EnumerationErrors errors;
     nRetVal = g_context.InitFromXmlFile(SAMPLE_XML_PATH, &errors);
@@ -231,6 +218,9 @@ XnStatus connectKinect(){
 }
 
 
+// -----------------------------------------------------------------------------------------------------
+//  captureRGB
+// -----------------------------------------------------------------------------------------------------
 void captureRGB(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doSave = false){
 
     // Convert to IplImage 24 bit, 3 channels
@@ -247,9 +237,9 @@ void captureRGB(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doSav
     }
 }
 
-float bad_point = std::numeric_limits<float>::quiet_NaN ();
-pcl::PointCloud<pcl::PointXYZRGB> cloud_save;
-
+// -----------------------------------------------------------------------------------------------------
+//  captureDepth
+// -----------------------------------------------------------------------------------------------------
 int captureDepth(const XnRGB24Pixel* pImageMap, const XnDepthPixel* pDepthMap, IplImage* tmp_depth = 0, bool saveImage=false, bool savePointCloud = false)
 {
 	// Calculate the accumulative histogram (the yellow display...)
@@ -329,9 +319,10 @@ int captureDepth(const XnRGB24Pixel* pImageMap, const XnDepthPixel* pDepthMap, I
 				}
 				else 
 				{
+					// locate point in meters
 					pt.x = (ind_x - ImageCenterX) * pDepthMap[depth_index] * constant;
 					pt.y = (ImageCenterY - ind_y) * pDepthMap[depth_index] * constant;
-					pt.z = pDepthMap[depth_index] * 0.001 ; // because values are in mm
+					pt.z = pDepthMap[depth_index] * 0.001 ; // given depth values are in mm
 					rgb = (((unsigned int)pImageMap[depth_index].nRed) << 16) | (((unsigned int)pImageMap[depth_index].nGreen) << 8) | ((unsigned int)pImageMap[depth_index].nBlue);
 					pt.rgb = *reinterpret_cast<float*>(&rgb);
 				}
@@ -350,23 +341,10 @@ int captureDepth(const XnRGB24Pixel* pImageMap, const XnDepthPixel* pDepthMap, I
 	return g_depthMD.FrameID();
 }
 
-
-/*
-void compareMouseHandler(int event, int x, int y, int flags, void *param) {
-    switch (event) {
-        case CV_EVENT_LBUTTONDOWN:
-            cvShowImage("Comparison", rgb_data);
-            break;
-        case CV_EVENT_RBUTTONDOWN:
-            cvShowImage("Comparison", depth_data);
-            break;
-        case CV_EVENT_MBUTTONDOWN:
-            captureRGBAndDepth();   
-    }
-}
-*/
-
-void generate_frames(int nbRemainingFrames, vector<int> &framesID)
+// -----------------------------------------------------------------------------------------------------
+//  generateFrames
+// -----------------------------------------------------------------------------------------------------
+void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 {
     XnStatus nRetVal = XN_STATUS_OK;
 	
@@ -416,6 +394,9 @@ void generate_frames(int nbRemainingFrames, vector<int> &framesID)
 	}
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  Main computeInliersAndError
+// -----------------------------------------------------------------------------------------------------
 void computeInliersAndError(
 		const Eigen::Matrix4f& transformation,
         const std::vector<Eigen::Vector3f>& matches_orig,
@@ -424,13 +405,12 @@ void computeInliersAndError(
         double& mean_error,
         double max_inlier_error_in_m)
 {
-
-    inliers.clear();
-
     vector<pair<float,int> > dists;
     std::vector<int> inliers_temp;
 
+    inliers.clear();
     mean_error = 0.0;
+    
     for (unsigned int id = 0; id < matches_orig.size(); id++){ //compute new error and inliers
 
         // vectors with homogeneous coordinates
@@ -454,7 +434,7 @@ void computeInliersAndError(
 
     if (inliers_temp.size()==0){
         mean_error = -1;
-        inliers = inliers_temp;
+        inliers.clear();
     }
     else
     {
@@ -470,7 +450,10 @@ void computeInliersAndError(
     }
 }
 
-void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_nbfeatures,
+// -----------------------------------------------------------------------------------------------------
+//  matchFrames
+// -----------------------------------------------------------------------------------------------------
+void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_nbfeatures,
 		int frameID1,
 		int frameID2,
 		DepthMetaData *metaDataFrame1,
@@ -493,13 +476,13 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 	struct feature *features2=NULL; // SIFT library keypoint type
 	int n2=0;
 	
-	IplImage* stacked = NULL;
+	IplImage* imgStacked = NULL;
 	
 	CvFont font;
 	double hScale=0.5;
 	double vScale=0.5;
 	int    lineWidth=1;
-	cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX|CV_FONT_ITALIC, hScale,vScale,0,lineWidth);
+	cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX, hScale,vScale,0,lineWidth);
 
 
 	// ---------------------------------------------------------------------------
@@ -521,6 +504,7 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 		
 		// draw SIFT features 
 		draw_features(prev_img, prev_features, prev_nbfeatures);
+		cvPutText(prev_img, buf, cvPoint(5, 20), &font, cvScalar(255,255,0));
 	}
 	
 	// load image using OpenCV and detect keypoints in new frame
@@ -531,9 +515,10 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 	
 	// draw SIFT features  
 	draw_features(img2, features2, n2);
+	cvPutText(img2, buf2, cvPoint(5, 20), &font, cvScalar(255,255,0));	
 
 	// stack the 2 images
-	stacked = stack_imgs( prev_img, img2 );
+	imgStacked = stack_imgs( prev_img, img2 );
 				
     tm.stop();
 	printf("\t%d + %d features.\t(%dms)\n", prev_nbfeatures, n2, tm.duration());
@@ -555,6 +540,18 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 	vector<int> index_matches;
 	vector<Eigen::Vector3f>	vector_matches_orig;
 	vector<Eigen::Vector3f>	vector_matches_dest;	
+    
+	float constant = 0.001 / rgb_focal_length_VGA;    // TODO - redefine this properly
+	
+	const XnDepthPixel* pDepthData1 = metaDataFrame1->Data();
+	const XnDepthPixel* pDepthData2 = metaDataFrame2->Data();
+	
+	// TODO before K-search clean the features without depth information because they are useless
+	//struct feature* featureSearch = NULL;
+	//for (int iFeature=0; iFeature<n2; iFeature++)
+	//{
+	//	if (pDepthData2[cvRound(features2[iFeature]->y) * 640 + cvRound(features2[iFeature]->x)] > 0)
+	//}
 	
 	// try match the new features found in the 2d frame...
 	kd_root = kdtree_build( features2, n2 );
@@ -572,51 +569,40 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 			// check if the 2 are close enough
 			if( d0 < d1 * NN_SQ_DIST_RATIO_THR )
 			{
+	            const struct feature* feat1 = &prev_features[i];
+	            const struct feature* feat2 = neighbour_features[0];
+	            
 				// draw a line through the 2 points in the stacked image
-				pt1 = cvPoint( cvRound( feat->x ), cvRound( feat->y ) );
-				pt2 = cvPoint( cvRound( neighbour_features[0]->x ), cvRound( neighbour_features[0]->y ) );
+				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
 				pt2.y += prev_img->height;
 				nb_matches++;
 				
 				// read depth info
-				const XnDepthPixel* p1 = metaDataFrame1->Data();
-				const XnDepthPixel* p2 = metaDataFrame2->Data();
-				
-				const XnDepthPixel v1 = p1[cvRound(feat->y)*640 + cvRound(feat->x)];
-				const XnDepthPixel v2 = p2[cvRound(neighbour_features[0]->y)*640 + cvRound(neighbour_features[0]->x)];
+				const XnDepthPixel depth1 = pDepthData1[cvRound(feat1->y) * 640 + cvRound(feat1->x)];
+				const XnDepthPixel depth2 = pDepthData2[cvRound(feat2->y) * 640 + cvRound(feat2->x)];
 				
 				// check if depth values are close enough (values in mm)
-				if (v1>0 && v2>0 && abs(v1-v2)/float(v1) < 0.05)	// read: relative diff 
+				if (depth1>0 && //depth1<2000 &&
+					depth2>0 && //depth2<2000 &&
+					abs(depth1-depth2)/float(depth1) < 0.05)	// read: relative diff 
 				{
-				     float constant = 0.001 / rgb_focal_length_VGA;    
 					// draw a green line
-					cvLine( stacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
+					cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
 					// this is a valid match
 					nb_valid_matches++;
 					// fwd link the previous features to the new features according to the match
 					prev_features[i].fwd_match = neighbour_features[0];
 					index_matches.push_back(i);
-					
-		            const struct feature* feat1 = &prev_features[i];
-		            const struct feature* feat2 = prev_features[i].fwd_match;
-
-					assert (feat2 != NULL);
-					
-					// read depth info
-					const XnDepthPixel* p1 = metaDataFrame1->Data();
-					const XnDepthPixel* p2 = metaDataFrame2->Data();
-					
-					const XnDepthPixel d1 = p1[cvRound(feat1->y)*640 + cvRound(feat1->x)];
-					const XnDepthPixel d2 = p2[cvRound(feat2->y)*640 + cvRound(feat2->x)];
-					
+			
 					// convert pixels to metric
-					float x1 = (feat1->x - 320) * d1 * constant;
-					float y1 = (240 - feat1->y) * d1 * constant;
-					float z1 = d1 * 0.001 ; // because values are in mm
+					float x1 = (feat1->x - NBPIXELS_X_HALF) * depth1 * constant;
+					float y1 = (NBPIXELS_Y_HALF - feat1->y) * depth1 * constant;
+					float z1 = depth1 * 0.001 ; // given depth values are in mm
 					
-					float x2 = (feat2->x - 320) * d2 * constant;
-					float y2 = (240 - feat2->y) * d2 * constant;
-					float z2 = d2 * 0.001 ; // because values are in mm
+					float x2 = (feat2->x - NBPIXELS_X_HALF) * depth2 * constant;
+					float y2 = (NBPIXELS_Y_HALF - feat2->y) * depth2 * constant;
+					float z2 = depth2 * 0.001 ; // given depth values are in mm
 
 					Eigen::Vector3f orig(x1,y1,z1);
 					Eigen::Vector3f dest(x2,y2,z2);
@@ -627,16 +613,16 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 				else
 				{
 					// ignore the pairs without depth any info, but show the remaining outliners
-					if (v1>0 || v2>0)
+					if (depth1>0 || depth2>0)
 					{
 						char bufDiff[256];
 						// draw a red line
-						cvLine(stacked, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0);
-						//cvPutText(stacked, bufDiff, cvPoint((pt1.x+pt2.x)/2 -20,(pt1.y+pt2.y)/2), &font, cvScalar(255,255,0));
-						sprintf(bufDiff,"_%u", v1);
-						cvPutText(stacked, bufDiff, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
-						sprintf(bufDiff,"_%u", v2);
-						cvPutText(stacked, bufDiff, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
+						cvLine(imgStacked, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0);
+						//cvPutText(imgStacked, bufDiff, cvPoint((pt1.x+pt2.x)/2 -20,(pt1.y+pt2.y)/2), &font, cvScalar(255,255,0));
+						sprintf(bufDiff,"_%u", depth1);
+						cvPutText(imgStacked, bufDiff, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
+						sprintf(bufDiff,"_%u", depth2);
+						cvPutText(imgStacked, bufDiff, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
 					}
 				}
 			}
@@ -654,12 +640,12 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 	// save stacked image
 	char buf[256];
 	sprintf(buf, "data/sift_stacked%d.bmp", frameID1);
-	cvSaveImage(buf, stacked);
+	cvSaveImage(buf, imgStacked);
 
 	tm.stop();
     fprintf( stderr, "\tKeeping %d/%d matches.\t(%dms)\n", nb_valid_matches, nb_matches, tm.duration() );
 	fflush(stdout);
-	//display_big_img( stacked, "Matches" );
+	//display_big_img( imgStacked, "Matches" );
 
 	/*
 	// ---------------------------------------------------------------------------
@@ -763,10 +749,8 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
         Eigen::Matrix4f best_transformation;
         std::vector<int> index_best_inliers;
         double best_error = 0.1;
-        Eigen::Affine3f best_tfo;
-
 	    
-		for (int iteration=0; iteration<20 ; iteration++)
+		for (int iteration=0; iteration<NB_RANSAC_ITERATIONS ; iteration++)
 		{
 			fprintf(stderr, "\nIteration %d ... \t", iteration+1);
 			tfc.reset();
@@ -782,7 +766,6 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 	        // compute error and keep only inliers
 	        std::vector<int> index_inliers;
 	        double mean_error;
-	        vector<double> errors;
 	        double max_inlier_distance_in_m = 0.02;
 	        
 	        computeInliersAndError(transformation,
@@ -794,57 +777,57 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 	        
 	        fprintf(stderr, "Found %d inliers and error:%f", index_inliers.size(), mean_error);
 	        
-	        if (mean_error >= max_inlier_distance_in_m)
+	        if (mean_error<0 || mean_error >= max_inlier_distance_in_m)
 	        	continue;	// skip these 3 points and go for a new iteration
 	        	
-	        if (index_inliers.size()<20)
+	        if (index_inliers.size()<MIN_NB_INLIERS)
 	        	continue;	// not enough inliers found
 	        
 			if (mean_error < best_error)
 	        {
-		        fprintf(stderr, "\t => Best transformation! ", index_inliers.size(), mean_error);
+		        fprintf(stderr, "\t => Best candidate transformation! ", index_inliers.size(), mean_error);
 	        	best_transformation = transformation;
-	        	best_tfo = tfc.getTransformation();
 	        	best_error = mean_error;
 	        	index_best_inliers = index_inliers;
 	        }
-			
-	        // ----------------------------------------------------
-	        // recompute a new transformation with all the inliers
-	        // ----------------------------------------------------
-	        fprintf(stderr, "\nRecomputing transfo... \t", index_inliers.size(), mean_error);
-	        tfc.reset();
-	        for (int id_inlier = 0; id_inlier < index_inliers.size(); id_inlier++) {
-	            int id_match  = index_inliers[id_inlier];
-	            //int index1 = index_matches[id_match];
+	        
+			// ----------------------------------------------------
+			// recompute a new transformation with the inliers
+			// ----------------------------------------------------
+			fprintf(stderr, "\nRecomputing transfo... \t");
+			tfc.reset();
+			//for (int k = 0; k < 3; k++) {
+			//    int id_inlier = rand() % index_inliers.size();
+			//for (int id_inlier = 0; id_inlier < 3; id_inlier++) {	// the 3 best	        
+			for (int id_inlier = 0; id_inlier < index_inliers.size(); id_inlier++) {
+				int id_match  = index_inliers[id_inlier];
 				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-	        }
-	        // compute transformation from inliers
-	        transformation = tfc.getTransformation().matrix();
-	        
-	        computeInliersAndError(transformation,
-	        		vector_matches_orig,
-	        		vector_matches_dest,
-	        		index_inliers,
-	        		mean_error,
-	        		max_inlier_distance_in_m * max_inlier_distance_in_m);
-	        
-	        if (mean_error >= max_inlier_distance_in_m)
-	        	continue;	// skip these 3 points and go for a new iteration
-	        	
-	        if (index_inliers.size()<20)
-	        	continue;	// not enough inliers found
-	        
-	        fprintf(stderr, "Found %d inliers and error:%f", index_inliers.size(), mean_error);
-	        
+			}
+			// compute transformation from inliers
+			transformation = tfc.getTransformation().matrix();
+			
+			computeInliersAndError(transformation,
+					vector_matches_orig,
+					vector_matches_dest,
+					index_inliers,
+					mean_error,
+					max_inlier_distance_in_m * max_inlier_distance_in_m);
+			
+			if (mean_error<0 || mean_error >= max_inlier_distance_in_m)
+				continue;	// skip these 3 points and go for a new iteration
+				
+			if (index_inliers.size()<MIN_NB_INLIERS)
+				continue;	// not enough inliers found
+			
+			fprintf(stderr, "Found %d inliers and error:%f", index_inliers.size(), mean_error);
+			
 			if (mean_error < best_error)
-	        {
-		        fprintf(stderr, "\t => Best transformation! ", index_inliers.size(), mean_error);
-	        	best_transformation = transformation;
-	        	best_tfo =  tfc.getTransformation();
-	        	best_error = mean_error;
-	        	index_best_inliers = index_inliers;
-	        }
+			{
+				fprintf(stderr, "\t => Best transformation! ", index_inliers.size(), mean_error);
+				best_transformation = transformation;
+				best_error = mean_error;
+				index_best_inliers = index_inliers;
+			}
 		}
 		fprintf(stderr, "\n");
 		
@@ -856,18 +839,11 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 			std:cerr << best_transformation << std::endl;
 			fflush(stderr);
 
-	        //pose_transformation pose;
-			//pose.is_valid = 1;
-			//pose.transformation = best_transformation;
-			//g_pose_transformations.push_back(pose);
-			
-			Eigen::Matrix4f tfo = best_transformation;
-			g_transformations.push_back(tfo);
-
 			PoseTransformation pose;
-			pose.is_valid=true;
-			pose.transformation=best_transformation;
-			g_pose_transformations.push_back(pose);
+			pose._is_valid = true;
+			pose._matrix = best_transformation;
+			pose._error = best_error;
+			g_transformations.push_back(pose);
 			
 			// draw inliers
 			IplImage* stacked_inliers = NULL;
@@ -900,18 +876,14 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 		else
 		{
 			fprintf(stderr, "No transformation found!\n");
-			//pose_transformation pose;
-			//pose.is_valid = 0;
-			//pose.transformation = Eigen::Matrix4f::Identity();
-			//g_pose_transformations.push_back(pose);
-			
-			Eigen::Matrix4f tfo = Eigen::Matrix4f::Identity();
-			g_transformations.push_back(tfo);
+			//Eigen::Matrix4f tfo = Eigen::Matrix4f::Identity();
+			//g_transformations.push_back(tfo);
 			
 			PoseTransformation pose;
-			pose.is_valid=false;
-			pose.transformation=Eigen::Matrix4f::Identity();
-			g_pose_transformations.push_back(pose);
+			pose._is_valid = false;
+			pose._matrix = Eigen::Matrix4f::Identity();
+			pose._error = 1.0;
+			g_transformations.push_back(pose);
 									
 		}
 	}
@@ -925,184 +897,169 @@ void match_SIFT(IplImage* &prev_img, struct feature* &prev_features, int &prev_n
 	prev_features = features2;
 	prev_nbfeatures = n2;
 		
-	cvReleaseImage(&stacked);
+	cvReleaseImage(&imgStacked);
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  buildMap
+// -----------------------------------------------------------------------------------------------------
+void buildMap(vector<int> &framesID, bool savePointCloud)
+{
+	char buf_full[256];
+	sprintf(buf_full, "data/cloud_full.pcd");
+	pcl::PointCloud<pcl::PointXYZRGB> cloudFull;
+	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
+	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
+	
+	Eigen::Vector4f cameraPose(0, 0, 0, 1.0); 
+	Eigen::Matrix4f cumulatedTransformation = Eigen::Matrix4f::Identity();
+	Eigen::Matrix4f inverseTfo;
+	bool valid_sequence = true;
+	
+	if (savePointCloud && g_transformations.size()>0)
+	{
+		cout << "Initialize point cloud frame " << framesID[0] << " (#1/" << framesID.size() << ")..." << std::endl;
+		char buf[256];
+		sprintf(buf, "data/cloud%d.pcd", framesID[0]);
+		pcl::io::loadPCDFile(buf, cloudFull);
+	}
+	
+	for (int iPose=0; iPose<g_transformations.size(); iPose++)
+	{
+		cout << "----------------------------------------------------------------------------" << std::endl;
+		pcl::PointXYZRGB ptCameraPose;
+		cameraPose = g_transformations[iPose]._matrix.inverse() * cameraPose;
+		cout << cameraPose << std::endl;
+		//ptCameraPose.x = cameraPose[0];
+		//ptCameraPose.y = cameraPose[1];
+		//ptCameraPose.z = cameraPose[2];
+		//ptCameraPose.rgb = 255;
+		
+		// compute global transformation from the start
+		cumulatedTransformation = cumulatedTransformation * g_transformations[iPose]._matrix;
 
+		cout << "Mean error:" << g_transformations[iPose]._error << std::endl;
+		if (! g_transformations[iPose]._is_valid)
+		{
+			valid_sequence = false;
+			cout << "--- Invalid sequence - aborting point cloud accumulation --- \n" << std::endl;
+		}
+		
+		// update global point cloud
+		if (savePointCloud && valid_sequence)
+		{
+			cout << "Generating point cloud frame " << framesID[iPose+1] << " (#" << iPose+2 << "/" << framesID.size() << ")...";
+			char buf[256];
+			sprintf(buf, "data/cloud%d.pcd", framesID[iPose+1]);
+			pcl::io::loadPCDFile(buf, cloudFrame);
+
+			/*// correct axis orientation
+			for (int ind_y =0; ind_y < g_depthMD.YRes(); ind_y++)
+			{
+				for (int ind_x=0; ind_x < g_depthMD.XRes(); ind_x++)
+				{
+					pcl::PointXYZRGB& pt = cloud_frame(ind_x,ind_y);
+					pt.x = -pt.x;
+					pt.z = -pt.z;
+				}
+			}*/
+			
+			// inverse transform
+			inverseTfo = cumulatedTransformation.inverse();
+			// apply transformation to the point cloud
+			pcl::getTransformedPointCloud(
+					cloudFrame,
+					Eigen::Affine3f(inverseTfo),
+					cloudFrameTransformed); 
+			
+			// apend transformed point cloud
+			cloudFull += cloudFrameTransformed;
+			cout << " +" << cloudFrame.size() << " points => " << cloudFull.size() << " total." << std::endl;
+			
+		}
+	}
+	if (savePointCloud && cloudFull.size()>0)
+	{
+		//cout << "Saving global point cloud ASCII..." << std::endl;
+		//pcl::io::savePCDFile(buf_full, cloud_full);
+		cout << "Saving global point cloud binary..." << std::endl;    			
+		sprintf(buf_full, "data/cloud_full.pcd");
+		pcl::io::savePCDFile(buf_full, cloudFull, true);
+		// bug in PCL - the binary file is not created with the good rights!
+		system("chmod a+r data/cloud_full.pcd");
+	}
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  Main program
+// -----------------------------------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
-	bool savePointCloud = true;
-	
 	if (argc<1)
 	{
-		printf("Usage: %s --save support_size", argv[0]);
+		printf("Usage: %s --save nbFrames", argv[0]);
 		return -1;
 	}
 
     printf("Start\n");
     if (strcmp(argv[1], "--save") == 0)
     {
-    	int nbFrames=2;
+        XnStatus nRetVal = XN_STATUS_OK;
+    	bool savePointCloud = true;
+    	int nbFrames=2;	// by default
+    	
     	if (argc>2)
     		nbFrames = atoi(argv[2]);
     	
     	if (nbFrames<2)
     	{
-    		printf("At least 2 frames are required");    		
+    		printf("At least 2 frames are required!\n");    		
 			return -1;
     	}
     		
     	if (argc>3 && atoi(argv[3])<=0)
     		savePointCloud = false;
     	
-    	cout << "Using support size: " << g_support_size << endl;
-    	
         boost::filesystem::create_directories(saveFolderName);       
 
-
-        cloud_save.width = 640;
-        cloud_save.height = 480;
-        cloud_save.points.resize (640*480);
-        
-
-        XnStatus nRetVal = XN_STATUS_OK;
         nRetVal = connectKinect();
         if (nRetVal == XN_STATUS_OK)
         {
-        	vector<int> framesID;
+        	vector<int> sequenceFramesID;
+            
+        	cloud_save.width = 640;
+            cloud_save.height = 480;
+            cloud_save.points.resize (640*480);
         	
-        	generate_frames(nbFrames, framesID);
+        	// generate n frames and get its sequence
+        	generateFrames(nbFrames, sequenceFramesID);
         	
-        	if (framesID.size()>=2)
+        	if (sequenceFramesID.size()>=2)
         	{
         		// store the previous image and feature
-    			IplImage *p_img = NULL;	    		// OpenCV image type
-    			struct feature *p_features=NULL;	// SIFT library keypoint type
-    			int p_nb=0;
+    			IplImage *pImage = NULL;	    		// OpenCV image type
+    			struct feature *pFeatures=NULL;	// SIFT library keypoint type
+    			int pNb=0;
     			
-        		// match frame to frame
-    			// start from frames 2-3 as the frame 1 depth is inaccurate
-        		for (int iFrame=1; iFrame<framesID.size(); iFrame++)
-        			match_SIFT(p_img, p_features, p_nb, framesID[iFrame-1], framesID[iFrame], g_vectDepthMD[iFrame-1], g_vectDepthMD[iFrame]);
-        		
-				char buf_full[256];
-				sprintf(buf_full, "data/cloud_full.pcd");
-				pcl::PointCloud<pcl::PointXYZRGB> cloud_frame;
-				pcl::PointCloud<pcl::PointXYZRGB> cloud_full, cloud_mid;
-				pcl::PointCloud<pcl::PointXYZRGB> cloud_frame_transformed;
-    			
-        		Eigen::Vector4f pose(0, 0, 0, 1.0); 
-        		Eigen::Vector4f origin(0, 0, 0, 1.0);        		
-        		Eigen::Matrix4f cumulated_transformations = Eigen::Matrix4f::Identity();
-        		Eigen::Affine3f tfo;
-        		Eigen::Matrix4f tfo_inv;
-        		bool valid_sequence = true;
-        		
-    			if (savePointCloud)
-    			{
-					cout << "Initialize global point cloud ..." << std::endl;
-					char buf[256];
-					sprintf(buf, "data/cloud%d.pcd", framesID[0]);
-					pcl::io::loadPCDFile(buf, cloud_full);
-    			}
-        		
-        		for (int iPose=0; iPose<g_transformations.size(); iPose++)
+        		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
         		{
-        			pose = g_transformations[iPose].inverse() * pose;
-        			cout << pose << std::endl;
-        			
-        			//cvInvert(g_transformations[iPose], tfo_inv);
-        			
-        			//tfo_inv = ;
-        			/*for (int i=0; i<3; i++)
-        				for (int j=0; j<4; j++)
-        					tfo_inv(i,j) = -tfo_inv(i,j);*/
-        			//tfo_inv(0,3) = -tfo_inv(0,3);
-        			//tfo_inv(1,3) = -tfo_inv(1,3);
-        			//tfo_inv(2,3) = -tfo_inv(2,3);
-        			
-        			cumulated_transformations = cumulated_transformations * g_transformations[iPose];
-        			/*pose = cumulated_transformations * origin;
-        			cout << "--- Origin * tfo cumulated --- \n" << pose << std::endl;
-
-        			cout << "--- Matrix --- \n" << g_transformations[iPose] << std::endl;*/
-
-        			if (! g_pose_transformations[iPose].is_valid)
-        			{
-        				valid_sequence = false;
-            			cout << "--- Invalid sequence - aborting point cloud accumulation --- \n" << std::endl;
-        			}
-        			
-        			if (savePointCloud && valid_sequence)
-        			{
-						cout << "Generating point cloud for frame " << framesID[iPose+1] << "(#" << iPose+1 << ")..." << std::endl;
-						char buf[256];
-						sprintf(buf, "data/cloud%d.pcd", framesID[iPose+1]);
-						pcl::io::loadPCDFile(buf, cloud_frame);
-
-						/*// correct axis orientation
-						for (int ind_y =0; ind_y < g_depthMD.YRes(); ind_y++)
-						{
-							for (int ind_x=0; ind_x < g_depthMD.XRes(); ind_x++)
-							{
-								pcl::PointXYZRGB& pt = cloud_frame(ind_x,ind_y);
-								pt.x = -pt.x;
-								pt.z = -pt.z;
-							}
-						}*/
-						
-						tfo_inv = cumulated_transformations.inverse();
-						tfo = tfo_inv;
-						pcl::getTransformedPointCloud(
-								cloud_frame,
-								tfo,
-								cloud_frame_transformed); 
-
-						// apend transformed point cloud
-						cloud_full += cloud_frame_transformed;
-						 
-						cout << "Appended " << cloud_frame.size() << " for a total of " << cloud_full.size() << "." << std::endl;
-						
-						if (iPose==g_transformations.size()/2)
-						{
-							cout << "Generating middle point cloud for frame " << iPose << "..." << std::endl;
-							pcl::io::loadPCDFile(buf, cloud_frame);
-							cloud_mid = cloud_frame;
-							tfo = g_transformations[iPose];
-							pcl::getTransformedPointCloud(
-									cloud_frame,
-									tfo,
-									cloud_frame_transformed); 
-							cloud_mid += cloud_frame_transformed;
-		    				sprintf(buf_full, "data/cloud_mid.pcd");
-		    				pcl::io::savePCDFile(buf_full, cloud_mid, true);
-		    				// bug in PCL - the binary file is not created with the good rights!
-		    				system("chmod a+r data/cloud_mid.pcd");
-						}
-        			}
+            		// match frame to frame (current with previous)
+        			matchFrames(pImage, pFeatures, pNb, sequenceFramesID[iFrame-1], sequenceFramesID[iFrame], g_vectDepthMD[iFrame-1], g_vectDepthMD[iFrame]);
         		}
-    			if (savePointCloud && cloud_full.size()>0)
-    			{
-    				//cout << "Saving global point cloud ASCII..." << std::endl;
-    				//pcl::io::savePCDFile(buf_full, cloud_full);
-    				cout << "Saving global point cloud binary..." << std::endl;    			
-    				sprintf(buf_full, "data/cloud_full.pcd");
-    				pcl::io::savePCDFile(buf_full, cloud_full, true);
-    				// bug in PCL - the binary file is not created with the good rights!
-    				system("chmod a+r data/cloud_full.pcd");
-    			}
+        		
+        		// build map, generates point cloud
+        		buildMap(sequenceFramesID, savePointCloud);
         		
         		// free data
-        		if (p_img!= NULL)
-        			cvReleaseImage(&p_img);
-        		if (p_features != NULL)
-					free(p_features);
+        		if (pImage!= NULL)
+        			cvReleaseImage(&pImage);
+        		if (pFeatures != NULL)
+					free(pFeatures);
         		for (int i=0; i<g_vectDepthMD.size(); i++)
         			delete g_vectDepthMD[i];
         	}
             g_context.Shutdown();
         }
-        
     }
     else {
     	printf("Select a valid option");
@@ -1110,14 +1067,7 @@ int main(int argc, char** argv)
     }
     
     //cvWaitKey(0);
-    
     //cvReleaseImage(&img1);
     //cvReleaseImage(&img2);
-    
     return 0;
 }
-
-
-
-
-
