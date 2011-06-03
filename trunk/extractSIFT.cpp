@@ -226,9 +226,9 @@ XnStatus connectKinect()
 
 
 // -----------------------------------------------------------------------------------------------------
-//  captureRGB
+//  saveRGBImage
 // -----------------------------------------------------------------------------------------------------
-void captureRGB(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doSave = false){
+void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doSave = false){
 
     // Convert to IplImage 24 bit, 3 channels
     for(unsigned int i = 0; i < g_imageMD.XRes()*g_imageMD.YRes();i++)
@@ -245,80 +245,96 @@ void captureRGB(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doSav
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  captureDepth
+//  saveHistogramImage
 // -----------------------------------------------------------------------------------------------------
-int captureDepth(const XnRGB24Pixel* pImageMap, const XnDepthPixel* pDepthMap, bool saveModeHisto, IplImage* tmp_depth = 0, bool saveImage=false, bool savePointCloud = false)
+int saveHistogramImage(
+		const XnRGB24Pixel* pImageMap,
+		const XnDepthPixel* pDepthMap,
+		IplImage* pImgDepth)
 {
-	if (saveModeHisto)
+	// Calculate the accumulative histogram (the yellow display...)
+	const XnDepthPixel* pDepth = g_depthMD.Data();    
+	xnOSMemSet(g_pDepthHist, 0, MAX_DEPTH*sizeof(float));
+	unsigned int nNumberOfPoints = 0;
+	// count depth values
+	for (XnUInt y = 0; y < g_depthMD.YRes(); ++y)
 	{
-		// Calculate the accumulative histogram (the yellow display...)
-		const XnDepthPixel* pDepth = g_depthMD.Data();    
-		xnOSMemSet(g_pDepthHist, 0, MAX_DEPTH*sizeof(float));
-		unsigned int nNumberOfPoints = 0;
-		// count depth values
-		for (XnUInt y = 0; y < g_depthMD.YRes(); ++y)
+		for (XnUInt x = 0; x < g_depthMD.XRes(); ++x, ++pDepth)
 		{
-			for (XnUInt x = 0; x < g_depthMD.XRes(); ++x, ++pDepth)
+			if (*pDepth != 0)
 			{
-				if (*pDepth != 0)
-				{
-					g_pDepthHist[*pDepth]++;
-					nNumberOfPoints++;
-				}
+				g_pDepthHist[*pDepth]++;
+				nNumberOfPoints++;
 			}
 		}
-		// cumulative sum
+	}
+	// cumulative sum
+	for (int nIndex=1; nIndex<MAX_DEPTH; nIndex++)
+	{
+		g_pDepthHist[nIndex] += g_pDepthHist[nIndex-1];
+	}
+	// rescale to 0..256
+	if (nNumberOfPoints)
+	{
 		for (int nIndex=1; nIndex<MAX_DEPTH; nIndex++)
 		{
-			g_pDepthHist[nIndex] += g_pDepthHist[nIndex-1];
-		}
-		// rescale to 0..256
-		if (nNumberOfPoints)
-		{
-			for (int nIndex=1; nIndex<MAX_DEPTH; nIndex++)
-			{
-				g_pDepthHist[nIndex] = (unsigned int)(256 * (1.0f - (g_pDepthHist[nIndex] / nNumberOfPoints)));
-			}
-		}
-		// generate histogram depth image
-		int i = 0;
-		pDepth = g_depthMD.Data();
-		for (XnUInt y = 0; y < g_depthMD.YRes(); ++y)
-		{
-			for (XnUInt x = 0; x < g_depthMD.XRes(); ++x, ++pDepth, ++i)
-			{
-				unsigned char nHistValue = 0;
-				
-				if (*pDepth != 0)
-					nHistValue = g_pDepthHist[*pDepth];
-				
-				// yellow pixels
-				tmp_depth->imageData[3*i+0] = 0;			//Blue
-				tmp_depth->imageData[3*i+1] = nHistValue;	//Green
-				tmp_depth->imageData[3*i+2] = nHistValue;	//Red
-			}
+			g_pDepthHist[nIndex] = (unsigned int)(256 * (1.0f - (g_pDepthHist[nIndex] / nNumberOfPoints)));
 		}
 	}
-	else
+	// generate histogram depth image
+	int i = 0;
+	pDepth = g_depthMD.Data();
+	for (XnUInt y = 0; y < g_depthMD.YRes(); ++y)
 	{
-	    // Save only the Z value per pixel as an image for quick visualization of depth
-	    for(int i = 0; i < g_depthMD.XRes()*g_depthMD.YRes();i++)
-	    {
-	    	// depth pixels on 16 bits
-	        short value = pDepthMap[i]/16;	// for quick look only
-	        char value_pt1 = pDepthMap[i]>>8;
-	        char value_pt2 = pDepthMap[i]&0xFF;
-	        tmp_depth->imageData[3*i+0]=(char)value_pt1;
-	        tmp_depth->imageData[3*i+1]=(char)value_pt2;
-	        tmp_depth->imageData[3*i+2]=(char)value;
-	    }		
+		for (XnUInt x = 0; x < g_depthMD.XRes(); ++x, ++pDepth, ++i)
+		{
+			unsigned char nHistValue = 0;
+			
+			if (*pDepth != 0)
+				nHistValue = g_pDepthHist[*pDepth];
+			
+			// yellow pixels
+			pImgDepth->imageData[3*i+0] = 0;			//Blue
+			pImgDepth->imageData[3*i+1] = nHistValue;	//Green
+			pImgDepth->imageData[3*i+2] = nHistValue;	//Red
+		}
 	}
 	
-    if (saveImage){   
-        char buf2[256];
-        sprintf(buf2,"data/frame%d_depth.bmp",g_depthMD.FrameID());
-        cvSaveImage(buf2, tmp_depth);
-    }
+	char bufFilename[256];
+	sprintf(bufFilename,"data/frame%d_histo.bmp",g_depthMD.FrameID());
+	cvSaveImage(bufFilename, pImgDepth);
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  saveDepthImage
+// -----------------------------------------------------------------------------------------------------
+int saveDepthImage(
+		const XnRGB24Pixel* pImageMap,
+		const XnDepthPixel* pDepthMap,
+		IplImage* pImgDepth,
+		TDepthPixel* pDepthPixelBuffer,
+		bool savePointCloud)
+{
+	// Save only the Z value per pixel as an image for quick visualization of depth
+	for(int i = 0; i < g_depthMD.XRes()*g_depthMD.YRes();i++)
+	{
+		// depth pixels on 16 bits
+		//short depthValue = pDepthMap[i]/16;	// for quick look only
+		pImgDepth->imageData[3*i+0]=(unsigned char)(pDepthMap[i]>>8);
+		pImgDepth->imageData[3*i+1]=(unsigned char)(pDepthMap[i] & 0xFF);
+		pImgDepth->imageData[3*i+2]=0;
+		// duplicate value to the buffer 
+		pDepthPixelBuffer[i]=pDepthMap[i];
+	}		
+	
+	/*printf("Depth value stored at (320,240) %x %x\n",
+			pDepthPixelBuffer[640*240 + 320],
+			pDepthMap[640*240 + 320]);*/
+	
+	// save the depth image
+	char bufFilename[256];
+	sprintf(bufFilename,"data/frame%d_depth.bmp",g_depthMD.FrameID());
+	cvSaveImage(bufFilename, pImgDepth);
     
 	// point cloud
     if (savePointCloud)
@@ -402,19 +418,12 @@ void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 			char c = xnOSReadCharFromInput();	// to reset the keyboard hit
 			nbRemainingFrames--;
 
-			captureRGB(pImageMap, g_imgRGB, true);
-			int frameID = captureDepth(pImageMap, pDepthMap, false, g_imgDepth, true, true);
+			saveRGBImage(pImageMap, g_imgRGB, true);
+			int frameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, g_depthPixelBuffer[framesID.size()], true);
 			//usleep(100000);
 			
 			printf("--- Adding frame %d in sequence ---\n", frameID);
 			framesID.push_back(frameID);
-			
-			// allocate a new DepthMetaData instance
-			DepthMetaData *pDepthMD = new DepthMetaData;
-			// copy the underlying buffer
-			pDepthMD->CopyFrom(g_depthMD);
-			// store the instance pointer
-			g_vectDepthMD.push_back(pDepthMD);
 		}
 	}
 }
@@ -1112,15 +1121,14 @@ void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
 		g_imgDepth = cvLoadImage( buf2, 1 );
 		if (g_imgDepth != NULL)
 		{
-			for(int i = 0; i < g_depthMD.XRes()*g_depthMD.YRes();i++)
+			for(int i = 0; i < 640*480;i++)
 			{
-				char value_pt1 = g_imgDepth->imageData[3*i+0];
-				char value_pt2 = g_imgDepth->imageData[3*i+1];
+				TDepthPixel depthByte1 = (unsigned char)(g_imgDepth->imageData[3*i+0]);
+				TDepthPixel depthByte2 = (unsigned char)(g_imgDepth->imageData[3*i+1]);
 				// depth pixels on 16 bits
-				g_depthPixelBuffer[iFrame][i] = (value_pt1<<8) | value_pt2; 			
-				
-				g_depthPixelBuffer[iFrame][i] = g_imgDepth->imageData[3*i+2] * 16;
+				g_depthPixelBuffer[iFrame][i] = (depthByte1<<8) | depthByte2; 			
 			}
+			//printf("Depth value reloaded at (320,240):%x\n", g_depthPixelBuffer[iFrame][640*240 + 320]);
 		}
 	}
 	
@@ -1147,6 +1155,8 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud, bool b
 						sequenceFramesID[iFrame],
 						g_depthPixelBuffer[iFrame-1],
 						g_depthPixelBuffer[iFrame]);
+				printf("Depth value reloaded at (320,240):%d\n", g_depthPixelBuffer[iFrame-1][640*240 + 320]);				
+				printf("Depth value reloaded at (320,240):%d\n", g_depthPixelBuffer[iFrame][640*240 + 320]);				
 			}
 			else
 			{
@@ -1229,7 +1239,7 @@ int main(int argc, char** argv)
         	generateFrames(nbFrames, sequenceFramesID);
         
         	// build map 
-        	buildMapSequence(sequenceFramesID, savePointCloud, false);
+        	buildMapSequence(sequenceFramesID, savePointCloud, true);
         	
             g_context.Shutdown();
         }
