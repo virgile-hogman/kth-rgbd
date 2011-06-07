@@ -28,6 +28,11 @@ extern "C" {
 }
 //#include "extract.h"
 
+#include "FrameData.h"
+#include "Timer.h"
+
+#include "CommonTypes.h"
+
 // Open NI
 #include <XnCppWrapper.h>
 #include <XnFPSCalculator.h>
@@ -53,8 +58,6 @@ using namespace std;
 
 #define SAMPLE_XML_PATH "SamplesConfig.xml"
 
-#define NBPIXELS_X_HALF 320
-#define NBPIXELS_Y_HALF 240
 
 /* the maximum number of keypoint NN candidates to check during BBF search */
 #define KDTREE_BBF_MAX_NN_CHKS 200
@@ -77,47 +80,22 @@ Context g_context;
 XnFPSData xnFPS;
 XnUInt64 no_sample_value, shadow_value;
 
-vector<DepthMetaData*> g_vectDepthMD;
-//DepthMetaData g_arrayMD[50];
-
 #define MAX_DEPTH 10000
 float g_pDepthHist[MAX_DEPTH];
-XnRGB24Pixel* g_pTexMap = NULL;
-unsigned int g_nTexMapX = 0;
-unsigned int g_nTexMapY = 0;
 
-IplImage* rgb_data=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
-IplImage* depth_data=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
-
+// working buffers reused for each frame (just to avoid reallocate the arrays each time) 
 IplImage* g_imgRGB = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 IplImage* g_imgDepth = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 
 std::string g_dataDirectory = "data";
 
 // PCL
+pcl::PointCloud<pcl::PointXYZRGB> g_cloudPointSave;
+
+// -----------------------------------------------------------------------------------------------------
+//  common data types
+// -----------------------------------------------------------------------------------------------------
 float bad_point = std::numeric_limits<float>::quiet_NaN ();
-pcl::PointCloud<pcl::PointXYZRGB> cloud_save;
-
-
-typedef	unsigned short	TDepthPixel;	// 16 bits
-
-// temporary buffers
-#define NB_DEPTHPIXEL_BUFFERS 20
-TDepthPixel	g_depthPixelBuffer[NB_DEPTHPIXEL_BUFFERS][640*480];
-
-typedef union
-{
-  struct /*anonymous*/
-  {
-    unsigned char Blue; // Blue channel
-    unsigned char Green; // Green channel
-    unsigned char Red; // Red channel
-    unsigned char Alpha; // Alpha channel
-  };
-  float float_value;
-  long long_value;
-} RGBValue;
-
 
 // -----------------------------------------------------------------------------------------------------
 //  Transformations
@@ -133,49 +111,9 @@ public:
 // for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html
 };
 
-vector<PoseTransformation, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
+typedef vector<PoseTransformation, Eigen::aligned_allocator<Eigen::Vector4f> > TPoseTransformationVector;
 
 //vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
-
-
-// -----------------------------------------------------------------------------------------------------
-//  Timer for performance tracker
-// -----------------------------------------------------------------------------------------------------
-#include <cstdlib>
-#include <sys/time.h>
-
-class Timer
-{
-    timeval timer[2];
-
-  public:
-
-    timeval start()
-    {
-        gettimeofday(&this->timer[0], NULL);
-        return this->timer[0];
-    }
-
-    timeval stop()
-    {
-        gettimeofday(&this->timer[1], NULL);
-        return this->timer[1];
-    }
-
-    int duration() const
-    {
-        int secs(this->timer[1].tv_sec - this->timer[0].tv_sec);
-        int usecs(this->timer[1].tv_usec - this->timer[0].tv_usec);
-
-        if(usecs < 0)
-        {
-            --secs;
-            usecs += 1000000;
-        }
-
-        return static_cast<int>(secs * 1000 + usecs / 1000.0 + 0.5);
-    }
-};
 
 
 // -----------------------------------------------------------------------------------------------------
@@ -312,9 +250,11 @@ int saveDepthImage(
 		const XnRGB24Pixel* pImageMap,
 		const XnDepthPixel* pDepthMap,
 		IplImage* pImgDepth,
-		TDepthPixel* pDepthPixelBuffer,
 		bool savePointCloud)
 {
+	printf("Nb Channels: %d depth:%d/%d\n", pImgDepth->nChannels, pImgDepth->depth, IPL_DEPTH_16U);
+	fflush(stdout);
+	
 	// Save only the Z value per pixel as an image for quick visualization of depth
 	for(int i = 0; i < g_depthMD.XRes()*g_depthMD.YRes();i++)
 	{
@@ -323,13 +263,9 @@ int saveDepthImage(
 		pImgDepth->imageData[3*i+0]=(unsigned char)(pDepthMap[i]>>8);
 		pImgDepth->imageData[3*i+1]=(unsigned char)(pDepthMap[i] & 0xFF);
 		pImgDepth->imageData[3*i+2]=0;
-		// duplicate value to the buffer 
-		pDepthPixelBuffer[i]=pDepthMap[i];
-	}		
-	
-	/*printf("Depth value stored at (320,240) %x %x\n",
-			pDepthPixelBuffer[640*240 + 320],
-			pDepthMap[640*240 + 320]);*/
+		//pImgDepth->imageData[i] = pDepthMap[i];
+	}
+	//printf("Depth value saved at (320,240):%x \t%x\n", pDepthMap[MIDDLE_POINT], (unsigned short)pImgDepth->imageData[MIDDLE_POINT]);	
 	
 	// save the depth image
 	char bufFilename[256];
@@ -348,7 +284,7 @@ int saveDepthImage(
 		{
 			for (int ind_x=0; ind_x < g_depthMD.XRes(); ind_x++, depth_index++)
 			{
-				pcl::PointXYZRGB& pt = cloud_save(ind_x,ind_y);
+				pcl::PointXYZRGB& pt = g_cloudPointSave(ind_x,ind_y);
 		
 				if (pDepthMap[depth_index] == no_sample_value ||
 					pDepthMap[depth_index] == shadow_value ||
@@ -372,7 +308,7 @@ int saveDepthImage(
 		
 		char buf[256];
 		sprintf(buf, "data/cloud%d.pcd", g_depthMD.FrameID());
-		pcl::io::savePCDFile(buf, cloud_save, true);
+		pcl::io::savePCDFile(buf, g_cloudPointSave, true);
 		// bug in PCL - the binary file is not created with the good rights!
 		char bufsys[256];
 		sprintf(bufsys, "chmod a+r %s", buf);
@@ -406,7 +342,7 @@ void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 			pDepthMap = g_depthMD.Data();
 			pImageMap = g_image.GetRGB24ImageMap();
 			
-			printf("Test: Frame %02d (%dx%d) Middle point is: %u. FPS: %f\n",
+			printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f\n",
 					g_depthMD.FrameID(),
 					g_depthMD.XRes(),
 					g_depthMD.YRes(),
@@ -419,7 +355,7 @@ void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 			nbRemainingFrames--;
 
 			saveRGBImage(pImageMap, g_imgRGB, true);
-			int frameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, g_depthPixelBuffer[framesID.size()], true);
+			int frameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, true);
 			//usleep(100000);
 			
 			printf("--- Adding frame %d in sequence ---\n", frameID);
@@ -487,38 +423,24 @@ void computeInliersAndError(
 // -----------------------------------------------------------------------------------------------------
 //  matchFrames
 // -----------------------------------------------------------------------------------------------------
-void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_nbfeatures,
+bool matchFrames(
 		int frameID1,
 		int frameID2,
-		const TDepthPixel *pDepthData1,
-		const TDepthPixel *pDepthData2)
+		FrameData &frameData1,
+		FrameData &frameData2,
+		TPoseTransformationVector &resultingTransformations)
 {
     Timer tm;
-
-	//char buf1[256], buf2[256];
-	//sprintf(buf1, "data/cloudXYZ%d.pcd", frameID1);
-	//sprintf(buf2, "data/cloudXYZ%d.pcd", frameID2);
-	// generate range image
-	char buf2[256];
-	/*
-	sprintf(buf1, "data/cloudXYZ%d.pcd", frameID1);
-	sprintf(buf2, "data/cloudXYZ%d.pcd", frameID2);            
-	visualizeRangeImage2(buf1,buf2);*/
-	
-	// OpenCV image type
-	IplImage *img2 = NULL;
-	struct feature *features2=NULL; // SIFT library keypoint type
-	int n2=0;
-	
+	char buf[256];
 	IplImage* imgStacked = NULL;
-	
 	CvFont font;
 	double hScale=0.5;
 	double vScale=0.5;
 	int    lineWidth=1;
+	
+	// define a font to write some text
 	cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX, hScale,vScale,0,lineWidth);
-
-
+	
 	// ---------------------------------------------------------------------------
 	// feature detection
 	// ---------------------------------------------------------------------------
@@ -526,36 +448,39 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 	printf("Frames %03d-%03d:\t Extracting SIFT features... ", frameID1, frameID2);
 	fflush(stdout);
 	
-	// load image using OpenCV and detect keypoints in previous frame
-	if (prev_features == NULL)
+	// load data Frame1
+	if (! frameData1.isLoaded(frameID1))
 	{
-		printf("With first frame... ");		
-		char buf[256];
-		sprintf(buf, "data/frame%d_rgb.bmp", frameID1);            
-		prev_img = cvLoadImage( buf, 1 );
-		if (prev_img != NULL)
-			prev_nbfeatures = sift_features( prev_img, &prev_features );
+		// it should be done only for the first frame of the sequence
+		// for the next ones, the data is simply reassigned from the frame2 (previously) 
+		printf("Loading first frame... ");
+		fflush(stdout);
+		if (!frameData1.loadImage(frameID1))
+			return false;
+		if (!frameData1.loadDepthData())
+			return false;
 		
-		// draw SIFT features 
-		draw_features(prev_img, prev_features, prev_nbfeatures);
-		cvPutText(prev_img, buf, cvPoint(5, 20), &font, cvScalar(255,255,0));
+		frameData1.computeFeatures();
+		frameData1.drawFeatures(font);
 	}
 	
-	// load image using OpenCV and detect keypoints in new frame
-	sprintf(buf2, "data/frame%d_rgb.bmp", frameID2);            
-	img2 = cvLoadImage( buf2, 1 );
-	if (img2 != NULL)
-		n2 = sift_features( img2, &features2 );
-	
-	// draw SIFT features  
-	draw_features(img2, features2, n2);
-	cvPutText(img2, buf2, cvPoint(5, 20), &font, cvScalar(255,255,0));	
+	// load data Frame2
+	if (! frameData2.isLoaded(frameID2))
+	{
+		if (!frameData2.loadImage(frameID2))
+			return false;
+		if (!frameData2.loadDepthData())
+			return false;
+		
+		frameData2.computeFeatures();
+		frameData2.drawFeatures(font);		
+	}
 
 	// stack the 2 images
-	imgStacked = stack_imgs( prev_img, img2 );
+	imgStacked = stack_imgs( frameData1.getImage(), frameData2.getImage() );
 				
     tm.stop();
-	printf("\t%d + %d features.\t(%dms)\n", prev_nbfeatures, n2, tm.duration());
+	printf("\t%d + %d features.\t(%dms)\n", frameData1.getNbFeatures(), frameData2.getNbFeatures(), tm.duration());
 	fflush(stdout);
 	
 	// ---------------------------------------------------------------------------
@@ -586,11 +511,11 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 	//}
 	
 	// try match the new features found in the 2d frame...
-	kd_root = kdtree_build( features2, n2 );
-	for( i=0; i < prev_nbfeatures; i++ )
+	kd_root = kdtree_build( frameData2.getFeatures(), frameData2.getNbFeatures() );
+	for( i=0; i < frameData1.getNbFeatures(); i++ )
 	{
 		// ... looking in the 1st frame
-		feat = prev_features + i;
+		feat = frameData1.getFeatures() + i;
 		// search for 2 nearest neighbours
 		k = kdtree_bbf_knn( kd_root, feat, 2, &neighbour_features, KDTREE_BBF_MAX_NN_CHKS );
 		if( k == 2 )
@@ -601,18 +526,18 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 			// check if the 2 are close enough
 			if( d0 < d1 * NN_SQ_DIST_RATIO_THR )
 			{
-	            const struct feature* feat1 = &prev_features[i];
+	            const struct feature* feat1 = frameData1.getFeature(i);
 	            const struct feature* feat2 = neighbour_features[0];
 	            
 				// draw a line through the 2 points in the stacked image
 				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
 				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-				pt2.y += prev_img->height;
+				pt2.y += frameData1.getImage()->height;
 				nb_matches++;
 				
 				// read depth info
-				const TDepthPixel depth1 = pDepthData1[cvRound(feat1->y) * 640 + cvRound(feat1->x)];
-				const TDepthPixel depth2 = pDepthData2[cvRound(feat2->y) * 640 + cvRound(feat2->x)];
+				const TDepthPixel depth1 = frameData1.getFeatureDepth(feat1);
+				const TDepthPixel depth2 = frameData2.getFeatureDepth(feat2);				
 				
 				// check if depth values are close enough (values in mm)
 				if (depth1>0 && //depth1<2000 &&
@@ -624,7 +549,7 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 					// this is a valid match
 					nb_valid_matches++;
 					// fwd link the previous features to the new features according to the match
-					prev_features[i].fwd_match = neighbour_features[0];
+					frameData1.setFeatureMatch(i, neighbour_features[0]);
 					index_matches.push_back(i);
 			
 					// convert pixels to metric
@@ -677,14 +602,13 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
 		
 	// save stacked image
-	char buf[256];
 	sprintf(buf, "data/sift_stacked%d.bmp", frameID1);
 	cvSaveImage(buf, imgStacked);
+	cvReleaseImage(&imgStacked);
 
 	tm.stop();
     fprintf( stderr, "\tKeeping %d/%d matches.\t(%dms)\n", nb_valid_matches, nb_matches, tm.duration() );
 	fflush(stdout);
-	//display_big_img( imgStacked, "Matches" );
 
 	/*
 	// ---------------------------------------------------------------------------
@@ -701,12 +625,12 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 
 	    // transform
 		// lsq_homog -> least-squares planar homography
-		H = ransac_xform( prev_features, prev_nbfeatures, FEATURE_FWD_MATCH,
+		H = ransac_xform( frameData1.getFeatures(), frameData1.getFeatures(), FEATURE_FWD_MATCH,
 				lsq_homog, 4, 0.01, homog_xfer_err, 3.0, NULL, NULL );
 		if( H != NULL )
 		{
 			xformed = cvCreateImage( cvGetSize( img2 ), IPL_DEPTH_8U, 3 );
-			cvWarpPerspective( prev_img, xformed, H, 
+			cvWarpPerspective( frameData1.getImage(), xformed, H, 
 						CV_INTER_LINEAR + CV_WARP_FILL_OUTLIERS,
 						cvScalarAll( 0 ) );
 			
@@ -745,25 +669,25 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 		
 		// find transform pairs
 	    pcl::TransformationFromCorrespondences tfc;
-		for (int i=0; i<prev_nbfeatures ; i++)
+		for (int i=0; i<frameData1.getNbFeatures() ; i++)
 		{
 			fprintf(stderr, "."); fflush(stderr);
-			if (prev_features[i].fwd_match != NULL)
+			if (frameData1.getFeatureMatch(i) != NULL)
 			{
 				// read depth info
 				const XnDepthPixel* p1 = g_vectDepthMD[frameID1-1]->Data();
 				const XnDepthPixel* p2 = g_vectDepthMD[frameID2-1]->Data();
 				
 				const XnDepthPixel d1 = p1[cvRound(feat->y)*640 + cvRound(feat->x)];
-				const XnDepthPixel d2 = p2[cvRound(prev_features[i].fwd_match->y)*640 + cvRound(prev_features[i].fwd_match->x)];
+				const XnDepthPixel d2 = p2[cvRound(frameData1.getFeatureMatch(i)->y)*640 + cvRound(frameData1.getFeatureMatch(i)->x)];
 				
 				// convert pixels to metric
-                float x1 = (prev_features[i].x - 320) * d1 * constant;
-                float y1 = (prev_features[i].y - 240) * d1 * constant;
+                float x1 = (frameData1.getFeature(i)->x - 320) * d1 * constant;
+                float y1 = (frameData1.getFeature(i)->y - 240) * d1 * constant;
                 float z1 = d1 * 0.001 ; // because values are in mm
 				
-                float x2 = (prev_features[i].fwd_match->x - 320) * d2 * constant;
-                float y2 = (prev_features[i].fwd_match->y - 240) * d2 * constant;
+                float x2 = (frameData1.getFeatureMatch(i)->x - 320) * d2 * constant;
+                float y2 = (frameData1.getFeatureMatch(i)->y - 240) * d2 * constant;
                 float z2 = d2 * 0.001 ; // because values are in mm
 
 				Eigen::Vector3f from(x1,y1,z1);
@@ -896,35 +820,37 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 		
 		if (index_best_inliers.size()>0)
 		{
+			// SUCCESS - TRANSFORMATION IS DEFINED
+			PoseTransformation pose;
+			
 			// print the transformation matrix
 			std::cerr << "Best Transformation --->\t" << index_best_inliers.size() << " inliers and mean error="<< best_error << std::endl;
 			std:cerr << best_transformation << std::endl;
 			fflush(stderr);
 
-			PoseTransformation pose;
 			pose._is_valid = true;
 			pose._matrix = best_transformation;
 			pose._error = best_error;
-			g_transformations.push_back(pose);
+			resultingTransformations.push_back(pose);
 			
 			// draw inliers
 			IplImage* stacked_inliers = NULL;
 			
 			// stack the 2 images
-			stacked_inliers = stack_imgs( prev_img, img2 );
+			stacked_inliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
 						
 			// draw green lines for the best inliers
 			for (int i=0; i<index_best_inliers.size(); i++)
 			{
 				int id_inlier = index_best_inliers[i];
 				int id_match = index_matches[id_inlier];
-	            const struct feature* feat1 = &prev_features[id_match];
-	            const struct feature* feat2 = prev_features[id_match].fwd_match;
+	            const struct feature* feat1 = frameData1.getFeature(id_match);
+	            const struct feature* feat2 = frameData1.getFeatureMatch(id_match);
 				
 				// draw a line through the 2 points in the stacked image
 				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
 				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-				pt2.y += prev_img->height;
+				pt2.y += frameData1.getImage()->height;
 				// draw a green line
 				cvLine( stacked_inliers, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
 			}
@@ -934,54 +860,44 @@ void matchFrames(IplImage* &prev_img, struct feature* &prev_features, int &prev_
 			for (int i=0; i<initialPairs.size(); i++)
 			{
 				int id_match = initialPairs[i];
-	            const struct feature* feat1 = &prev_features[id_match];
-	            const struct feature* feat2 = prev_features[id_match].fwd_match;
+	            const struct feature* feat1 = frameData1.getFeature(id_match);
+	            const struct feature* feat2 = frameData1.getFeatureMatch(id_match);
 				
 				// draw a line through the 2 points in the stacked image
 				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
 				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-				pt2.y += prev_img->height;
+				pt2.y += frameData1.getImage()->height;
 				// draw a green line
-				cvLine( stacked_inliers, pt1, pt2, CV_RGB(100,200,100), 2, 8, 0 );
+				cvLine( stacked_inliers, pt1, pt2, CV_RGB(0,0,140), 2, 8, 0 );
 			}
 			
 			// save stacked image
-			char buf[256];
 			sprintf(buf, "data/sift_stacked%d_inliers.bmp", frameID1);
 			cvSaveImage(buf, stacked_inliers);
 			cvReleaseImage(&stacked_inliers);
 		}
 		else
 		{
+			// FAILURE - TRANSFORMATION IS NOT DEFINED
 			fprintf(stderr, "No transformation found!\n");
 			//Eigen::Matrix4f tfo = Eigen::Matrix4f::Identity();
-			//g_transformations.push_back(tfo);
+			//resultingTransformations.push_back(tfo);
 			
 			PoseTransformation pose;
 			pose._is_valid = false;
 			pose._matrix = Eigen::Matrix4f::Identity();
 			pose._error = 1.0;
-			g_transformations.push_back(pose);
-									
+			resultingTransformations.push_back(pose);
 		}
 	}
 	
-	// free data
-	cvReleaseImage(&prev_img);
-	free(prev_features);
-	
-	// assign previous data to the last frame
-	prev_img = img2;
-	prev_features = features2;
-	prev_nbfeatures = n2;
-		
-	cvReleaseImage(&imgStacked);
+	return true;
 }
 
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
-void buildMap(vector<int> &framesID, bool savePointCloud)
+void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformations, bool savePointCloud)
 {
 	char buf_full[256];
 	sprintf(buf_full, "data/cloud_full.pcd");
@@ -994,7 +910,7 @@ void buildMap(vector<int> &framesID, bool savePointCloud)
 	Eigen::Matrix4f inverseTfo;
 	bool valid_sequence = true;
 	
-	if (savePointCloud && g_transformations.size()>0)
+	if (savePointCloud && poseTransformations.size()>0)
 	{
 		cout << "Initialize point cloud frame " << framesID[0] << " (#1/" << framesID.size() << ")..." << std::endl;
 		char buf[256];
@@ -1002,22 +918,18 @@ void buildMap(vector<int> &framesID, bool savePointCloud)
 		pcl::io::loadPCDFile(buf, cloudFull);
 	}
 	
-	for (int iPose=0; iPose<g_transformations.size(); iPose++)
+	for (int iPose=0; iPose<poseTransformations.size(); iPose++)
 	{
 		cout << "----------------------------------------------------------------------------" << std::endl;
 		pcl::PointXYZRGB ptCameraPose;
-		cameraPose = g_transformations[iPose]._matrix.inverse() * cameraPose;
+		cameraPose = poseTransformations[iPose]._matrix.inverse() * cameraPose;
 		cout << cameraPose << std::endl;
-		//ptCameraPose.x = cameraPose[0];
-		//ptCameraPose.y = cameraPose[1];
-		//ptCameraPose.z = cameraPose[2];
-		//ptCameraPose.rgb = 255;
 		
 		// compute global transformation from the start
-		cumulatedTransformation = cumulatedTransformation * g_transformations[iPose]._matrix;
+		cumulatedTransformation = cumulatedTransformation * poseTransformations[iPose]._matrix;
 
-		cout << "Mean error:" << g_transformations[iPose]._error << std::endl;
-		if (! g_transformations[iPose]._is_valid)
+		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
+		if (! poseTransformations[iPose]._is_valid)
 		{
 			valid_sequence = false;
 			cout << "--- Invalid sequence - aborting point cloud accumulation --- \n" << std::endl;
@@ -1026,7 +938,7 @@ void buildMap(vector<int> &framesID, bool savePointCloud)
 		// update global point cloud
 		if (savePointCloud && valid_sequence)
 		{
-			cout << "Generating point cloud frame " << framesID[iPose+1] << " (#" << iPose+2 << "/" << framesID.size() << ")...";
+			cout << "Generating point cloud frame #" << framesID[iPose+1] << " (" << iPose+2 << "/" << framesID.size() << ")...";
 			char buf[256];
 			sprintf(buf, "data/cloud%d.pcd", framesID[iPose+1]);
 			pcl::io::loadPCDFile(buf, cloudFrame);
@@ -1052,8 +964,7 @@ void buildMap(vector<int> &framesID, bool savePointCloud)
 			
 			// apend transformed point cloud
 			cloudFull += cloudFrameTransformed;
-			cout << " +" << cloudFrame.size() << " points => " << cloudFull.size() << " total." << std::endl;
-			
+			cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
 		}
 	}
 	if (savePointCloud && cloudFull.size()>0)
@@ -1084,14 +995,9 @@ void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
 		if (boost::filesystem::extension(*itr)==".bmp" &&
 			sscanf(itr->leaf().c_str(), "frame%d", &frameID)==1)
 		{
-			printf("%i: %s\t%s\n", frameID, itr->leaf().c_str(), itr->path().string().c_str());
+			printf("Add frame file #%i: %s\t%s\n", frameID, itr->leaf().c_str(), itr->path().string().c_str());
 			listFramesID.push_back(frameID);
 		}
-		/*
-		 if ( itr->leaf() == file_name ) // see below
-		{
-		  path_found = itr->path();
-		}*/
 	}
 	// sort and keep only 1 element 
 	listFramesID.sort();
@@ -1106,80 +1012,40 @@ void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
 		listFramesID.pop_front();
 	}
 	cout << std::endl;
-
-	// read depth data
-	for (int iFrame=0; iFrame<sequenceFramesID.size(); iFrame++)
-	{
-		frameID = sequenceFramesID[iFrame];
-		cout << "Read depth from frame: " << frameID << std::endl;
-		
-		if (iFrame>NB_DEPTHPIXEL_BUFFERS-1)
-			break;
-	
-		char buf2[256];
-		sprintf(buf2,"data/frame%d_depth.bmp",frameID);
-		g_imgDepth = cvLoadImage( buf2, 1 );
-		if (g_imgDepth != NULL)
-		{
-			for(int i = 0; i < 640*480;i++)
-			{
-				TDepthPixel depthByte1 = (unsigned char)(g_imgDepth->imageData[3*i+0]);
-				TDepthPixel depthByte2 = (unsigned char)(g_imgDepth->imageData[3*i+1]);
-				// depth pixels on 16 bits
-				g_depthPixelBuffer[iFrame][i] = (depthByte1<<8) | depthByte2; 			
-			}
-			//printf("Depth value reloaded at (320,240):%x\n", g_depthPixelBuffer[iFrame][640*240 + 320]);
-		}
-	}
-	
 }
 
-void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud, bool bModeReload)
+void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 {
 	if (sequenceFramesID.size()>=2)
 	{
-		// store the previous image and feature
-		IplImage *pImage = NULL;	    		// OpenCV image type
-		struct feature *pFeatures=NULL;	// SIFT library keypoint type
-		int pNb=0;
+		FrameData frameData1, frameData2;
+		TPoseTransformationVector resultingTransformations;
+		bool retCode;
 		
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
 		{
 			// match frame to frame (current with previous)
-			if (bModeReload)
-			{
-				matchFrames(pImage,
-						pFeatures,
-						pNb,
-						sequenceFramesID[iFrame-1],
-						sequenceFramesID[iFrame],
-						g_depthPixelBuffer[iFrame-1],
-						g_depthPixelBuffer[iFrame]);
-				printf("Depth value reloaded at (320,240):%d\n", g_depthPixelBuffer[iFrame-1][640*240 + 320]);				
-				printf("Depth value reloaded at (320,240):%d\n", g_depthPixelBuffer[iFrame][640*240 + 320]);				
-			}
-			else
-			{
-				matchFrames(pImage,
-						pFeatures,
-						pNb,
-						sequenceFramesID[iFrame-1],
-						sequenceFramesID[iFrame],
-						g_vectDepthMD[iFrame-1]->Data(),
-						g_vectDepthMD[iFrame]->Data());
-			}
+			retCode = matchFrames(
+					sequenceFramesID[iFrame-1],
+					sequenceFramesID[iFrame],
+					frameData1,
+					frameData2,
+					resultingTransformations);
+			
+			if (!retCode)
+				break;	// some problem
+			
+			// free data
+			frameData1.releaseData();
+			// reassign the last frame to avoid reloading all the data twice
+			frameData1.assignData(frameData2);
 		}
 		
 		// build map, generates point cloud
-		buildMap(sequenceFramesID, savePointCloud);
+		buildMap(sequenceFramesID, resultingTransformations, savePointCloud);
 		
-		// free data
-		if (pImage!= NULL)
-			cvReleaseImage(&pImage);
-		if (pFeatures != NULL)
-			free(pFeatures);
-		for (int i=0; i<g_vectDepthMD.size(); i++)
-			delete g_vectDepthMD[i];
+		frameData1.releaseData();
+		frameData2.releaseData();
 	}
 	
 }
@@ -1219,7 +1085,7 @@ int main(int argc, char** argv)
     	loadSequence(g_dataDirectory.c_str(), sequenceFramesID);
     	
     	// build map 
-    	buildMapSequence(sequenceFramesID, savePointCloud, true);
+    	buildMapSequence(sequenceFramesID, savePointCloud);
 	}
     
     if (strcmp(argv[1], "--save") == 0)
@@ -1231,15 +1097,16 @@ int main(int argc, char** argv)
         nRetVal = connectKinect();
         if (nRetVal == XN_STATUS_OK)
         {
-        	cloud_save.width = 640;
-            cloud_save.height = 480;
-            cloud_save.points.resize (640*480);
+        	// allocate the point cloud buffer
+        	g_cloudPointSave.width = 640;
+            g_cloudPointSave.height = 480;
+            g_cloudPointSave.points.resize (640*480);
         	
         	// generate n frames and get its sequence
         	generateFrames(nbFrames, sequenceFramesID);
         
         	// build map 
-        	buildMapSequence(sequenceFramesID, savePointCloud, true);
+        	buildMapSequence(sequenceFramesID, savePointCloud);
         	
             g_context.Shutdown();
         }
@@ -1249,8 +1116,5 @@ int main(int argc, char** argv)
     	return -1;
     }
     
-    //cvWaitKey(0);
-    //cvReleaseImage(&img1);
-    //cvReleaseImage(&img2);
     return 0;
 }
