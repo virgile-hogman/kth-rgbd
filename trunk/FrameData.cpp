@@ -5,12 +5,14 @@
 
 #include "FrameData.h"
 
+
 // Open CV
-//#include "cxcore.h"
-//#include "extract.h"
+#include "highgui.h"
 
 // standard
 #include <stdio.h>
+
+std::string FrameData::_DataPath;
 
 // -----------------------------------------------------------------------------------------------------
 //  FrameData
@@ -37,17 +39,19 @@ bool FrameData::loadImage(int frameID)
 	printf("Loading RGB data for frame %d\n", frameID);
 	fflush(stdout);
 	
-	sprintf(buf, "data/frame%d_rgb.bmp", frameID);            
+	// load RGB data file
+	sprintf(buf, "%s/frame%d_rgb.bmp", _DataPath.c_str(), frameID);    
 	_pImage  = cvLoadImage( buf, 1 );
 	if (_pImage != NULL)
-		_frameID = frameID;
+		_frameID = frameID;	// valid ID 
 	else
-		_frameID = -1;
+		_frameID = -1;		// invalid ID
 	return (_pImage != NULL);
 }
 
 bool FrameData::isLoaded(int frameID)
 {
+	// check only if RGB data is available here
 	return (_frameID == frameID && _pImage != NULL);
 }
 
@@ -59,30 +63,33 @@ bool FrameData::loadDepthData()
 	printf("Loading depth data for frame %d\n", _frameID);
 	fflush(stdout);
 	
-	if (_depthData != NULL)
-		delete _depthData;
-	_depthData = NULL;
-	
-	sprintf(buf,"data/frame%d_depth.bmp", _frameID);
-	pImageDepth = cvLoadImage( buf, -1 );	// read 1 channel
+	// load depth data file
+	sprintf(buf,"%s/frame%d_depth.bmp", _DataPath.c_str(), _frameID);
+	pImageDepth = cvLoadImage( buf, -1 );	// read channels as defined in file
 	if (pImageDepth != NULL)
 	{
-		printf("Nb Channels: %d depth:%d/%d\n", pImageDepth->nChannels, pImageDepth->depth, IPL_DEPTH_16U);
-		fflush(stdout);
-		
-		pImageDepth->depth = IPL_DEPTH_16U;		
-		
 		// allocate depth buffer
-		_depthData = new TDepthPixel[640*480];
+		if (_depthData == NULL)
+			_depthData = new TDepthPixel[640*480];
+		// otherwise assume it has the correct size (only 1 format handled at a time)
+		
 		for(int i = 0; i < 640*480;i++)
 		{
+			// depth pixels on 16 bits but it is splitted on 2 channels * 8U in the file
 			TDepthPixel depthByte1 = (unsigned char)(pImageDepth->imageData[3*i+0]);
 			TDepthPixel depthByte2 = (unsigned char)(pImageDepth->imageData[3*i+1]);
-			// depth pixels on 16 bits
 			_depthData[i] = (depthByte1<<8) | depthByte2;
 		}
-		printf("Depth value reloaded at (320,240):%x\n", _depthData[640*240 + 320]);				
+		//printf("Depth value reloaded at (320,240):%x\n", _depthData[640*240 + 320]);				
 	}
+	else
+	{
+		// free depth buffer
+		if (_depthData != NULL)
+			delete _depthData;
+		_depthData = NULL;
+	}
+	
 	return (_depthData != NULL);
 }
 
@@ -137,6 +144,3 @@ void FrameData::drawFeatures(CvFont &font)
 	draw_features(_pImage, _pFeatures, _nbFeatures);
 	cvPutText(_pImage, buf, cvPoint(5, 20), &font, cvScalar(255,255,0));
 }
-
-
-

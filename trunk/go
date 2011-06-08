@@ -1,4 +1,4 @@
 cd ~/Projects/extract_sift/bin
 rm -f data/*
-sudo ./extractSIFT --save $1
+sudo ./kth-slam --save $1
 cd --

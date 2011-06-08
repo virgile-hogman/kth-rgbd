@@ -4,7 +4,6 @@
 #include "CommonTypes.h"
 
 #include "cv.h"
-#include "highgui.h"
 
 extern "C" {
 #include "sift.h"
@@ -72,6 +71,9 @@ public:
 	int computeFeatures();
 
 	void drawFeatures(CvFont &font);
+	
+	// directory where to load/save the data files
+	static std::string _DataPath;
 };
 
 #endif

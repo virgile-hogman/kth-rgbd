@@ -69,6 +69,9 @@ const double rgb_focal_length_VGA = 525;
 #define NB_RANSAC_ITERATIONS 20
 #define MIN_NB_INLIERS		10
 
+#define MAX_DEPTH_HISTOGRAM 10000		// previously used for histogram only
+
+
 //---------------------------------------------------------------------------
 // Globals
 //---------------------------------------------------------------------------
@@ -79,9 +82,6 @@ ImageMetaData g_imageMD;
 Context g_context;
 XnFPSData xnFPS;
 XnUInt64 no_sample_value, shadow_value;
-
-#define MAX_DEPTH 10000
-float g_pDepthHist[MAX_DEPTH];
 
 // working buffers reused for each frame (just to avoid reallocate the arrays each time) 
 IplImage* g_imgRGB = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
@@ -177,7 +177,7 @@ void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doS
     }
     if (doSave){
         char buf[256];
-        sprintf(buf, "data/frame%d_rgb.bmp",g_depthMD.FrameID());
+        sprintf(buf, "%s/frame%d_rgb.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
         cvSaveImage(buf, tmp_img);
     }
 }
@@ -190,9 +190,11 @@ int saveHistogramImage(
 		const XnDepthPixel* pDepthMap,
 		IplImage* pImgDepth)
 {
+	float depthHistogram[MAX_DEPTH_HISTOGRAM];
+	
 	// Calculate the accumulative histogram (the yellow display...)
 	const XnDepthPixel* pDepth = g_depthMD.Data();    
-	xnOSMemSet(g_pDepthHist, 0, MAX_DEPTH*sizeof(float));
+	xnOSMemSet(depthHistogram, 0, MAX_DEPTH_HISTOGRAM*sizeof(float));
 	unsigned int nNumberOfPoints = 0;
 	// count depth values
 	for (XnUInt y = 0; y < g_depthMD.YRes(); ++y)
@@ -201,22 +203,22 @@ int saveHistogramImage(
 		{
 			if (*pDepth != 0)
 			{
-				g_pDepthHist[*pDepth]++;
+				depthHistogram[*pDepth]++;
 				nNumberOfPoints++;
 			}
 		}
 	}
 	// cumulative sum
-	for (int nIndex=1; nIndex<MAX_DEPTH; nIndex++)
+	for (int nIndex=1; nIndex<MAX_DEPTH_HISTOGRAM; nIndex++)
 	{
-		g_pDepthHist[nIndex] += g_pDepthHist[nIndex-1];
+		depthHistogram[nIndex] += depthHistogram[nIndex-1];
 	}
 	// rescale to 0..256
 	if (nNumberOfPoints)
 	{
-		for (int nIndex=1; nIndex<MAX_DEPTH; nIndex++)
+		for (int nIndex=1; nIndex<MAX_DEPTH_HISTOGRAM; nIndex++)
 		{
-			g_pDepthHist[nIndex] = (unsigned int)(256 * (1.0f - (g_pDepthHist[nIndex] / nNumberOfPoints)));
+			depthHistogram[nIndex] = (unsigned int)(256 * (1.0f - (depthHistogram[nIndex] / nNumberOfPoints)));
 		}
 	}
 	// generate histogram depth image
@@ -229,7 +231,7 @@ int saveHistogramImage(
 			unsigned char nHistValue = 0;
 			
 			if (*pDepth != 0)
-				nHistValue = g_pDepthHist[*pDepth];
+				nHistValue = depthHistogram[*pDepth];
 			
 			// yellow pixels
 			pImgDepth->imageData[3*i+0] = 0;			//Blue
@@ -239,7 +241,7 @@ int saveHistogramImage(
 	}
 	
 	char bufFilename[256];
-	sprintf(bufFilename,"data/frame%d_histo.bmp",g_depthMD.FrameID());
+	sprintf(bufFilename,"%s/frame%d_histo.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
 	cvSaveImage(bufFilename, pImgDepth);
 }
 
@@ -269,7 +271,7 @@ int saveDepthImage(
 	
 	// save the depth image
 	char bufFilename[256];
-	sprintf(bufFilename,"data/frame%d_depth.bmp",g_depthMD.FrameID());
+	sprintf(bufFilename, "%s/frame%d_depth.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
 	cvSaveImage(bufFilename, pImgDepth);
     
 	// point cloud
@@ -307,7 +309,7 @@ int saveDepthImage(
 		}
 		
 		char buf[256];
-		sprintf(buf, "data/cloud%d.pcd", g_depthMD.FrameID());
+		sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), g_depthMD.FrameID());
 		pcl::io::savePCDFile(buf, g_cloudPointSave, true);
 		// bug in PCL - the binary file is not created with the good rights!
 		char bufsys[256];
@@ -602,7 +604,7 @@ bool matchFrames(
 	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
 		
 	// save stacked image
-	sprintf(buf, "data/sift_stacked%d.bmp", frameID1);
+	sprintf(buf, "%s/sift_stacked%d.bmp", g_dataDirectory.c_str(), frameID1);
 	cvSaveImage(buf, imgStacked);
 	cvReleaseImage(&imgStacked);
 
@@ -635,7 +637,7 @@ bool matchFrames(
 						cvScalarAll( 0 ) );
 			
 			char buf[256];
-			sprintf(buf, "data/sift_formed%d.bmp", frameID1);
+			sprintf(buf, "%s/sift_formed%d.bmp", g_dataDirectory.c_str(), frameID1);
 			cvSaveImage(buf, xformed);
 			//cvNamedWindow( "Xformed", 1 );
 			//cvShowImage( "Xformed", xformed );
@@ -872,7 +874,7 @@ bool matchFrames(
 			}
 			
 			// save stacked image
-			sprintf(buf, "data/sift_stacked%d_inliers.bmp", frameID1);
+			sprintf(buf, "%s/sift_stacked%d_inliers.bmp", g_dataDirectory.c_str(), frameID1);
 			cvSaveImage(buf, stacked_inliers);
 			cvReleaseImage(&stacked_inliers);
 		}
@@ -900,7 +902,7 @@ bool matchFrames(
 void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformations, bool savePointCloud)
 {
 	char buf_full[256];
-	sprintf(buf_full, "data/cloud_full.pcd");
+	sprintf(buf_full, "%s/cloud_full.pcd", g_dataDirectory.c_str());
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFull;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
@@ -914,7 +916,7 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 	{
 		cout << "Initialize point cloud frame " << framesID[0] << " (#1/" << framesID.size() << ")..." << std::endl;
 		char buf[256];
-		sprintf(buf, "data/cloud%d.pcd", framesID[0]);
+		sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
 		pcl::io::loadPCDFile(buf, cloudFull);
 	}
 	
@@ -940,7 +942,7 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 		{
 			cout << "Generating point cloud frame #" << framesID[iPose+1] << " (" << iPose+2 << "/" << framesID.size() << ")...";
 			char buf[256];
-			sprintf(buf, "data/cloud%d.pcd", framesID[iPose+1]);
+			sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[iPose+1]);
 			pcl::io::loadPCDFile(buf, cloudFrame);
 
 			/*// correct axis orientation
@@ -972,10 +974,12 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 		//cout << "Saving global point cloud ASCII..." << std::endl;
 		//pcl::io::savePCDFile(buf_full, cloud_full);
 		cout << "Saving global point cloud binary..." << std::endl;    			
-		sprintf(buf_full, "data/cloud_full.pcd");
+		sprintf(buf_full, "%s/cloud_full.pcd", g_dataDirectory.c_str());
 		pcl::io::savePCDFile(buf_full, cloudFull, true);
 		// bug in PCL - the binary file is not created with the good rights!
-		system("chmod a+r data/cloud_full.pcd");
+		char bufsys[256];
+		sprintf(bufsys, "chmod a+r %s", buf_full);
+		system(bufsys);
 	}
 }
 
@@ -1061,21 +1065,18 @@ int main(int argc, char** argv)
     
 	if (argc<1)
 	{
-		printf("Usage: %s --save nbFrames", argv[0]);
+		printf("Usage: %s --load | --save <nbFrames>", argv[0]);
 		return -1;
 	}
 	if (argc>2)
 		nbFrames = atoi(argv[2]);
 	
-	if (nbFrames<2)
-	{
-		printf("At least 2 frames are required!\n");    		
-		return -1;
-	}
 	if (argc>3 && atoi(argv[3])<=0)
 		savePointCloud = false;
 	
     printf("Start\n");
+    
+    FrameData::_DataPath = g_dataDirectory;
     
     if (strcmp(argv[1], "--load") == 0)
     {
@@ -1092,6 +1093,11 @@ int main(int argc, char** argv)
     {
         XnStatus nRetVal = XN_STATUS_OK;
     		
+    	if (nbFrames<2)
+    	{
+    		printf("At least 2 frames are required!\n");    		
+    		return -1;
+    	}
         boost::filesystem::create_directories(g_dataDirectory);       
 
         nRetVal = connectKinect();
@@ -1100,7 +1106,7 @@ int main(int argc, char** argv)
         	// allocate the point cloud buffer
         	g_cloudPointSave.width = 640;
             g_cloudPointSave.height = 480;
-            g_cloudPointSave.points.resize (640*480);
+            g_cloudPointSave.points.resize(640*480);
         	
         	// generate n frames and get its sequence
         	generateFrames(nbFrames, sequenceFramesID);

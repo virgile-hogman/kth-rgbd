@@ -18,6 +18,6 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 
-add_executable(extractSIFT extractSIFT.cpp FrameData.cpp)
-target_link_libraries(extractSIFT feat OpenNI cv highgui boost_filesystem pcl_io) 
+add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp)
+target_link_libraries(rgbd_slam feat OpenNI cv highgui boost_filesystem pcl_io) 
 
