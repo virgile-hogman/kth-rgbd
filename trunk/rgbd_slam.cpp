@@ -914,7 +914,7 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 	
 	if (savePointCloud && poseTransformations.size()>0)
 	{
-		cout << "Initialize point cloud frame " << framesID[0] << " (#1/" << framesID.size() << ")..." << std::endl;
+		cout << "Initialize point cloud frame " << framesID[0] << " (1/" << framesID.size() << ")..." << std::endl;
 		char buf[256];
 		sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
 		pcl::io::loadPCDFile(buf, cloudFull);
@@ -1083,6 +1083,7 @@ int main(int argc, char** argv)
     	// load sequence from directory
     	if ( ! boost::filesystem::exists( g_dataDirectory ) )
     		return -1;
+    	
     	loadSequence(g_dataDirectory.c_str(), sequenceFramesID);
     	
     	// build map 
