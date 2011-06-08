@@ -190,7 +190,7 @@ int saveHistogramImage(
 		const XnDepthPixel* pDepthMap,
 		IplImage* pImgDepth)
 {
-	float depthHistogram[MAX_DEPTH_HISTOGRAM];
+	static float depthHistogram[MAX_DEPTH_HISTOGRAM];
 	
 	// Calculate the accumulative histogram (the yellow display...)
 	const XnDepthPixel* pDepth = g_depthMD.Data();    
@@ -254,8 +254,8 @@ int saveDepthImage(
 		IplImage* pImgDepth,
 		bool savePointCloud)
 {
-	printf("Nb Channels: %d depth:%d/%d\n", pImgDepth->nChannels, pImgDepth->depth, IPL_DEPTH_16U);
-	fflush(stdout);
+	//printf("Nb Channels: %d depth:%d/%d\n", pImgDepth->nChannels, pImgDepth->depth, IPL_DEPTH_16U);
+	//fflush(stdout);
 	
 	// Save only the Z value per pixel as an image for quick visualization of depth
 	for(int i = 0; i < g_depthMD.XRes()*g_depthMD.YRes();i++)
