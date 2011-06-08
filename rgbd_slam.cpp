@@ -56,7 +56,7 @@ using namespace std;
     return rc;                                                    \
 }
 
-#define SAMPLE_XML_PATH "SamplesConfig.xml"
+#define OPENNI_CONFIG_XML_PATH "SamplesConfig.xml"
 
 
 /* the maximum number of keypoint NN candidates to check during BBF search */
@@ -126,7 +126,7 @@ XnStatus connectKinect()
     fflush(stdout);
     XnStatus nRetVal = XN_STATUS_OK;
     EnumerationErrors errors;
-    nRetVal = g_context.InitFromXmlFile(SAMPLE_XML_PATH, &errors);
+    nRetVal = g_context.InitFromXmlFile(OPENNI_CONFIG_XML_PATH, &errors);
     if (nRetVal == XN_STATUS_NO_NODE_PRESENT)
     {
         XnChar strError[1024];
@@ -430,6 +430,7 @@ bool matchFrames(
 		int frameID2,
 		FrameData &frameData1,
 		FrameData &frameData2,
+		bool methodRandom,
 		TPoseTransformationVector &resultingTransformations)
 {
     Timer tm;
@@ -440,6 +441,9 @@ bool matchFrames(
 	double vScale=0.5;
 	int    lineWidth=1;
 	
+	int maxDeltaDepthArea=50;
+	int sizeFeatureArea=3;
+	
 	// define a font to write some text
 	cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX, hScale,vScale,0,lineWidth);
 	
@@ -447,22 +451,19 @@ bool matchFrames(
 	// feature detection
 	// ---------------------------------------------------------------------------
     tm.start();
-	printf("Frames %03d-%03d:\t Extracting SIFT features... ", frameID1, frameID2);
+	printf("Frames %03d-%03d:\t Extracting SIFT features... \n", frameID1, frameID2);
 	fflush(stdout);
 	
 	// load data Frame1
 	if (! frameData1.isLoaded(frameID1))
 	{
-		// it should be done only for the first frame of the sequence
-		// for the next ones, the data is simply reassigned from the frame2 (previously) 
-		printf("Loading first frame... ");
-		fflush(stdout);
 		if (!frameData1.loadImage(frameID1))
 			return false;
 		if (!frameData1.loadDepthData())
 			return false;
 		
 		frameData1.computeFeatures();
+		frameData1.removeInvalidFeatures(sizeFeatureArea, maxDeltaDepthArea);
 		frameData1.drawFeatures(font);
 	}
 	
@@ -475,6 +476,7 @@ bool matchFrames(
 			return false;
 		
 		frameData2.computeFeatures();
+		frameData2.removeInvalidFeatures(sizeFeatureArea, maxDeltaDepthArea);		
 		frameData2.drawFeatures(font);		
 	}
 
@@ -485,13 +487,18 @@ bool matchFrames(
 	printf("\t%d + %d features.\t(%dms)\n", frameData1.getNbFeatures(), frameData2.getNbFeatures(), tm.duration());
 	fflush(stdout);
 	
+	if (frameData1.getNbFeatures()==0)
+		return false;
+	if (frameData2.getNbFeatures()==0)
+		return false;
+	
 	// ---------------------------------------------------------------------------
 	// feature matching Kd-tree search
 	// ---------------------------------------------------------------------------
 	tm.start();
     fprintf( stderr, "Frames %03d-%03d:\t Searching for matches... ", frameID1, frameID2 );
 	fflush(stdout);
-
+	
 	struct feature** neighbour_features = NULL;
 	struct kd_node* kd_root;
 	CvPoint pt1, pt2;
@@ -504,13 +511,6 @@ bool matchFrames(
 	vector<int>	indexArea1, indexArea2, indexArea3;
     
 	float constant = 0.001 / rgb_focal_length_VGA;    // TODO - redefine this properly
-	
-	// TODO before K-search clean the features without depth information because they are useless
-	//struct feature* featureSearch = NULL;
-	//for (int iFeature=0; iFeature<n2; iFeature++)
-	//{
-	//	if (pDepthData2[cvRound(features2[iFeature]->y) * 640 + cvRound(features2[iFeature]->x)] > 0)
-	//}
 	
 	// try match the new features found in the 2d frame...
 	kd_root = kdtree_build( frameData2.getFeatures(), frameData2.getNbFeatures() );
@@ -604,6 +604,8 @@ bool matchFrames(
 	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
 		
 	// save stacked image
+	sprintf(buf,"Matches: %d/%d", nb_valid_matches, nb_matches);
+	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 	sprintf(buf, "%s/sift_stacked%d.bmp", g_dataDirectory.c_str(), frameID1);
 	cvSaveImage(buf, imgStacked);
 	cvReleaseImage(&imgStacked);
@@ -721,32 +723,37 @@ bool matchFrames(
 		{
 			fprintf(stderr, "\nIteration %d ... \t", iteration+1);
 			tfc.reset();
-			// pickup 3 points from matches
-/*	        for (int k = 0; k < 3; k++) {
-	            int id_match = rand() % nb_valid_matches;
-	            //int index1 = index_matches[id_match];
-				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-	        }
-*/	        
-			int id_match;
-			initialPairs.clear();
-			if (indexArea1.size()==0 || indexArea2.size()==0 || indexArea3.size()==0)
+			if (methodRandom)
 			{
-				fprintf(stderr, "Data not dispatched. %d %d %d", indexArea1.size(), indexArea2.size(), indexArea3.size());
-				break;
+				// pickup 3 points from matches
+				for (int k = 0; k < 3; k++) {
+					int id_match = rand() % nb_valid_matches;
+					//int index1 = index_matches[id_match];
+					tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
+				}
 			}
-			// select 1 random point from area1
-			id_match = indexArea1[rand() % indexArea1.size()];
-			tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-			initialPairs.push_back(index_matches[id_match]);
-			// select 1 random point from area2
-			id_match = indexArea2[rand() % indexArea2.size()];
-			tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-			initialPairs.push_back(index_matches[id_match]);
-			// select 1 random point from area3
-			id_match = indexArea3[rand() % indexArea3.size()];
-			tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-			initialPairs.push_back(index_matches[id_match]);
+			else
+			{
+				int id_match;
+				initialPairs.clear();
+				if (indexArea1.size()==0 || indexArea2.size()==0 || indexArea3.size()==0)
+				{
+					fprintf(stderr, "Data not dispatched. %d %d %d", indexArea1.size(), indexArea2.size(), indexArea3.size());
+					break;
+				}
+				// select 1 random point from area1
+				id_match = indexArea1[rand() % indexArea1.size()];
+				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
+				initialPairs.push_back(index_matches[id_match]);
+				// select 1 random point from area2
+				id_match = indexArea2[rand() % indexArea2.size()];
+				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
+				initialPairs.push_back(index_matches[id_match]);
+				// select 1 random point from area3
+				id_match = indexArea3[rand() % indexArea3.size()];
+				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
+				initialPairs.push_back(index_matches[id_match]);
+			}
 			
 	        // compute transformation from matches
 	        Eigen::Matrix4f transformation = tfc.getTransformation().matrix();
@@ -874,6 +881,8 @@ bool matchFrames(
 			}
 			
 			// save stacked image
+			sprintf(buf,"Inliers: %d/%d", index_best_inliers.size(), nb_valid_matches);
+			cvPutText(stacked_inliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 			sprintf(buf, "%s/sift_stacked%d_inliers.bmp", g_dataDirectory.c_str(), frameID1);
 			cvSaveImage(buf, stacked_inliers);
 			cvReleaseImage(&stacked_inliers);
@@ -914,7 +923,7 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 	
 	if (savePointCloud && poseTransformations.size()>0)
 	{
-		cout << "Initialize point cloud frame " << framesID[0] << " (1/" << framesID.size() << ")..." << std::endl;
+		cout << "Initialize point cloud frame #" << framesID[0] << " (1/" << framesID.size() << ")..." << std::endl;
 		char buf[256];
 		sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
 		pcl::io::loadPCDFile(buf, cloudFull);
@@ -999,7 +1008,8 @@ void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
 		if (boost::filesystem::extension(*itr)==".bmp" &&
 			sscanf(itr->leaf().c_str(), "frame%d", &frameID)==1)
 		{
-			printf("Add frame file #%i: %s\t%s\n", frameID, itr->leaf().c_str(), itr->path().string().c_str());
+			// add frame
+			printf("Add frame file #%i:\t%s\n", frameID, itr->path().string().c_str());
 			listFramesID.push_back(frameID);
 		}
 	}
@@ -1008,14 +1018,14 @@ void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
 	listFramesID.unique();
 	
 	// build the sequence
-	cout << "Sequence of frames: ";
+	cout << "Sequence of frames: (";
 	while (!listFramesID.empty())
 	{
 		cout << " " << listFramesID.front();
 		sequenceFramesID.push_back(listFramesID.front());
 		listFramesID.pop_front();
 	}
-	cout << std::endl;
+	cout << ")" << std::endl;
 }
 
 void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
@@ -1034,6 +1044,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 					sequenceFramesID[iFrame],
 					frameData1,
 					frameData2,
+					true,
 					resultingTransformations);
 			
 			if (!retCode)
