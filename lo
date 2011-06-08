@@ -1,0 +1,3 @@
+cd ~/Projects/extract_sift/bin
+sudo ./kth-slam --load
+cd --
