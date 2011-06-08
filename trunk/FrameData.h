@@ -72,6 +72,8 @@ public:
 
 	void drawFeatures(CvFont &font);
 	
+	void removeInvalidFeatures(int sizeSurfaceArea, int maxDeltaDepthArea);
+	
 	// directory where to load/save the data files
 	static std::string _DataPath;
 };

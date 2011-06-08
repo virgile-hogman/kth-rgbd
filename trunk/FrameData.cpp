@@ -10,6 +10,7 @@
 #include "highgui.h"
 
 // standard
+#include <vector>
 #include <stdio.h>
 
 std::string FrameData::_DataPath;
@@ -36,8 +37,8 @@ bool FrameData::loadImage(int frameID)
 {
 	char buf[256];
 	
-	printf("Loading RGB data for frame %d\n", frameID);
-	fflush(stdout);
+	//printf("Loading RGB data for frame %d\n", frameID);
+	//fflush(stdout);
 	
 	// load RGB data file
 	sprintf(buf, "%s/frame%d_rgb.bmp", _DataPath.c_str(), frameID);    
@@ -60,8 +61,8 @@ bool FrameData::loadDepthData()
 	char buf[256];
 	IplImage *pImageDepth = NULL;
 	
-	printf("Loading depth data for frame %d\n", _frameID);
-	fflush(stdout);
+	//printf("Loading depth data for frame %d\n", _frameID);
+	//fflush(stdout);
 	
 	// load depth data file
 	sprintf(buf,"%s/frame%d_depth.bmp", _DataPath.c_str(), _frameID);
@@ -139,8 +140,63 @@ int FrameData::computeFeatures()
 void FrameData::drawFeatures(CvFont &font)
 {
 	char buf[256];
-	sprintf(buf,"Frame%d", _frameID);
+	sprintf(buf,"Frame%d nf:%d", _frameID, _nbFeatures);
 	// draw SIFT features 
 	draw_features(_pImage, _pFeatures, _nbFeatures);
 	cvPutText(_pImage, buf, cvPoint(5, 20), &font, cvScalar(255,255,0));
+}
+
+void FrameData::removeInvalidFeatures(int sizeSurfaceArea, int maxDeltaDepthArea)
+{
+	std::vector<int>	validIdFeatures;
+	struct feature*		pNewFeatures = NULL; 
+	
+	// generate a list of the valid features
+	for (int i=0; i < _nbFeatures; i++)
+	{
+		TDepthPixel depthFeature = getFeatureDepth(&_pFeatures[i]); 
+		if (depthFeature == 0)	// no available depth information 
+			continue;
+		
+		if (sizeSurfaceArea<=0)	
+			validIdFeatures.push_back(i);
+		else
+		{
+			bool validArea = true;
+			// look n pixels around
+			for (int row=-sizeSurfaceArea; row<=sizeSurfaceArea && validArea; row++)
+				for (int col=-sizeSurfaceArea; col<=sizeSurfaceArea && validArea; col++)
+				{
+					TDepthPixel depthNeighbour = _depthData[(cvRound(_pFeatures[i].y)+col) * 640 + cvRound(_pFeatures[i].x)+row];
+					if (depthNeighbour!=0 && abs(depthFeature-depthNeighbour)>maxDeltaDepthArea)
+						validArea = false;
+				}
+			
+			if (validArea)
+				validIdFeatures.push_back(i);
+		}
+	}
+	
+	if (validIdFeatures.size() < _nbFeatures)
+	{
+		printf("Features valid: %d/%d\n", validIdFeatures.size(), _nbFeatures);
+		fflush(stdout);
+		
+		// allocate a new buffer
+		pNewFeatures = (struct feature*)calloc( validIdFeatures.size(), sizeof(struct feature) );
+		for(int i=0; i < validIdFeatures.size(); i++ )
+		{
+			// copy valid feature to new buffer
+			memcpy(&pNewFeatures[i], &_pFeatures[validIdFeatures[i]], sizeof(struct feature));
+		    // the user data should not be cleared afterwards, it has just been reassigned
+			_pFeatures[validIdFeatures[i]].feature_data = NULL;
+		}
+		
+		// free the previous buffer		
+		if (_pFeatures != NULL)		
+			free(_pFeatures);
+		
+		_pFeatures = pNewFeatures;
+		_nbFeatures = validIdFeatures.size();
+	}
 }
