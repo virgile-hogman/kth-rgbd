@@ -505,6 +505,7 @@ bool matchFrames(
     
 	float constant = 0.001 / rgb_focal_length_VGA;    // TODO - redefine this properly
 	
+	// bla bla
 	// TODO before K-search clean the features without depth information because they are useless
 	//struct feature* featureSearch = NULL;
 	//for (int iFeature=0; iFeature<n2; iFeature++)
