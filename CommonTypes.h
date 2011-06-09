@@ -6,11 +6,8 @@
 // -----------------------------------------------------------------------------------------------------
 typedef	unsigned short	TDepthPixel;	// 16 bits
 
-#define RGB_PIXELS_WIDTH	640
-#define RGB_PIXELS_HEIGHT	480
-
-#define DEPTH_PIXELS_WIDTH	640
-#define DEPTH_PIXELS_HEIGHT	480
+#define NBPIXELS_WIDTH	640
+#define NBPIXELS_HEIGHT	480
 
 #define NBPIXELS_X_HALF 320
 #define NBPIXELS_Y_HALF 240

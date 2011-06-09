@@ -19,5 +19,5 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 
 add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp)
-target_link_libraries(rgbd_slam feat OpenNI cv highgui boost_filesystem pcl_io) 
+target_link_libraries(rgbd_slam feat OpenNI cv highgui boost_filesystem pcl_io pcl_filters) 
 
