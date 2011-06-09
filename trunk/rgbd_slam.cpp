@@ -12,6 +12,7 @@
 #include "pcl/io/pcd_io.h"
 #include "pcl/point_types.h"
 #include "pcl/common/transform.h"
+#include "pcl/filters/voxel_grid.h"
 
 // Open CV
 //#include "cxcore.h"
@@ -67,7 +68,8 @@ using namespace std;
 const double rgb_focal_length_VGA = 525;
 
 #define NB_RANSAC_ITERATIONS 20
-#define MIN_NB_INLIERS		10
+#define MIN_NB_INLIERS_ABS		10
+#define MIN_NB_INLIERS_REL		0.4
 
 #define MAX_DEPTH_HISTOGRAM 10000		// previously used for histogram only
 
@@ -302,7 +304,9 @@ int saveDepthImage(
 					pt.x = (ind_x - ImageCenterX) * pDepthMap[depth_index] * constant;
 					pt.y = (ImageCenterY - ind_y) * pDepthMap[depth_index] * constant;
 					pt.z = pDepthMap[depth_index] * 0.001 ; // given depth values are in mm
-					rgb = (((unsigned int)pImageMap[depth_index].nRed) << 16) | (((unsigned int)pImageMap[depth_index].nGreen) << 8) | ((unsigned int)pImageMap[depth_index].nBlue);
+					rgb = (((unsigned int)pImageMap[depth_index].nRed) << 16) |
+						  (((unsigned int)pImageMap[depth_index].nGreen) << 8) |
+						  ((unsigned int)pImageMap[depth_index].nBlue);
 					pt.rgb = *reinterpret_cast<float*>(&rgb);
 				}
 			}
@@ -357,7 +361,7 @@ void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 			nbRemainingFrames--;
 
 			saveRGBImage(pImageMap, g_imgRGB, true);
-			int frameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, true);
+			int frameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, false);
 			//usleep(100000);
 			
 			printf("--- Adding frame %d in sequence ---\n", frameID);
@@ -442,7 +446,7 @@ bool matchFrames(
 	int    lineWidth=1;
 	
 	int maxDeltaDepthArea=50;
-	int sizeFeatureArea=3;
+	int sizeFeatureArea=2;
 	
 	// define a font to write some text
 	cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX, hScale,vScale,0,lineWidth);
@@ -775,7 +779,7 @@ bool matchFrames(
 	        if (mean_error<0 || mean_error >= max_inlier_distance_in_m)
 	        	continue;	// skip these 3 points and go for a new iteration
 	        	
-	        if (index_inliers.size()<MIN_NB_INLIERS)
+	        if (index_inliers.size()<MIN_NB_INLIERS_ABS || index_inliers.size()<nb_valid_matches*MIN_NB_INLIERS_REL)
 	        	continue;	// not enough inliers found
 	        
 			if (mean_error < best_error)
@@ -811,7 +815,7 @@ bool matchFrames(
 			if (mean_error<0 || mean_error >= max_inlier_distance_in_m)
 				continue;	// skip these 3 points and go for a new iteration
 				
-			if (index_inliers.size()<MIN_NB_INLIERS)
+			if (index_inliers.size()<MIN_NB_INLIERS_ABS || index_inliers.size()<nb_valid_matches*MIN_NB_INLIERS_REL)
 				continue;	// not enough inliers found
 			
 			fprintf(stderr, "Found %d inliers and error:%f", index_inliers.size(), mean_error);
@@ -905,6 +909,61 @@ bool matchFrames(
 	return true;
 }
 
+bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
+{
+	FrameData frameData;
+	if (!frameData.loadImage(frameID))
+	{
+		pointCloud.points.clear();		
+		return false;
+	}
+	if (!frameData.loadDepthData())
+	{
+		pointCloud.points.clear();		
+		return false;
+	}
+	
+	// allocate the point cloud buffer
+	pointCloud.width = NBPIXELS_WIDTH;
+	pointCloud.height = NBPIXELS_HEIGHT;
+	pointCloud.points.clear();
+	pointCloud.points.reserve(NBPIXELS_WIDTH*NBPIXELS_HEIGHT);	// memory allocation
+	//pointCloud.points.resize(NBPIXELS_WIDTH*NBPIXELS_HEIGHT);
+	
+	//printf("Generating point cloud frame %d\n", frameID);
+		
+	float constant = 0.001 / rgb_focal_length_VGA;    
+	unsigned int rgb; 
+	int depth_index = 0;
+	IplImage *img = frameData.getImage();
+	for (int ind_y =0; ind_y < NBPIXELS_HEIGHT; ind_y++)
+	{
+		for (int ind_x=0; ind_x < NBPIXELS_WIDTH; ind_x++, depth_index++)
+		{
+			//pcl::PointXYZRGB& pt = pointCloud(ind_x,ind_y);
+			TDepthPixel depth = frameData.getDepthData()[depth_index];
+			if (depth != 0 ) 
+			{
+				pcl::PointXYZRGB pt;
+				
+				// locate point in meters
+				pt.x = (ind_x - NBPIXELS_X_HALF) * depth * constant;
+				pt.y = (NBPIXELS_Y_HALF - ind_y) * depth * constant;
+				pt.z = depth * 0.001 ; // given depth values are in mm
+				
+				unsigned char b = ((uchar *)(img->imageData + ind_y*img->widthStep))[ind_x*img->nChannels + 0];
+				unsigned char g = ((uchar *)(img->imageData + ind_y*img->widthStep))[ind_x*img->nChannels + 1];
+				unsigned char r = ((uchar *)(img->imageData + ind_y*img->widthStep))[ind_x*img->nChannels + 2];
+				rgb = (((unsigned int)r)<<16) | (((unsigned int)g)<<8) | ((unsigned int)b);
+				pt.rgb = *reinterpret_cast<float*>(&rgb);
+				pointCloud.push_back(pt);
+			}
+		}
+	}
+	
+	return true;
+}
+
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
@@ -926,7 +985,8 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 		cout << "Initialize point cloud frame #" << framesID[0] << " (1/" << framesID.size() << ")..." << std::endl;
 		char buf[256];
 		sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
-		pcl::io::loadPCDFile(buf, cloudFull);
+		//if (pcl::io::loadPCDFile(buf, cloudFull) != 0)
+		generatePointCloud(framesID[0], cloudFull);
 	}
 	
 	for (int iPose=0; iPose<poseTransformations.size(); iPose++)
@@ -952,19 +1012,9 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 			cout << "Generating point cloud frame #" << framesID[iPose+1] << " (" << iPose+2 << "/" << framesID.size() << ")...";
 			char buf[256];
 			sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[iPose+1]);
-			pcl::io::loadPCDFile(buf, cloudFrame);
+			//if (pcl::io::loadPCDFile(buf, cloudFrame) != 0)
+			generatePointCloud(framesID[iPose+1], cloudFrame);
 
-			/*// correct axis orientation
-			for (int ind_y =0; ind_y < g_depthMD.YRes(); ind_y++)
-			{
-				for (int ind_x=0; ind_x < g_depthMD.XRes(); ind_x++)
-				{
-					pcl::PointXYZRGB& pt = cloud_frame(ind_x,ind_y);
-					pt.x = -pt.x;
-					pt.z = -pt.z;
-				}
-			}*/
-			
 			// inverse transform
 			inverseTfo = cumulatedTransformation.inverse();
 			// apply transformation to the point cloud
@@ -975,11 +1025,37 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 			
 			// apend transformed point cloud
 			cloudFull += cloudFrameTransformed;
+			
 			cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
+			
+			// subsample every 3 frames
+			if ( iPose % 3 == 0)
+			{
+				const float voxel_grid_size = 0.005;
+				pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
+				vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
+				vox_grid.setInputCloud (cloudFull.makeShared());
+				vox_grid.filter(cloudFull);
+				cout << " Total Size: " << cloudFull.size() << " points after filtering." << std::endl;
+			}
 		}
 	}
 	if (savePointCloud && cloudFull.size()>0)
 	{
+		const float voxel_grid_size = 0.01;
+		pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
+		vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
+		vox_grid.setInputCloud (cloudFull.makeShared());
+		vox_grid.filter(cloudFull);
+		cout << " Total Size: " << cloudFull.size() << " points after filtering." << std::endl;
+		/*
+		pcl::PointCloud<pcl::PointXYZRGB> cloudTemp;
+		cloudTemp.points.resize(cloudFull.size()/2);
+		for (int i=0; i<cloudFull.size(); i+=2)
+			cloudTemp.points[i/2]=cloudFull.points[i];
+		cloudFull = cloudTemp;
+		*/
+		
 		//cout << "Saving global point cloud ASCII..." << std::endl;
 		//pcl::io::savePCDFile(buf_full, cloud_full);
 		cout << "Saving global point cloud binary..." << std::endl;    			

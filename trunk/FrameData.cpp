@@ -44,7 +44,7 @@ bool FrameData::loadImage(int frameID)
 	sprintf(buf, "%s/frame%d_rgb.bmp", _DataPath.c_str(), frameID);    
 	_pImage  = cvLoadImage( buf, 1 );
 	if (_pImage != NULL)
-		_frameID = frameID;	// valid ID 
+		_frameID = frameID;	// valid ID
 	else
 		_frameID = -1;		// invalid ID
 	return (_pImage != NULL);
@@ -71,10 +71,10 @@ bool FrameData::loadDepthData()
 	{
 		// allocate depth buffer
 		if (_depthData == NULL)
-			_depthData = new TDepthPixel[640*480];
+			_depthData = new TDepthPixel[pImageDepth->width * pImageDepth->height];
 		// otherwise assume it has the correct size (only 1 format handled at a time)
 		
-		for(int i = 0; i < 640*480;i++)
+		for(int i = 0; i < pImageDepth->width * pImageDepth->height; i++)
 		{
 			// depth pixels on 16 bits but it is splitted on 2 channels * 8U in the file
 			TDepthPixel depthByte1 = (unsigned char)(pImageDepth->imageData[3*i+0]);

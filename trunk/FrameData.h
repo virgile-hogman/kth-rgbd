@@ -22,6 +22,9 @@ private:
 	struct feature*		_pFeatures;		// SIFT features
 	int					_nbFeatures;	// number of features (size of features data)
 	
+	unsigned char		_width;
+	unsigned char		_height;
+	
 public:
 	FrameData();
 	~FrameData();
