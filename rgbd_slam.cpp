@@ -59,20 +59,24 @@ using namespace std;
 
 #define OPENNI_CONFIG_XML_PATH "SamplesConfig.xml"
 
-
 /* the maximum number of keypoint NN candidates to check during BBF search */
 #define KDTREE_BBF_MAX_NN_CHKS 200
 /* threshold on squared ratio of distances between NN and 2nd NN */
 #define NN_SQ_DIST_RATIO_THR 0.49
 
-const double rgb_focal_length_VGA = 525;
 
-#define NB_RANSAC_ITERATIONS 20
-#define MIN_NB_INLIERS_ABS		10
-#define MIN_NB_INLIERS_REL		0.4
+#define MATCH_RELATIVE_DEPTH	0.05	// relative difference of depth for a valid match (higher -> more tolerant)
+
+#define NB_RANSAC_ITERATIONS	20		// number of RANSAC iterations (loops)
+#define MIN_NB_INLIERS_ABS		10		// minimum number of inliers
+#define MIN_NB_INLIERS_REL		0.6		// minimum rate of inliers relatively to the initial matches
+
+#define MAX_INLIER_DISTANCE		0.04	// error tolerance for inliers transformation (higher -> more tolerant)
+
 
 #define MAX_DEPTH_HISTOGRAM 10000		// previously used for histogram only
 
+const double rgb_focal_length_VGA = 525;
 
 //---------------------------------------------------------------------------
 // Globals
@@ -89,7 +93,8 @@ XnUInt64 no_sample_value, shadow_value;
 IplImage* g_imgRGB = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 IplImage* g_imgDepth = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 
-std::string g_dataDirectory = "data";
+std::string g_dataDirectory = "data_in";
+std::string g_resultDirectory = "data_out";
 
 // PCL
 pcl::PointCloud<pcl::PointXYZRGB> g_cloudPointSave;
@@ -179,7 +184,7 @@ void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doS
     }
     if (doSave){
         char buf[256];
-        sprintf(buf, "%s/frame%d_rgb.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
+        sprintf(buf, "%s/frame_%d_rgb.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
         cvSaveImage(buf, tmp_img);
     }
 }
@@ -243,7 +248,7 @@ int saveHistogramImage(
 	}
 	
 	char bufFilename[256];
-	sprintf(bufFilename,"%s/frame%d_histo.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
+	sprintf(bufFilename,"%s/frame_%d_histo.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
 	cvSaveImage(bufFilename, pImgDepth);
 }
 
@@ -273,7 +278,7 @@ int saveDepthImage(
 	
 	// save the depth image
 	char bufFilename[256];
-	sprintf(bufFilename, "%s/frame%d_depth.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
+	sprintf(bufFilename, "%s/frame_%d_depth.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
 	cvSaveImage(bufFilename, pImgDepth);
     
 	// point cloud
@@ -313,11 +318,11 @@ int saveDepthImage(
 		}
 		
 		char buf[256];
-		sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), g_depthMD.FrameID());
+		sprintf(buf, "%s/cloud%d.pcd", g_resultDirectory.c_str(), g_depthMD.FrameID());
 		pcl::io::savePCDFile(buf, g_cloudPointSave, true);
 		// bug in PCL - the binary file is not created with the good rights!
 		char bufsys[256];
-		sprintf(bufsys, "chmod a+r %s", buf);
+		sprintf(bufsys, "chmod a+rw %s", buf);
 		system(bufsys);
     }
 	
@@ -398,7 +403,7 @@ void computeInliersAndError(
 
         double error = vec.dot(vec);
 
-        if(error > max_inlier_error_in_m) 
+        if (error > max_inlier_error_in_m) 
             continue; //ignore outliers
 
         error = sqrt(error);
@@ -435,7 +440,7 @@ bool matchFrames(
 		FrameData &frameData1,
 		FrameData &frameData2,
 		bool methodRandom,
-		TPoseTransformationVector &resultingTransformations)
+		PoseTransformation &pose)
 {
     Timer tm;
 	char buf[256];
@@ -446,10 +451,14 @@ bool matchFrames(
 	int    lineWidth=1;
 	
 	int maxDeltaDepthArea=50;
-	int sizeFeatureArea=2;
+	int sizeFeatureArea=-1;
 	
 	// define a font to write some text
-	cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX, hScale,vScale,0,lineWidth);
+	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
+	
+	pose._is_valid = false;
+	pose._matrix = Eigen::Matrix4f::Identity();
+	pose._error = 1.0;
 	
 	// ---------------------------------------------------------------------------
 	// feature detection
@@ -548,7 +557,7 @@ bool matchFrames(
 				// check if depth values are close enough (values in mm)
 				if (depth1>0 && //depth1<2000 &&
 					depth2>0 && //depth2<2000 &&
-					abs(depth1-depth2)/float(depth1) < 0.05)	// read: relative diff 
+					abs(depth1-depth2)/float(depth1) < MATCH_RELATIVE_DEPTH)	// read: relative diff 
 				{
 					// draw a green line
 					cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
@@ -610,7 +619,7 @@ bool matchFrames(
 	// save stacked image
 	sprintf(buf,"Matches: %d/%d", nb_valid_matches, nb_matches);
 	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-	sprintf(buf, "%s/sift_stacked%d.bmp", g_dataDirectory.c_str(), frameID1);
+	sprintf(buf, "%s/sift_stacked%d.bmp", g_resultDirectory.c_str(), frameID1);
 	cvSaveImage(buf, imgStacked);
 	cvReleaseImage(&imgStacked);
 
@@ -725,7 +734,7 @@ bool matchFrames(
 	    
 		for (int iteration=0; iteration<NB_RANSAC_ITERATIONS ; iteration++)
 		{
-			fprintf(stderr, "\nIteration %d ... \t", iteration+1);
+			//fprintf(stderr, "\nIteration %d ... \t", iteration+1);
 			tfc.reset();
 			if (methodRandom)
 			{
@@ -765,7 +774,7 @@ bool matchFrames(
 	        // compute error and keep only inliers
 	        std::vector<int> index_inliers;
 	        double mean_error;
-	        double max_inlier_distance_in_m = 0.02;
+	        double max_inlier_distance_in_m = MAX_INLIER_DISTANCE;
 	        
 	        computeInliersAndError(transformation,
 	        		vector_matches_orig,
@@ -774,7 +783,7 @@ bool matchFrames(
 	        		mean_error,
 	        		max_inlier_distance_in_m * max_inlier_distance_in_m);
 	        
-	        fprintf(stderr, "Found %d inliers and error:%f", index_inliers.size(), mean_error);
+	        //fprintf(stderr, "Found %d inliers\tMean error:%f", index_inliers.size(), mean_error);
 	        
 	        if (mean_error<0 || mean_error >= max_inlier_distance_in_m)
 	        	continue;	// skip these 3 points and go for a new iteration
@@ -784,7 +793,7 @@ bool matchFrames(
 	        
 			if (mean_error < best_error)
 	        {
-		        fprintf(stderr, "\t => Best candidate transformation! ", index_inliers.size(), mean_error);
+		        //fprintf(stderr, "\t => Best candidate transformation! ", index_inliers.size(), mean_error);
 	        	best_transformation = transformation;
 	        	best_error = mean_error;
 	        	index_best_inliers = index_inliers;
@@ -793,7 +802,7 @@ bool matchFrames(
 			// ----------------------------------------------------
 			// recompute a new transformation with the inliers
 			// ----------------------------------------------------
-			fprintf(stderr, "\nRecomputing transfo... \t");
+			//fprintf(stderr, "\nRecomputing transfo... \t");
 			tfc.reset();
 			//for (int k = 0; k < 3; k++) {
 			//    int id_inlier = rand() % index_inliers.size();
@@ -818,11 +827,11 @@ bool matchFrames(
 			if (index_inliers.size()<MIN_NB_INLIERS_ABS || index_inliers.size()<nb_valid_matches*MIN_NB_INLIERS_REL)
 				continue;	// not enough inliers found
 			
-			fprintf(stderr, "Found %d inliers and error:%f", index_inliers.size(), mean_error);
+			//fprintf(stderr, "Found %d inliers\tMean error:%f", index_inliers.size(), mean_error);
 			
 			if (mean_error < best_error)
 			{
-				fprintf(stderr, "\t => Best transformation! ", index_inliers.size(), mean_error);
+				//fprintf(stderr, "\t => Best transformation! ", index_inliers.size(), mean_error);
 				best_transformation = transformation;
 				best_error = mean_error;
 				index_best_inliers = index_inliers;
@@ -834,7 +843,6 @@ bool matchFrames(
 		if (index_best_inliers.size()>0)
 		{
 			// SUCCESS - TRANSFORMATION IS DEFINED
-			PoseTransformation pose;
 			
 			// print the transformation matrix
 			std::cerr << "Best Transformation --->\t" << index_best_inliers.size() << " inliers and mean error="<< best_error << std::endl;
@@ -844,7 +852,6 @@ bool matchFrames(
 			pose._is_valid = true;
 			pose._matrix = best_transformation;
 			pose._error = best_error;
-			resultingTransformations.push_back(pose);
 			
 			// draw inliers
 			IplImage* stacked_inliers = NULL;
@@ -887,26 +894,13 @@ bool matchFrames(
 			// save stacked image
 			sprintf(buf,"Inliers: %d/%d", index_best_inliers.size(), nb_valid_matches);
 			cvPutText(stacked_inliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-			sprintf(buf, "%s/sift_stacked%d_inliers.bmp", g_dataDirectory.c_str(), frameID1);
+			sprintf(buf, "%s/sift_stacked%d_inliers.bmp", g_resultDirectory.c_str(), frameID1);
 			cvSaveImage(buf, stacked_inliers);
 			cvReleaseImage(&stacked_inliers);
 		}
-		else
-		{
-			// FAILURE - TRANSFORMATION IS NOT DEFINED
-			fprintf(stderr, "No transformation found!\n");
-			//Eigen::Matrix4f tfo = Eigen::Matrix4f::Identity();
-			//resultingTransformations.push_back(tfo);
-			
-			PoseTransformation pose;
-			pose._is_valid = false;
-			pose._matrix = Eigen::Matrix4f::Identity();
-			pose._error = 1.0;
-			resultingTransformations.push_back(pose);
-		}
 	}
 	
-	return true;
+	return pose._is_valid;
 }
 
 bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
@@ -964,13 +958,32 @@ bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 	return true;
 }
 
+void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
+{
+	pcl::PointCloud<pcl::PointXYZRGB> cloudTemp;
+	//cloudTemp.points.resize(cloudFull.size()/2);
+	for (int i=0; i<pointCloud.size(); i++)
+	{
+		if (rand()%2 < 1)
+			cloudTemp.push_back(pointCloud.points[i]);
+	}
+	pointCloud = cloudTemp;
+	/*
+	const float voxel_grid_size = 0.005;
+	pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
+	vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
+	vox_grid.setInputCloud (pointCloud());
+	vox_grid.filter(pointCloud);*/
+	cout << "Size: " << pointCloud.size() << " points after subsampling." << std::endl;
+}
+
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
 void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformations, bool savePointCloud)
 {
 	char buf_full[256];
-	sprintf(buf_full, "%s/cloud_full.pcd", g_dataDirectory.c_str());
+	sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFull;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
@@ -983,8 +996,8 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 	if (savePointCloud && poseTransformations.size()>0)
 	{
 		cout << "Initialize point cloud frame #" << framesID[0] << " (1/" << framesID.size() << ")..." << std::endl;
-		char buf[256];
-		sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
+		//char buf[256];
+		//sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
 		//if (pcl::io::loadPCDFile(buf, cloudFull) != 0)
 		generatePointCloud(framesID[0], cloudFull);
 	}
@@ -1000,75 +1013,56 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 		cumulatedTransformation = cumulatedTransformation * poseTransformations[iPose]._matrix;
 
 		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
-		if (! poseTransformations[iPose]._is_valid)
+		if (valid_sequence)
 		{
-			valid_sequence = false;
-			cout << "--- Invalid sequence - aborting point cloud accumulation --- \n" << std::endl;
-		}
-		
-		// update global point cloud
-		if (savePointCloud && valid_sequence)
-		{
-			cout << "Generating point cloud frame #" << framesID[iPose+1] << " (" << iPose+2 << "/" << framesID.size() << ")...";
-			char buf[256];
-			sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[iPose+1]);
-			//if (pcl::io::loadPCDFile(buf, cloudFrame) != 0)
-			generatePointCloud(framesID[iPose+1], cloudFrame);
-
-			// inverse transform
-			inverseTfo = cumulatedTransformation.inverse();
-			// apply transformation to the point cloud
-			pcl::getTransformedPointCloud(
-					cloudFrame,
-					Eigen::Affine3f(inverseTfo),
-					cloudFrameTransformed); 
-			
-			// apend transformed point cloud
-			cloudFull += cloudFrameTransformed;
-			
-			cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
-			
-			// subsample every 3 frames
-			if ( iPose % 3 == 0)
+			if (! poseTransformations[iPose]._is_valid)
 			{
-				const float voxel_grid_size = 0.005;
-				pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
-				vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
-				vox_grid.setInputCloud (cloudFull.makeShared());
-				vox_grid.filter(cloudFull);
-				cout << " Total Size: " << cloudFull.size() << " points after filtering." << std::endl;
+				valid_sequence = false;
+				cout << "--- Invalid sequence - aborting point cloud accumulation --- \n" << std::endl;
+				// but the pose loop continues just to display the next transformations
+			}
+			
+			// update global point cloud
+			if (savePointCloud)
+			{
+				cout << "Generating point cloud frame #" << framesID[iPose+1] << " (" << iPose+2 << "/" << framesID.size() << ")...";
+				//char buf[256];
+				//sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[iPose+1]);
+				//if (pcl::io::loadPCDFile(buf, cloudFrame) != 0)
+				generatePointCloud(framesID[iPose+1], cloudFrame);
+	
+				// inverse transform
+				inverseTfo = cumulatedTransformation.inverse();
+				// apply transformation to the point cloud
+				pcl::getTransformedPointCloud(
+						cloudFrame,
+						Eigen::Affine3f(inverseTfo),
+						cloudFrameTransformed); 
+				
+				// apend transformed point cloud
+				cloudFull += cloudFrameTransformed;
+				cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
+				
+				if (iPose % 4 == 0 && iPose<poseTransformations.size()-4)
+					subsamplePointCloud(cloudFull);
 			}
 		}
 	}
 	if (savePointCloud && cloudFull.size()>0)
 	{
-		const float voxel_grid_size = 0.01;
-		pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
-		vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
-		vox_grid.setInputCloud (cloudFull.makeShared());
-		vox_grid.filter(cloudFull);
-		cout << " Total Size: " << cloudFull.size() << " points after filtering." << std::endl;
-		/*
-		pcl::PointCloud<pcl::PointXYZRGB> cloudTemp;
-		cloudTemp.points.resize(cloudFull.size()/2);
-		for (int i=0; i<cloudFull.size(); i+=2)
-			cloudTemp.points[i/2]=cloudFull.points[i];
-		cloudFull = cloudTemp;
-		*/
+		subsamplePointCloud(cloudFull);
 		
-		//cout << "Saving global point cloud ASCII..." << std::endl;
-		//pcl::io::savePCDFile(buf_full, cloud_full);
 		cout << "Saving global point cloud binary..." << std::endl;    			
-		sprintf(buf_full, "%s/cloud_full.pcd", g_dataDirectory.c_str());
+		sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
 		pcl::io::savePCDFile(buf_full, cloudFull, true);
 		// bug in PCL - the binary file is not created with the good rights!
 		char bufsys[256];
-		sprintf(bufsys, "chmod a+r %s", buf_full);
+		sprintf(bufsys, "chmod a+rw %s", buf_full);
 		system(bufsys);
 	}
 }
 
-void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
+void loadSequence(const char *dataDirectory, int skipCount, int min, int max, vector<int> &sequenceFramesID)
 {
 	int frameID;
 	list<int> listFramesID;
@@ -1082,7 +1076,7 @@ void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
 	{
 		//	printf("%s\t%s\n", itr->leaf().c_str(), itr->path().string().c_str());
 		if (boost::filesystem::extension(*itr)==".bmp" &&
-			sscanf(itr->leaf().c_str(), "frame%d", &frameID)==1)
+			sscanf(itr->leaf().c_str(), "frame_%d", &frameID)==1 && frameID>=min && (frameID<=max || max<0))
 		{
 			// add frame
 			printf("Add frame file #%i:\t%s\n", frameID, itr->path().string().c_str());
@@ -1094,15 +1088,23 @@ void loadSequence(const char *dataDirectory, vector<int> &sequenceFramesID)
 	listFramesID.unique();
 	
 	// build the sequence
+	int counter = 0;
 	cout << "Sequence of frames: (";
 	while (!listFramesID.empty())
 	{
-		cout << " " << listFramesID.front();
-		sequenceFramesID.push_back(listFramesID.front());
+		if (skipCount<=0 || counter==0 || counter>=skipCount)
+		{
+			cout << " " << listFramesID.front();
+			sequenceFramesID.push_back(listFramesID.front());
+			if (counter>0)
+				counter = 0;
+		}
 		listFramesID.pop_front();
+		counter++;
 	}
-	cout << ")" << std::endl;
+	cout << ") for " << sequenceFramesID.size() << " frames." << std::endl;
 }
+
 
 void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 {
@@ -1110,6 +1112,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 	{
 		FrameData frameData1, frameData2;
 		TPoseTransformationVector resultingTransformations;
+		PoseTransformation pose;
 		bool retCode;
 		
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
@@ -1121,10 +1124,24 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 					frameData1,
 					frameData2,
 					true,
-					resultingTransformations);
+					pose);
 			
 			if (!retCode)
 				break;	// some problem
+			
+			resultingTransformations.push_back(pose);
+			
+			/*if (iFrame%4 == 0)
+			{
+				FrameData frameData3;
+				retCode = matchFrames(
+						sequenceFramesID[iFrame-3],
+						sequenceFramesID[iFrame],
+						frameData3,
+						frameData2,
+						true,
+						pose);
+			}*/			
 			
 			// free data
 			frameData1.releaseData();
@@ -1170,9 +1187,19 @@ int main(int argc, char** argv)
     	// load sequence from directory
     	if ( ! boost::filesystem::exists( g_dataDirectory ) )
     		return -1;
+
+    	int skip=0, min=-1, max=-1;
+    	if (argc>4)
+    		skip = atoi(argv[4]);
+    	if (argc>3)
+    		max = atoi(argv[3]);
+    	if (argc>2)
+    		min = atoi(argv[2]);
     	
-    	loadSequence(g_dataDirectory.c_str(), sequenceFramesID);
+    	loadSequence(g_dataDirectory.c_str(), skip, min, max, sequenceFramesID);
     	
+        boost::filesystem::create_directories(g_resultDirectory);       
+		
     	// build map 
     	buildMapSequence(sequenceFramesID, savePointCloud);
 	}
@@ -1196,6 +1223,8 @@ int main(int argc, char** argv)
             g_cloudPointSave.height = 480;
             g_cloudPointSave.points.resize(640*480);
         	
+            boost::filesystem::create_directories(g_resultDirectory);
+            
         	// generate n frames and get its sequence
         	generateFrames(nbFrames, sequenceFramesID);
         

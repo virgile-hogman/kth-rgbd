@@ -15,6 +15,36 @@
 
 std::string FrameData::_DataPath;
 
+bool FrameData::find_file( const boost::filesystem::path & dir_path,     		// in this directory,
+                const std::string & file_name,	// search for this name,
+                std::string & path_found )        		// placing path here if found
+{
+  if ( ! boost::filesystem::exists( dir_path ) )
+	  return false;
+  
+  
+  char bufPattern[256];
+  sprintf(bufPattern, "%s_%%d", file_name.c_str());
+  int timestamp;
+  //printf("Looking for file with pattern %s.bmp\n", bufPattern);
+  fflush(stdout);
+	  
+  boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
+  for (  boost::filesystem::directory_iterator itr( dir_path );
+        itr != end_itr;
+        ++itr )
+  {
+	  if (boost::filesystem::extension(*itr)==".bmp" &&
+		  sscanf(itr->leaf().c_str(), bufPattern, &timestamp)==1)
+		{
+			// add frame
+		  path_found = itr->path().string().c_str();
+		  return true;
+		}
+  }
+  return false;
+}
+
 // -----------------------------------------------------------------------------------------------------
 //  FrameData
 // -----------------------------------------------------------------------------------------------------
@@ -41,8 +71,17 @@ bool FrameData::loadImage(int frameID)
 	//fflush(stdout);
 	
 	// load RGB data file
-	sprintf(buf, "%s/frame%d_rgb.bmp", _DataPath.c_str(), frameID);    
+	sprintf(buf, "%s/frame_%d_rgb.bmp", _DataPath.c_str(), frameID);    
 	_pImage  = cvLoadImage( buf, 1 );
+	
+	if (_pImage == NULL)
+	{
+		std::string pathFile;
+		sprintf(buf, "frame_%d_rgb", frameID);   
+		if (find_file(_DataPath.c_str(), buf,  pathFile))
+			_pImage  = cvLoadImage( pathFile.c_str(), 1 );
+	}
+	
 	if (_pImage != NULL)
 		_frameID = frameID;	// valid ID
 	else
@@ -65,8 +104,17 @@ bool FrameData::loadDepthData()
 	//fflush(stdout);
 	
 	// load depth data file
-	sprintf(buf,"%s/frame%d_depth.bmp", _DataPath.c_str(), _frameID);
+	sprintf(buf,"%s/frame_%d_depth.bmp", _DataPath.c_str(), _frameID);
 	pImageDepth = cvLoadImage( buf, -1 );	// read channels as defined in file
+	
+	if (pImageDepth == NULL)
+	{
+		std::string pathFile;
+		sprintf(buf, "frame_%d_depth", _frameID);   
+		if (find_file(_DataPath.c_str(), buf,  pathFile))
+			pImageDepth  = cvLoadImage( pathFile.c_str(), -1 );
+	}
+	
 	if (pImageDepth != NULL)
 	{
 		// allocate depth buffer
@@ -128,6 +176,28 @@ void FrameData::assignData(FrameData &srcFrameData)
 	srcFrameData._depthData = NULL;
 }
 
+void FrameData::copyData(const FrameData &srcFrameData)
+{
+	releaseData();
+	
+	// reallocate/clone data
+	_frameID = srcFrameData._frameID;
+	
+	if (srcFrameData._pImage != NULL)
+		_pImage=cvCloneImage(srcFrameData._pImage);
+	
+	_pFeatures = (struct feature*)calloc( _nbFeatures, sizeof(struct feature) );
+	memcpy(&_pFeatures, &srcFrameData._pFeatures, sizeof(struct feature) * srcFrameData._nbFeatures);
+	
+	_nbFeatures = srcFrameData._nbFeatures;
+
+	if (_pImage != NULL && srcFrameData._depthData != NULL)
+	{
+		_depthData = new TDepthPixel[_pImage->width * _pImage->height];
+		memcpy(_depthData, &srcFrameData._depthData, sizeof(struct feature) * _pImage->width * _pImage->height);
+	}
+}
+
 int FrameData::computeFeatures()
 {	
 	if (_pImage != NULL)
@@ -179,8 +249,8 @@ void FrameData::removeInvalidFeatures(int sizeSurfaceArea, int maxDeltaDepthArea
 	
 	if (validIdFeatures.size() < _nbFeatures)
 	{
-		printf("Features valid: %d/%d\n", validIdFeatures.size(), _nbFeatures);
-		fflush(stdout);
+		//printf("Features valid: %d/%d\n", validIdFeatures.size(), _nbFeatures);
+		//fflush(stdout);
 		
 		// allocate a new buffer
 		pNewFeatures = (struct feature*)calloc( validIdFeatures.size(), sizeof(struct feature) );
