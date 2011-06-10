@@ -10,6 +10,9 @@ extern "C" {
 #include "imgfeatures.h"
 }
 
+#include <boost/filesystem.hpp>
+
+
 // -----------------------------------------------------------------------------------------------------
 //  FrameData
 // -----------------------------------------------------------------------------------------------------
@@ -21,9 +24,6 @@ private:
 	TDepthPixel*		_depthData;		// depth data
 	struct feature*		_pFeatures;		// SIFT features
 	int					_nbFeatures;	// number of features (size of features data)
-	
-	unsigned char		_width;
-	unsigned char		_height;
 	
 public:
 	FrameData();
@@ -71,6 +71,8 @@ public:
 
 	void assignData(FrameData &srcFrameData);
 	
+	void copyData(const FrameData &srcFrameData);
+	
 	int computeFeatures();
 
 	void drawFeatures(CvFont &font);
@@ -79,6 +81,11 @@ public:
 	
 	// directory where to load/save the data files
 	static std::string _DataPath;
+	
+	
+static bool find_file( const boost::filesystem::path & dir_path,     		// in this directory,
+                const std::string & file_name,	// search for this name,
+                std::string & path_found );        		// placing path here if found
 };
 
 #endif
