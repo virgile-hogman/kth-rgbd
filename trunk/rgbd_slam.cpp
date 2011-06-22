@@ -107,7 +107,7 @@ float bad_point = std::numeric_limits<float>::quiet_NaN ();
 // -----------------------------------------------------------------------------------------------------
 //  Transformations
 // -----------------------------------------------------------------------------------------------------
-class PoseTransformation
+class Transformation
 {
 public:
 	bool			_is_valid;
@@ -118,7 +118,7 @@ public:
 // for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html
 };
 
-typedef vector<PoseTransformation, Eigen::aligned_allocator<Eigen::Vector4f> > TPoseTransformationVector;
+typedef vector<Transformation, Eigen::aligned_allocator<Eigen::Vector4f> > TransformationVector;
 
 //vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
 
@@ -157,7 +157,7 @@ XnStatus connectKinect()
     nRetVal = xnFPSInit(&xnFPS, 180);
     CHECK_RC(nRetVal, "FPS Init");
 
-    g_context.SetGlobalMirror(false); //mirror image 
+    g_context.SetGlobalMirror(true); //mirror image 
 
     g_depth.GetAlternativeViewPointCap().SetViewPoint(g_image);
     if (g_depth.GetIntProperty ("ShadowValue", shadow_value) != XN_STATUS_OK)
@@ -440,7 +440,7 @@ bool matchFrames(
 		FrameData &frameData1,
 		FrameData &frameData2,
 		bool methodRandom,
-		PoseTransformation &pose)
+		Transformation &pose)
 {
     Timer tm;
 	char buf[256];
@@ -464,7 +464,7 @@ bool matchFrames(
 	// feature detection
 	// ---------------------------------------------------------------------------
     tm.start();
-	printf("Frames %03d-%03d:\t Extracting SIFT features... \n", frameID1, frameID2);
+	printf("Frames %03d-%03d:\t Extracting SIFT features... ", frameID1, frameID2);
 	fflush(stdout);
 	
 	// load data Frame1
@@ -617,7 +617,7 @@ bool matchFrames(
 	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
 		
 	// save stacked image
-	sprintf(buf,"Matches: %d/%d", nb_valid_matches, nb_matches);
+	sprintf(buf,"Matches:%d/%d (%d%%)", nb_valid_matches, nb_matches, nb_valid_matches*100/nb_matches);
 	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 	sprintf(buf, "%s/sift_stacked%d.bmp", g_resultDirectory.c_str(), frameID1);
 	cvSaveImage(buf, imgStacked);
@@ -859,6 +859,21 @@ bool matchFrames(
 			// stack the 2 images
 			stacked_inliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
 						
+			// draw red lines for outliers
+			// all the initial matches are drawn here - the inliers will be overwritten with green
+			for (int i=0; i<index_matches.size(); i++)
+			{
+				int id_match = index_matches[i];
+	            const struct feature* feat1 = frameData1.getFeature(id_match);
+	            const struct feature* feat2 = frameData1.getFeatureMatch(id_match);
+				
+				// draw a line through the 2 points in the stacked image
+				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+				pt2.y += frameData1.getImage()->height;
+				// draw a green line
+				cvLine( stacked_inliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
+			}
 			// draw green lines for the best inliers
 			for (int i=0; i<index_best_inliers.size(); i++)
 			{
@@ -892,7 +907,7 @@ bool matchFrames(
 			}
 			
 			// save stacked image
-			sprintf(buf,"Inliers: %d/%d", index_best_inliers.size(), nb_valid_matches);
+			sprintf(buf,"Inliers:%d/%d (%d%%)", index_best_inliers.size(), nb_valid_matches, index_best_inliers.size()*100/nb_valid_matches);
 			cvPutText(stacked_inliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 			sprintf(buf, "%s/sift_stacked%d_inliers.bmp", g_resultDirectory.c_str(), frameID1);
 			cvSaveImage(buf, stacked_inliers);
@@ -958,13 +973,13 @@ bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 	return true;
 }
 
-void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
+void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int ratioKeep)
 {
 	pcl::PointCloud<pcl::PointXYZRGB> cloudTemp;
 	//cloudTemp.points.resize(cloudFull.size()/2);
 	for (int i=0; i<pointCloud.size(); i++)
 	{
-		if (rand()%2 < 1)
+		if (rand()%100 < ratioKeep)
 			cloudTemp.push_back(pointCloud.points[i]);
 	}
 	pointCloud = cloudTemp;
@@ -974,13 +989,13 @@ void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
 	vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
 	vox_grid.setInputCloud (pointCloud());
 	vox_grid.filter(pointCloud);*/
-	cout << "Size: " << pointCloud.size() << " points after subsampling." << std::endl;
+	cout << "Size: " << pointCloud.size() << " points after subsampling " << ratioKeep << "%" << std::endl;
 }
 
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
-void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformations, bool savePointCloud)
+void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, bool savePointCloud)
 {
 	char buf_full[256];
 	sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
@@ -1031,8 +1046,12 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 				//if (pcl::io::loadPCDFile(buf, cloudFrame) != 0)
 				generatePointCloud(framesID[iPose+1], cloudFrame);
 	
+				// subsample frame keeping 50%
+				subsamplePointCloud(cloudFrame, 50);
+				
 				// inverse transform
 				inverseTfo = cumulatedTransformation.inverse();
+				
 				// apply transformation to the point cloud
 				pcl::getTransformedPointCloud(
 						cloudFrame,
@@ -1043,14 +1062,19 @@ void buildMap(vector<int> &framesID, TPoseTransformationVector &poseTransformati
 				cloudFull += cloudFrameTransformed;
 				cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
 				
-				if (iPose % 4 == 0 && iPose<poseTransformations.size()-4)
-					subsamplePointCloud(cloudFull);
+/*				if (iPose % 10 == 0 && iPose<poseTransformations.size()-10)
+					subsamplePointCloud(cloudFull);*/
 			}
 		}
 	}
 	if (savePointCloud && cloudFull.size()>0)
 	{
-		subsamplePointCloud(cloudFull);
+		// subsample final point cloud keeping 70%
+		subsamplePointCloud(cloudFull, 70);
+
+		// correct x-axis mirroring
+		for (int i=0; i<cloudFull.size(); i++)
+			cloudFull.points[i].x = -cloudFull.points[i].x;
 		
 		cout << "Saving global point cloud binary..." << std::endl;    			
 		sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
@@ -1111,8 +1135,8 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 	if (sequenceFramesID.size()>=2)
 	{
 		FrameData frameData1, frameData2;
-		TPoseTransformationVector resultingTransformations;
-		PoseTransformation pose;
+		TransformationVector resultingTransformations;
+		Transformation pose;
 		bool retCode;
 		
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
