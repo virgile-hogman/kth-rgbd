@@ -7,10 +7,14 @@ include_directories(/usr/include/ni)
 include_directories(/usr/local/include/eigen3)
 include_directories(/usr/local/include/pcl-1.0/)
 
+include_directories(/usr/include/suitesparse)
+include_directories(~/Projects/g2o/trunk)
+include_directories(~/Projects/g2o/trunk/build/)
+
 link_directories(/usr/lib)
 link_directories(/usr/local/lib)
 link_directories(~/Projects/sift/lib)
-
+link_directories(~/Projects/g2o/trunk/lib)
 
 #set the default path for built executables to the "bin" directory
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
@@ -18,6 +22,6 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 
-add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp)
-target_link_libraries(rgbd_slam feat OpenNI cv highgui boost_filesystem pcl_io pcl_filters) 
+add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp Graph.cpp)
+target_link_libraries(rgbd_slam feat OpenNI cv highgui boost_filesystem pcl_io pcl_filters g2o_core g2o_math_groups g2o_solver_cholmod g2o_types_slam3d) 
 

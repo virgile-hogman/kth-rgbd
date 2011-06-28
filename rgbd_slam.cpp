@@ -29,10 +29,10 @@ extern "C" {
 }
 //#include "extract.h"
 
+#include "CommonTypes.h"
 #include "FrameData.h"
 #include "Timer.h"
-
-#include "CommonTypes.h"
+#include "Graph.h"
 
 // Open NI
 #include <XnCppWrapper.h>
@@ -44,7 +44,6 @@ extern "C" {
 
 #include <vector>
 #include <list>
-#include <Eigen/StdVector>
 
 using namespace xn;
 using namespace std;
@@ -81,6 +80,8 @@ const double rgb_focal_length_VGA = 525;
 //---------------------------------------------------------------------------
 // Globals
 //---------------------------------------------------------------------------
+Graph g_graph;
+
 DepthGenerator g_depth;
 ImageGenerator g_image;
 DepthMetaData g_depthMD;
@@ -103,24 +104,6 @@ pcl::PointCloud<pcl::PointXYZRGB> g_cloudPointSave;
 //  common data types
 // -----------------------------------------------------------------------------------------------------
 float bad_point = std::numeric_limits<float>::quiet_NaN ();
-
-// -----------------------------------------------------------------------------------------------------
-//  Transformations
-// -----------------------------------------------------------------------------------------------------
-class Transformation
-{
-public:
-	bool			_is_valid;
-	Eigen::Matrix4f	_matrix;
-	double			_error;
-public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-// for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html
-};
-
-typedef vector<Transformation, Eigen::aligned_allocator<Eigen::Vector4f> > TransformationVector;
-
-//vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
 
 
 // -----------------------------------------------------------------------------------------------------
@@ -456,9 +439,11 @@ bool matchFrames(
 	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 	
-	pose._is_valid = false;
+	pose._isValid = false;
 	pose._matrix = Eigen::Matrix4f::Identity();
 	pose._error = 1.0;
+	pose._idOrig = frameID1;
+	pose._idDest = frameID2;
 	
 	// ---------------------------------------------------------------------------
 	// feature detection
@@ -849,7 +834,7 @@ bool matchFrames(
 			std:cerr << best_transformation << std::endl;
 			fflush(stderr);
 
-			pose._is_valid = true;
+			pose._isValid = true;
 			pose._matrix = best_transformation;
 			pose._error = best_error;
 			
@@ -915,7 +900,7 @@ bool matchFrames(
 		}
 	}
 	
-	return pose._is_valid;
+	return pose._isValid;
 }
 
 bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
@@ -1021,16 +1006,22 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 	{
 		cout << "----------------------------------------------------------------------------" << std::endl;
 		pcl::PointXYZRGB ptCameraPose;
+		
+		Transformation tfoGraph;
+		g_graph.getTransfo(iPose+1, tfoGraph);
+		cameraPose = tfoGraph._matrix.inverse() * Eigen::Vector4f(0,0,0,1);
+		cout << "camera pose graph\n" << cameraPose << std::endl;
 		cameraPose = poseTransformations[iPose]._matrix.inverse() * cameraPose;
-		cout << cameraPose << std::endl;
+		cout << "camera pose std\n" << cameraPose << std::endl;
 		
 		// compute global transformation from the start
-		cumulatedTransformation = cumulatedTransformation * poseTransformations[iPose]._matrix;
+		//cumulatedTransformation = cumulatedTransformation * poseTransformations[iPose]._matrix;
+		cumulatedTransformation = tfoGraph._matrix;
 
 		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
 		if (valid_sequence)
 		{
-			if (! poseTransformations[iPose]._is_valid)
+			if (! poseTransformations[iPose]._isValid)
 			{
 				valid_sequence = false;
 				cout << "--- Invalid sequence - aborting point cloud accumulation --- \n" << std::endl;
@@ -1129,16 +1120,22 @@ void loadSequence(const char *dataDirectory, int skipCount, int min, int max, ve
 	cout << ") for " << sequenceFramesID.size() << " frames." << std::endl;
 }
 
-
 void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 {
 	if (sequenceFramesID.size()>=2)
 	{
 		FrameData frameData1, frameData2;
 		TransformationVector resultingTransformations;
-		Transformation pose;
+		Transformation transfo;
 		bool retCode;
-		
+		Eigen::Matrix4f cameraPoseMat(Eigen::Matrix4f::Identity());
+
+		// initialize the graph
+	    g_graph.initialize();
+
+	    // add vertex for the initial pose
+		g_graph.addVertex(0, cameraPoseMat);
+	    
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
 		{
 			// match frame to frame (current with previous)
@@ -1148,13 +1145,22 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 					frameData1,
 					frameData2,
 					true,
-					pose);
+					transfo);
 			
 			if (!retCode)
 				break;	// some problem
 			
-			resultingTransformations.push_back(pose);
+			resultingTransformations.push_back(transfo);
 			
+			cameraPoseMat = transfo._matrix * cameraPoseMat;
+			std::cerr << "Camera mat\n" << cameraPoseMat << std::endl;
+
+		    // add a new vertex
+		    g_graph.addVertex(iFrame, cameraPoseMat);
+	    
+		    // add the edge = constraints
+		    g_graph.addEdge(iFrame-1, iFrame, transfo);
+		    
 			/*if (iFrame%4 == 0)
 			{
 				FrameData frameData3;
@@ -1172,10 +1178,16 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 			// reassign the last frame to avoid reloading all the data twice
 			frameData1.assignData(frameData2);
 		}
+	    
+		g_graph.setSaveDirectory(g_resultDirectory.c_str());
+		g_graph.save("graph.g2o");
 		
 		// build map, generates point cloud
 		buildMap(sequenceFramesID, resultingTransformations, savePointCloud);
 		
+		g_graph.optimize();
+		g_graph.save("graph_opt.g2o");
+
 		frameData1.releaseData();
 		frameData2.releaseData();
 	}
