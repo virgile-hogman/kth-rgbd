@@ -35,22 +35,18 @@ void Graph::addVertex(int id, const Eigen::Matrix4f &transfo)
 {
 	g2o::VertexSE3 *vertexSE3 = NULL;
 	
-    Eigen::Affine3f eigen_transformCumulated(transfo);
-	
-    Eigen::Affine3f eigen_transformCumulatedInv = eigen_transformCumulated;
-    Eigen::Quaternionf eigen_quat_cumulated(eigen_transformCumulatedInv.rotation());
+    Eigen::Affine3f eigenTransform(transfo);
+    Eigen::Quaternionf eigenRotation(eigenTransform.rotation());
     
-    std::cerr << "Camera mat inv\n" << eigen_transformCumulatedInv.matrix() << std::endl;
-      
-    g2o::SE3Quat pose(
+    g2o::SE3Quat poseSE3(
     		// NOTE the order of the arguments : w comes first!
-			Eigen::Quaterniond(eigen_quat_cumulated.w(), eigen_quat_cumulated.x(), eigen_quat_cumulated.y(), eigen_quat_cumulated.z()),
-			Eigen::Vector3d(eigen_transformCumulatedInv(0,3), eigen_transformCumulatedInv(1,3), eigen_transformCumulatedInv(2,3)));
+			Eigen::Quaterniond(eigenRotation.w(), eigenRotation.x(), eigenRotation.y(), eigenRotation.z()),
+			Eigen::Vector3d(eigenTransform(0,3), eigenTransform(1,3), eigenTransform(2,3)));
 	
 	// add new vertex to the graph
     vertexSE3 = new g2o::VertexSE3();
 	vertexSE3->setId(id);
-	vertexSE3->estimate() = pose;
+	vertexSE3->estimate() = poseSE3;
 	_optimizer.addVertex(vertexSE3);
 
 	/*Eigen::Matrix4f mat = vertexSE3->estimate().to_homogenious_matrix().cast<float>();
@@ -62,19 +58,20 @@ void Graph::addVertex(int id, const Eigen::Matrix4f &transfo)
 void Graph::addEdge(int id1, int id2, const Transformation &transfo)
 {
     //SE2 transf = transfo._matrix.inverse();
-    Eigen::Affine3f eigen_transform(transfo._matrix);			
-    Eigen::Quaternionf eigen_quat(eigen_transform.rotation());
-    Eigen::Vector3d eigen_translation(transfo._matrix(0, 3), transfo._matrix(1, 3), transfo._matrix(2, 3));
-    Eigen::Quaterniond eigen_rotation(eigen_quat.x(), eigen_quat.y(), eigen_quat.z(), eigen_quat.w());
+    Eigen::Affine3f eigenTransform(transfo._matrix);			
+    Eigen::Quaternionf eigenRotation(eigenTransform.rotation());
     
-    g2o::SE3Quat transf(eigen_rotation, eigen_translation);
+    g2o::SE3Quat transfoSE3(
+    		// NOTE the order of the arguments : w comes first!    		
+    		Eigen::Quaterniond(eigenRotation.w(), eigenRotation.x(), eigenRotation.y(), eigenRotation.z()),
+    		Eigen::Vector3d(transfo._matrix(0, 3), transfo._matrix(1, 3), transfo._matrix(2, 3)));
     
 	// add new edge to the graph
     g2o::EdgeSE3* edgeSE3 = new g2o::EdgeSE3;
     edgeSE3->vertices()[0] = _optimizer.vertex(id1);
     edgeSE3->vertices()[1] = _optimizer.vertex(id2);
-    edgeSE3->setMeasurement(transf);
-    edgeSE3->setInverseMeasurement(transf.inverse());
+    edgeSE3->setMeasurement(transfoSE3);
+    edgeSE3->setInverseMeasurement(transfoSE3.inverse());
     //edgeSE3->setInformation(information);
     _optimizer.addEdge(edgeSE3);
 }
@@ -96,6 +93,13 @@ void Graph::getTransfo(int id, Transformation& transfo)
 		Eigen::Matrix4d mat = vertexSE3->estimate().to_homogenious_matrix();
 		// downcast to float
 		transfo._matrix = mat.cast<float>();
+	}
+	else
+	{
+		transfo._isValid = false;
+		transfo._idOrig = -1;
+		transfo._idDest = id;
+		transfo._matrix = Eigen::Matrix4f::Identity();
 	}
 }
 
