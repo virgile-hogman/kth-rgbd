@@ -95,6 +95,7 @@ IplImage* g_imgRGB = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 IplImage* g_imgDepth = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 
 std::string g_dataDirectory = "data_in";
+std::string g_genDirectory = "data_gen";
 std::string g_resultDirectory = "data_out";
 
 // PCL
@@ -336,7 +337,7 @@ void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 			pDepthMap = g_depthMD.Data();
 			pImageMap = g_image.GetRGB24ImageMap();
 			
-			printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f\n",
+			printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f\r",
 					g_depthMD.FrameID(),
 					g_depthMD.XRes(),
 					g_depthMD.YRes(),
@@ -352,14 +353,14 @@ void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 			int frameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, false);
 			//usleep(100000);
 			
-			printf("--- Adding frame %d in sequence ---\n", frameID);
+			printf("\nAdding frame %d in sequence, remaining: %d\n", frameID, nbRemainingFrames);
 			framesID.push_back(frameID);
 		}
 	}
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  Main computeInliersAndError
+//  computeInliersAndError
 // -----------------------------------------------------------------------------------------------------
 void computeInliersAndError(
 		const Eigen::Matrix4f& transformation,
@@ -423,7 +424,7 @@ bool matchFrames(
 		FrameData &frameData1,
 		FrameData &frameData2,
 		bool methodRandom,
-		Transformation &pose)
+		Transformation &resultingTransfo)
 {
     Timer tm;
 	char buf[256];
@@ -439,11 +440,11 @@ bool matchFrames(
 	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 	
-	pose._isValid = false;
-	pose._matrix = Eigen::Matrix4f::Identity();
-	pose._error = 1.0;
-	pose._idOrig = frameID1;
-	pose._idDest = frameID2;
+	resultingTransfo._isValid = false;
+	resultingTransfo._matrix = Eigen::Matrix4f::Identity();
+	resultingTransfo._error = 1.0;
+	resultingTransfo._idOrig = frameID1;
+	resultingTransfo._idDest = frameID2;
 	
 	// ---------------------------------------------------------------------------
 	// feature detection
@@ -604,7 +605,7 @@ bool matchFrames(
 	// save stacked image
 	sprintf(buf,"Matches:%d/%d (%d%%)", nb_valid_matches, nb_matches, nb_valid_matches*100/nb_matches);
 	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-	sprintf(buf, "%s/sift_stacked%d.bmp", g_resultDirectory.c_str(), frameID1);
+	sprintf(buf, "%s/sift_%d_%d.bmp", g_resultDirectory.c_str(), frameID1, frameID2);
 	cvSaveImage(buf, imgStacked);
 	cvReleaseImage(&imgStacked);
 
@@ -612,102 +613,11 @@ bool matchFrames(
     fprintf( stderr, "\tKeeping %d/%d matches.\t(%dms)\n", nb_valid_matches, nb_matches, tm.duration() );
 	fflush(stdout);
 
-	/*
+		
 	// ---------------------------------------------------------------------------
-	// compute a RANSAC transformation (planar)
+	//  find transformation through RANSAC iterations 
 	// ---------------------------------------------------------------------------
-	if (nb_valid_matches>0)
-	{
-		CvMat* H = NULL;
-		IplImage* xformed = NULL;
-		
-		tm.start();
-	    fprintf( stderr, "Frames %03d-%03d:\t RANSAC Transform... ", frameID1, frameID2 );			
-		fflush(stdout);
-
-	    // transform
-		// lsq_homog -> least-squares planar homography
-		H = ransac_xform( frameData1.getFeatures(), frameData1.getFeatures(), FEATURE_FWD_MATCH,
-				lsq_homog, 4, 0.01, homog_xfer_err, 3.0, NULL, NULL );
-		if( H != NULL )
-		{
-			xformed = cvCreateImage( cvGetSize( img2 ), IPL_DEPTH_8U, 3 );
-			cvWarpPerspective( frameData1.getImage(), xformed, H, 
-						CV_INTER_LINEAR + CV_WARP_FILL_OUTLIERS,
-						cvScalarAll( 0 ) );
-			
-			char buf[256];
-			sprintf(buf, "%s/sift_formed%d.bmp", g_dataDirectory.c_str(), frameID1);
-			cvSaveImage(buf, xformed);
-			//cvNamedWindow( "Xformed", 1 );
-			//cvShowImage( "Xformed", xformed );
-			//cvWaitKey( 0 );
-			cvReleaseImage( &xformed );
-		}
-		tm.stop();
-	    fprintf( stderr, "done.\t(%dms)\n", tm.duration() );			
-		fflush(stdout);
-
-		// print and free the H matrix
-		if (H != NULL)
-		{
-			fprintf(stderr, "Frames %03d-%03d:\t H Matrix (%dx%d): [", frameID1, frameID2, H->rows, H->cols);
-			for (int i=0; i<H->rows; i++)
-			{
-				for (int j=0; j<H->cols; j++)
-					fprintf(stderr, "%lf ", H->data.db[i*H->cols + j]);
-				fprintf(stderr, "; ");
-			}
-			fprintf(stderr, "]\n");
-			cvReleaseMat( &H );
-		}
-	 }
-	 */
-		
-	/* --- initial version ---
-	/if (nb_valid_matches>0)
-	{
-	     float constant = 0.001 / rgb_focal_length_VGA;    
-		
-		// find transform pairs
-	    pcl::TransformationFromCorrespondences tfc;
-		for (int i=0; i<frameData1.getNbFeatures() ; i++)
-		{
-			fprintf(stderr, "."); fflush(stderr);
-			if (frameData1.getFeatureMatch(i) != NULL)
-			{
-				// read depth info
-				const XnDepthPixel* p1 = g_vectDepthMD[frameID1-1]->Data();
-				const XnDepthPixel* p2 = g_vectDepthMD[frameID2-1]->Data();
-				
-				const XnDepthPixel d1 = p1[cvRound(feat->y)*640 + cvRound(feat->x)];
-				const XnDepthPixel d2 = p2[cvRound(frameData1.getFeatureMatch(i)->y)*640 + cvRound(frameData1.getFeatureMatch(i)->x)];
-				
-				// convert pixels to metric
-                float x1 = (frameData1.getFeature(i)->x - 320) * d1 * constant;
-                float y1 = (frameData1.getFeature(i)->y - 240) * d1 * constant;
-                float z1 = d1 * 0.001 ; // because values are in mm
-				
-                float x2 = (frameData1.getFeatureMatch(i)->x - 320) * d2 * constant;
-                float y2 = (frameData1.getFeatureMatch(i)->y - 240) * d2 * constant;
-                float z2 = d2 * 0.001 ; // because values are in mm
-
-				Eigen::Vector3f from(x1,y1,z1);
-				Eigen::Vector3f to (x2,y2,z2);
-				tfc.add(from, to);
-			}
-		}
-		fprintf(stderr, "\nCompute transfo matrix...\n"); fflush(stderr);
-		
-		// get relative movement from samples
-		Eigen::Matrix4f transformation = tfc.getTransformation().matrix();
-		
-		// print and free the H matrix
-		std::cout << transformation << "\n" << std::endl;
-		fflush(stdout);
-	}*/
-		
-	if (nb_valid_matches>0)
+	if (nb_valid_matches>3)
 	{
 		// find transform pairs
 	    pcl::TransformationFromCorrespondences tfc;
@@ -834,9 +744,9 @@ bool matchFrames(
 			std:cerr << best_transformation << std::endl;
 			fflush(stderr);
 
-			pose._isValid = true;
-			pose._matrix = best_transformation;
-			pose._error = best_error;
+			resultingTransfo._isValid = true;
+			resultingTransfo._matrix = best_transformation;
+			resultingTransfo._error = best_error;
 			
 			// draw inliers
 			IplImage* stacked_inliers = NULL;
@@ -892,15 +802,15 @@ bool matchFrames(
 			}
 			
 			// save stacked image
-			sprintf(buf,"Inliers:%d/%d (%d%%)", index_best_inliers.size(), nb_valid_matches, index_best_inliers.size()*100/nb_valid_matches);
+			sprintf(buf,"inliers:%d/%d (%d%%)", index_best_inliers.size(), nb_valid_matches, index_best_inliers.size()*100/nb_valid_matches);
 			cvPutText(stacked_inliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-			sprintf(buf, "%s/sift_stacked%d_inliers.bmp", g_resultDirectory.c_str(), frameID1);
+			sprintf(buf, "%s/sift_%d_%d_inliers.bmp", g_resultDirectory.c_str(), frameID1, frameID2);
 			cvSaveImage(buf, stacked_inliers);
 			cvReleaseImage(&stacked_inliers);
 		}
 	}
 	
-	return pose._isValid;
+	return resultingTransfo._isValid;
 }
 
 bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
@@ -980,7 +890,7 @@ void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int rati
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
-void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, bool savePointCloud)
+void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, bool cumulateTransfo, bool savePointCloud, const char *filenamePCD)
 {
 	char buf_full[256];
 	sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
@@ -988,7 +898,7 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
 	
-	Eigen::Vector4f cameraPose(0, 0, 0, 1.0); 
+	//Eigen::Vector4f cameraPose(0, 0, 0, 1.0); 
 	Eigen::Matrix4f cumulatedTransformation = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f inverseTfo;
 	bool valid_sequence = true;
@@ -1007,16 +917,18 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 		cout << "----------------------------------------------------------------------------" << std::endl;
 		pcl::PointXYZRGB ptCameraPose;
 		
-		Transformation tfoGraph;
-		g_graph.getTransfo(iPose+1, tfoGraph);
-		cameraPose = tfoGraph._matrix.inverse() * Eigen::Vector4f(0,0,0,1);
-		cout << "camera pose graph\n" << cameraPose << std::endl;
-		cameraPose = poseTransformations[iPose]._matrix.inverse() * cameraPose;
-		cout << "camera pose std\n" << cameraPose << std::endl;
+		//cameraPose = tfoGraph._matrix.inverse() * Eigen::Vector4f(0,0,0,1);
+		//cout << "camera pose graph\n" << cameraPose << std::endl;
+		//cameraPose = poseTransformations[iPose]._matrix.inverse() * cameraPose;
+		//cout << "camera pose std\n" << cameraPose << std::endl;
 		
 		// compute global transformation from the start
-		//cumulatedTransformation = cumulatedTransformation * poseTransformations[iPose]._matrix;
-		cumulatedTransformation = tfoGraph._matrix;
+		if (cumulateTransfo)
+			cumulatedTransformation = poseTransformations[iPose]._matrix * cumulatedTransformation;
+		else
+			cumulatedTransformation = poseTransformations[iPose]._matrix;
+			
+		cout << "camera pose std\n" << cumulatedTransformation.inverse() << std::endl;
 
 		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
 		if (valid_sequence)
@@ -1068,7 +980,7 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 			cloudFull.points[i].x = -cloudFull.points[i].x;
 		
 		cout << "Saving global point cloud binary..." << std::endl;    			
-		sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
+		sprintf(buf_full, "%s/%s", g_resultDirectory.c_str(), filenamePCD);
 		pcl::io::savePCDFile(buf_full, cloudFull, true);
 		// bug in PCL - the binary file is not created with the good rights!
 		char bufsys[256];
@@ -1125,6 +1037,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 	if (sequenceFramesID.size()>=2)
 	{
 		FrameData frameData1, frameData2;
+		FrameData frameDataLoopClosure;
 		TransformationVector resultingTransformations;
 		Transformation transfo;
 		bool retCode;
@@ -1148,7 +1061,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 					transfo);
 			
 			if (!retCode)
-				break;	// some problem
+				break;	// no valid transform
 			
 			resultingTransformations.push_back(transfo);
 			
@@ -1161,17 +1074,26 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 		    // add the edge = constraints
 		    g_graph.addEdge(iFrame-1, iFrame, transfo);
 		    
-			/*if (iFrame%4 == 0)
+			/*if (iFrame>1 && iFrame%6 == 0)
 			{
-				FrameData frameData3;
+				// loop closure with frame #1
 				retCode = matchFrames(
-						sequenceFramesID[iFrame-3],
+						sequenceFramesID[1],
 						sequenceFramesID[iFrame],
-						frameData3,
+						frameDataLoopClosure,
 						frameData2,
 						true,
-						pose);
-			}*/			
+						transfo);
+				
+				if (retCode)
+				{
+				    // add the edge = constraints
+					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+					std::cerr << " LOOP CLOSURE DETECTED " << std::endl;
+					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+				    g_graph.addEdge(1, iFrame, transfo);
+				}
+			}			*/
 			
 			// free data
 			frameData1.releaseData();
@@ -1183,11 +1105,26 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 		g_graph.save("graph.g2o");
 		
 		// build map, generates point cloud
-		buildMap(sequenceFramesID, resultingTransformations, savePointCloud);
+		buildMap(sequenceFramesID, resultingTransformations, true, savePointCloud, "cloud_full.pcd");
 		
 		g_graph.optimize();
 		g_graph.save("graph_opt.g2o");
-
+		
+		// extract the transformations from the optimized graph
+		resultingTransformations.clear();
+		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
+		{		
+			Transformation tfoGraph;
+			g_graph.getTransfo(iFrame, tfoGraph);
+			
+			if (! tfoGraph._isValid)
+				break;
+					
+			resultingTransformations.push_back(tfoGraph);
+			//cout << "camera pose graph\n" << cumulatedTransformationGraph.inverse() << std::endl;
+		}
+		buildMap(sequenceFramesID, resultingTransformations, false, savePointCloud, "cloud_full_opt.pcd");
+		
 		frameData1.releaseData();
 		frameData2.releaseData();
 	}
@@ -1243,6 +1180,10 @@ int main(int argc, char** argv)
     if (strcmp(argv[1], "--save") == 0)
     {
         XnStatus nRetVal = XN_STATUS_OK;
+        
+        // use the same directory to generate and reload the data
+        g_dataDirectory = g_genDirectory;
+        FrameData::_DataPath = g_genDirectory;
     		
     	if (nbFrames<2)
     	{
