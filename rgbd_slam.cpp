@@ -157,8 +157,11 @@ XnStatus connectKinect()
 // -----------------------------------------------------------------------------------------------------
 //  saveRGBImage
 // -----------------------------------------------------------------------------------------------------
-void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doSave = false){
-
+void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img, int frameID)
+{
+	if (frameID<0)
+		frameID = g_imageMD.FrameID();	// use ID given by Kinect
+	
     // Convert to IplImage 24 bit, 3 channels
     for(unsigned int i = 0; i < g_imageMD.XRes()*g_imageMD.YRes();i++)
     {
@@ -166,11 +169,10 @@ void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doS
         tmp_img->imageData[3*i+1]=pImageMap[i].nGreen;
         tmp_img->imageData[3*i+2]=pImageMap[i].nRed;
     }
-    if (doSave){
-        char buf[256];
-        sprintf(buf, "%s/frame_%d_rgb.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
-        cvSaveImage(buf, tmp_img);
-    }
+ 
+    char buf[256];
+    sprintf(buf, "%s/frame_%d_rgb.bmp", g_dataDirectory.c_str(), frameID);
+    cvSaveImage(buf, tmp_img);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -179,7 +181,8 @@ void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img = 0, bool doS
 int saveHistogramImage(
 		const XnRGB24Pixel* pImageMap,
 		const XnDepthPixel* pDepthMap,
-		IplImage* pImgDepth)
+		IplImage* pImgDepth,
+		int frameID)
 {
 	static float depthHistogram[MAX_DEPTH_HISTOGRAM];
 	
@@ -230,9 +233,13 @@ int saveHistogramImage(
 			pImgDepth->imageData[3*i+2] = nHistValue;	//Red
 		}
 	}
+
+	if (frameID<0)
+		frameID = g_depthMD.FrameID();	// use ID given by Kinect
 	
+		
 	char bufFilename[256];
-	sprintf(bufFilename,"%s/frame_%d_histo.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
+	sprintf(bufFilename,"%s/frame_%d_histo.bmp", g_dataDirectory.c_str(), frameID);
 	cvSaveImage(bufFilename, pImgDepth);
 }
 
@@ -243,10 +250,11 @@ int saveDepthImage(
 		const XnRGB24Pixel* pImageMap,
 		const XnDepthPixel* pDepthMap,
 		IplImage* pImgDepth,
+		int frameID,
 		bool savePointCloud)
 {
-	//printf("Nb Channels: %d depth:%d/%d\n", pImgDepth->nChannels, pImgDepth->depth, IPL_DEPTH_16U);
-	//fflush(stdout);
+	if (frameID<0)
+		frameID = g_depthMD.FrameID();	// use ID given by Kinect
 	
 	// Save only the Z value per pixel as an image for quick visualization of depth
 	for(int i = 0; i < g_depthMD.XRes()*g_depthMD.YRes();i++)
@@ -262,7 +270,7 @@ int saveDepthImage(
 	
 	// save the depth image
 	char bufFilename[256];
-	sprintf(bufFilename, "%s/frame_%d_depth.bmp", g_dataDirectory.c_str(), g_depthMD.FrameID());
+	sprintf(bufFilename, "%s/frame_%d_depth.bmp", g_dataDirectory.c_str(), frameID);
 	cvSaveImage(bufFilename, pImgDepth);
     
 	// point cloud
@@ -302,7 +310,7 @@ int saveDepthImage(
 		}
 		
 		char buf[256];
-		sprintf(buf, "%s/cloud%d.pcd", g_resultDirectory.c_str(), g_depthMD.FrameID());
+		sprintf(buf, "%s/cloud%d.pcd", g_resultDirectory.c_str(), frameID);
 		pcl::io::savePCDFile(buf, g_cloudPointSave, true);
 		// bug in PCL - the binary file is not created with the good rights!
 		char bufsys[256];
@@ -319,6 +327,7 @@ int saveDepthImage(
 void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 {
     XnStatus nRetVal = XN_STATUS_OK;
+    int frameID=0;
 	
 	framesID.clear();
 	
@@ -349,12 +358,12 @@ void generateFrames(int nbRemainingFrames, vector<int> &framesID)
 			char c = xnOSReadCharFromInput();	// to reset the keyboard hit
 			nbRemainingFrames--;
 
-			saveRGBImage(pImageMap, g_imgRGB, true);
-			int frameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, false);
+			saveRGBImage(pImageMap, g_imgRGB, frameID);
+			int kinectFrameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, frameID, false);	// no PCD file
 			//usleep(100000);
 			
-			printf("\nAdding frame %d in sequence, remaining: %d\n", frameID, nbRemainingFrames);
-			framesID.push_back(frameID);
+			printf("\nAdding frame %d in sequence, remaining: %d\n", kinectFrameID, nbRemainingFrames);
+			framesID.push_back(frameID++);
 		}
 	}
 }
@@ -890,7 +899,7 @@ void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int rati
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
-void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, bool cumulateTransfo, bool savePointCloud, const char *filenamePCD)
+void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, bool doCumulateTransfo, bool savePointCloud, const char *filenamePCD)
 {
 	char buf_full[256];
 	sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
@@ -899,8 +908,8 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
 	
 	//Eigen::Vector4f cameraPose(0, 0, 0, 1.0); 
-	Eigen::Matrix4f cumulatedTransformation = Eigen::Matrix4f::Identity();
-	Eigen::Matrix4f inverseTfo;
+	Eigen::Matrix4f globalTransfo = Eigen::Matrix4f::Identity();
+	Eigen::Matrix4f inverseTransfo;
 	bool valid_sequence = true;
 	
 	if (savePointCloud && poseTransformations.size()>0)
@@ -923,12 +932,12 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 		//cout << "camera pose std\n" << cameraPose << std::endl;
 		
 		// compute global transformation from the start
-		if (cumulateTransfo)
-			cumulatedTransformation = poseTransformations[iPose]._matrix * cumulatedTransformation;
+		if (doCumulateTransfo)
+			globalTransfo = poseTransformations[iPose]._matrix * globalTransfo;
 		else
-			cumulatedTransformation = poseTransformations[iPose]._matrix;
+			globalTransfo = poseTransformations[iPose]._matrix;
 			
-		cout << "camera pose std\n" << cumulatedTransformation.inverse() << std::endl;
+		cout << globalTransfo.inverse() << std::endl;
 
 		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
 		if (valid_sequence)
@@ -953,12 +962,12 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 				subsamplePointCloud(cloudFrame, 50);
 				
 				// inverse transform
-				inverseTfo = cumulatedTransformation.inverse();
+				inverseTransfo = globalTransfo.inverse();
 				
 				// apply transformation to the point cloud
 				pcl::getTransformedPointCloud(
 						cloudFrame,
-						Eigen::Affine3f(inverseTfo),
+						Eigen::Affine3f(inverseTransfo),
 						cloudFrameTransformed); 
 				
 				// apend transformed point cloud
@@ -1040,7 +1049,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 		FrameData frameDataLoopClosure;
 		TransformationVector resultingTransformations;
 		Transformation transfo;
-		bool retCode;
+		bool validMatch;
 		Eigen::Matrix4f cameraPoseMat(Eigen::Matrix4f::Identity());
 
 		// initialize the graph
@@ -1052,7 +1061,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
 		{
 			// match frame to frame (current with previous)
-			retCode = matchFrames(
+			validMatch = matchFrames(
 					sequenceFramesID[iFrame-1],
 					sequenceFramesID[iFrame],
 					frameData1,
@@ -1060,7 +1069,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 					true,
 					transfo);
 			
-			if (!retCode)
+			if (!validMatch)
 				break;	// no valid transform
 			
 			resultingTransformations.push_back(transfo);
@@ -1074,10 +1083,10 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 		    // add the edge = constraints
 		    g_graph.addEdge(iFrame-1, iFrame, transfo);
 		    
-			/*if (iFrame>1 && iFrame%6 == 0)
+			if (iFrame>1 && iFrame%6 == 0)
 			{
 				// loop closure with frame #1
-				retCode = matchFrames(
+				validMatch = matchFrames(
 						sequenceFramesID[1],
 						sequenceFramesID[iFrame],
 						frameDataLoopClosure,
@@ -1085,7 +1094,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 						true,
 						transfo);
 				
-				if (retCode)
+				if (validMatch)
 				{
 				    // add the edge = constraints
 					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
@@ -1093,7 +1102,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
 				    g_graph.addEdge(1, iFrame, transfo);
 				}
-			}			*/
+			}
 			
 			// free data
 			frameData1.releaseData();
@@ -1104,9 +1113,10 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 		g_graph.setSaveDirectory(g_resultDirectory.c_str());
 		g_graph.save("graph.g2o");
 		
-		// build map, generates point cloud
+		// build initial map and point cloud, cumulate the transfos
 		buildMap(sequenceFramesID, resultingTransformations, true, savePointCloud, "cloud_full.pcd");
 		
+		// optimize the graph
 		g_graph.optimize();
 		g_graph.save("graph_opt.g2o");
 		
@@ -1123,6 +1133,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 			resultingTransformations.push_back(tfoGraph);
 			//cout << "camera pose graph\n" << cumulatedTransformationGraph.inverse() << std::endl;
 		}
+		// build optimized map and point cloud, don't cumulate the transfos (already done in the graph)
 		buildMap(sequenceFramesID, resultingTransformations, false, savePointCloud, "cloud_full_opt.pcd");
 		
 		frameData1.releaseData();
