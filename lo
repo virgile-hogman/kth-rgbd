@@ -1,3 +1,4 @@
-cd ~/Projects/kth-rgbd/bin
-sudo ./rgbd_slam --load
+cd ~
+sudo rm -f data_out/*.bmp
+sudo ~/Projects/kth-rgbd/bin/rgbd_slam --load $1 $2 $3
 cd --
