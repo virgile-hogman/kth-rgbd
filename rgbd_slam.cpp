@@ -880,120 +880,9 @@ bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 	return true;
 }
 
-void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int ratioKeep)
-{
-	pcl::PointCloud<pcl::PointXYZRGB> cloudTemp;
-	//cloudTemp.points.resize(cloudFull.size()/2);
-	for (int i=0; i<pointCloud.size(); i++)
-	{
-		if (rand()%100 < ratioKeep)
-			cloudTemp.push_back(pointCloud.points[i]);
-	}
-	pointCloud = cloudTemp;
-	/*
-	const float voxel_grid_size = 0.005;
-	pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
-	vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
-	vox_grid.setInputCloud (pointCloud());
-	vox_grid.filter(pointCloud);*/
-	cout << "Size: " << pointCloud.size() << " points after subsampling " << ratioKeep << "%" << std::endl;
-}
-
 // -----------------------------------------------------------------------------------------------------
-//  buildMap
+//  loadSequence
 // -----------------------------------------------------------------------------------------------------
-void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, bool doCumulateTransfo, bool savePointCloud, const char *filenamePCD)
-{
-	char buf_full[256];
-	sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
-	pcl::PointCloud<pcl::PointXYZRGB> cloudFull;
-	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
-	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
-	
-	//Eigen::Vector4f cameraPose(0, 0, 0, 1.0); 
-	Eigen::Matrix4f globalTransfo = Eigen::Matrix4f::Identity();
-	Eigen::Matrix4f inverseTransfo;
-	bool valid_sequence = true;
-	
-	if (savePointCloud && poseTransformations.size()>0)
-	{
-		cout << "Initialize point cloud frame #" << framesID[0] << " (1/" << framesID.size() << ")..." << std::endl;
-		//char buf[256];
-		//sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
-		//if (pcl::io::loadPCDFile(buf, cloudFull) != 0)
-		generatePointCloud(framesID[0], cloudFull);
-	}
-	
-	for (int iPose=0; iPose<poseTransformations.size(); iPose++)
-	{
-		cout << "----------------------------------------------------------------------------" << std::endl;
-		pcl::PointXYZRGB ptCameraPose;
-		
-		//cameraPose = tfoGraph._matrix.inverse() * Eigen::Vector4f(0,0,0,1);
-		//cout << "camera pose graph\n" << cameraPose << std::endl;
-		//cameraPose = poseTransformations[iPose]._matrix.inverse() * cameraPose;
-		//cout << "camera pose std\n" << cameraPose << std::endl;
-		
-		// compute global transformation from the start
-		if (doCumulateTransfo)
-			globalTransfo = poseTransformations[iPose]._matrix * globalTransfo;
-		else
-			globalTransfo = poseTransformations[iPose]._matrix;
-			
-		cout << globalTransfo.inverse() << std::endl;
-
-		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
-		if (valid_sequence)
-		{
-			// update global point cloud
-			if (savePointCloud)
-			{
-				cout << "Generating point cloud frame #" << framesID[iPose+1] << " (" << iPose+2 << "/" << framesID.size() << ")...";
-				//char buf[256];
-				//sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[iPose+1]);
-				//if (pcl::io::loadPCDFile(buf, cloudFrame) != 0)
-				generatePointCloud(framesID[iPose+1], cloudFrame);
-	
-				// subsample frame keeping 50%
-				subsamplePointCloud(cloudFrame, 50);
-				
-				// inverse transform
-				inverseTransfo = globalTransfo.inverse();
-				
-				// apply transformation to the point cloud
-				pcl::getTransformedPointCloud(
-						cloudFrame,
-						Eigen::Affine3f(inverseTransfo),
-						cloudFrameTransformed); 
-				
-				// apend transformed point cloud
-				cloudFull += cloudFrameTransformed;
-				cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
-				
-				if (iPose % 50 == 0 && iPose<poseTransformations.size()-50)
-					subsamplePointCloud(cloudFull,70);
-			}
-		}
-	}
-	if (savePointCloud && cloudFull.size()>0)
-	{
-		// subsample final point cloud keeping 70%
-		subsamplePointCloud(cloudFull, 70);
-
-		// correct x-axis mirroring
-		for (int i=0; i<cloudFull.size(); i++)
-			cloudFull.points[i].x = -cloudFull.points[i].x;
-		
-		cout << "Saving global point cloud binary..." << std::endl;    			
-		sprintf(buf_full, "%s/%s", g_resultDirectory.c_str(), filenamePCD);
-		pcl::io::savePCDFile(buf_full, cloudFull, true);
-		// bug in PCL - the binary file is not created with the good rights!
-		char bufsys[256];
-		sprintf(bufsys, "chmod a+rw %s", buf_full);
-		system(bufsys);
-	}
-}
-
 void loadSequence(const char *dataDirectory, int skipCount, int min, int max, vector<int> &sequenceFramesID)
 {
 	int frameID;
@@ -1037,6 +926,236 @@ void loadSequence(const char *dataDirectory, int skipCount, int min, int max, ve
 	cout << ") for " << sequenceFramesID.size() << " frames." << std::endl;
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  subsamplePointCloud
+// -----------------------------------------------------------------------------------------------------
+void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int ratioKeep)
+{
+	pcl::PointCloud<pcl::PointXYZRGB> cloudTemp;
+	//cloudTemp.points.resize(cloudFull.size()/2);
+	for (int i=0; i<pointCloud.size(); i++)
+	{
+		if (rand()%100 < ratioKeep)
+			cloudTemp.push_back(pointCloud.points[i]);
+	}
+	pointCloud = cloudTemp;
+	/*
+	const float voxel_grid_size = 0.005;
+	pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
+	vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
+	vox_grid.setInputCloud (pointCloud());
+	vox_grid.filter(pointCloud);*/
+	cout << "Size: " << pointCloud.size() << " points after subsampling " << ratioKeep << "%" << std::endl;
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  saveMapPointCloud
+// -----------------------------------------------------------------------------------------------------
+void saveMapPointCloud(const TransformationVector &poseTransformations, bool doCumulateTransfo, const char *filenamePCD)
+{
+	char buf_full[256];
+	sprintf(buf_full, "%s/cloud_full.pcd", g_resultDirectory.c_str());
+	pcl::PointCloud<pcl::PointXYZRGB> cloudFull;
+	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
+	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
+	
+	//Eigen::Vector4f cameraPose(0, 0, 0, 1.0); 
+	Eigen::Matrix4f globalTransfo = Eigen::Matrix4f::Identity();
+	Eigen::Matrix4f inverseTransfo;
+	
+	if (poseTransformations.size()>0)
+	{
+		cout << "Initialize point cloud frame #" << poseTransformations[0]._idOrig << " (1/" << poseTransformations.size()+1 << ")..." << std::endl;
+		//char buf[256];
+		//sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[0]);
+		//if (pcl::io::loadPCDFile(buf, cloudFull) != 0)
+		generatePointCloud(poseTransformations[0]._idOrig, cloudFull);
+	}
+	
+	for (int iPose=0; iPose<poseTransformations.size(); iPose++)
+	{
+		cout << "----------------------------------------------------------------------------" << std::endl;
+		pcl::PointXYZRGB ptCameraPose;
+
+		// compute global transformation from the start
+		if (doCumulateTransfo)
+			globalTransfo = poseTransformations[iPose]._matrix * globalTransfo;
+		else
+			globalTransfo = poseTransformations[iPose]._matrix;
+			
+		cout << globalTransfo.inverse() << std::endl;
+
+		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
+		// update global point cloud
+
+		cout << "Generating point cloud frame #" << poseTransformations[iPose]._idDest << " (" << iPose+2 << "/" << poseTransformations.size()+1 << ")...";
+		//char buf[256];
+		//sprintf(buf, "%s/cloud%d.pcd", g_dataDirectory.c_str(), framesID[iPose+1]);
+		//if (pcl::io::loadPCDFile(buf, cloudFrame) != 0)
+		generatePointCloud(poseTransformations[iPose]._idDest, cloudFrame);
+
+		// subsample frame keeping 70%
+		subsamplePointCloud(cloudFrame, 70);
+		
+		// inverse transform
+		inverseTransfo = globalTransfo.inverse();
+		
+		// apply transformation to the point cloud
+		pcl::getTransformedPointCloud(
+				cloudFrame,
+				Eigen::Affine3f(inverseTransfo),
+				cloudFrameTransformed); 
+		
+		// apend transformed point cloud
+		cloudFull += cloudFrameTransformed;
+		cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
+		
+		/*if (iPose % 50 == 0 || iPose==poseTransformations.size()-1)
+			subsamplePointCloud(cloudFull,70);*/
+	}
+	if (cloudFull.size()>0)
+	{
+		// subsample final point cloud keeping 70%
+		//subsamplePointCloud(cloudFull, 70);
+
+		// correct x-axis mirroring
+		for (int i=0; i<cloudFull.size(); i++)
+			cloudFull.points[i].x = -cloudFull.points[i].x;
+		
+		cout << "Saving global point cloud binary..." << std::endl;    			
+		sprintf(buf_full, "%s/%s", g_resultDirectory.c_str(), filenamePCD);
+		pcl::io::savePCDFile(buf_full, cloudFull, true);
+		// bug in PCL - the binary file is not created with the good rights!
+		char bufsys[256];
+		sprintf(bufsys, "chmod a+rw %s", buf_full);
+		system(bufsys);
+	}
+}
+
+
+// -----------------------------------------------------------------------------------------------------
+// saveMaps
+// -----------------------------------------------------------------------------------------------------
+void saveMaps(const TransformationVector &resultingTransformations)
+{
+	TransformationVector transfosFromGraph;
+	
+	g_graph.setSaveDirectory(g_resultDirectory.c_str());
+	g_graph.save("graph.g2o");
+	
+	// build initial map and point cloud, cumulate the transfos
+	saveMapPointCloud(resultingTransformations, true, "cloud_full.pcd");
+	
+	// optimize the graph
+	g_graph.optimize();
+	g_graph.save("graph_opt.g2o");
+	
+	// extract the transformations from the optimized graph
+	for (int i=0; i<resultingTransformations.size(); i++)
+	{		
+		Transformation tfoGraph;
+		bool valid = g_graph.getTransfo(i+1, tfoGraph);
+		if (! valid)
+			break;
+				
+		tfoGraph._idOrig = resultingTransformations[i]._idOrig;
+		tfoGraph._idDest = resultingTransformations[i]._idDest;
+		transfosFromGraph.push_back(tfoGraph);
+		//cout << "camera pose graph\n" << cumulatedTransformationGraph.inverse() << std::endl;
+	}
+	// build optimized map and point cloud, don't cumulate the transfos (already done in the graph)
+	saveMapPointCloud(transfosFromGraph, false, "cloud_full_opt.pcd");
+}
+
+
+// -----------------------------------------------------------------------------------------------------
+//  rebuildMap
+// -----------------------------------------------------------------------------------------------------
+void rebuildMap(const TransformationVector &resultingTransformations)
+{
+	TransformationVector keyPoseTransformations;
+	Transformation transfo;
+	Transformation keyTransfo;
+	Eigen::Matrix4f cameraPoseMat(Eigen::Matrix4f::Identity());
+	Eigen::Matrix4f keyPoseMat(Eigen::Matrix4f::Identity());
+	int nbPose=0;
+	
+	FrameData frameDataLoopClosure;
+	FrameData frameData2;
+	bool found = false;
+	
+	// initialize the graph
+    g_graph.initialize();
+    
+    if (resultingTransformations.size()>0)
+    {
+		// add vertex for the initial pose
+		g_graph.addVertex(0, cameraPoseMat);
+		nbPose++;
+		
+		keyTransfo._idOrig = resultingTransformations[0]._idOrig;
+		
+		for (int i=0; i<resultingTransformations.size(); i++)
+		{
+			transfo = resultingTransformations[i];
+			
+			cameraPoseMat = transfo._matrix * cameraPoseMat;
+			std::cerr << "Camera mat " << transfo._idOrig << "-" << transfo._idDest << "\n" << cameraPoseMat << std::endl;
+			
+			keyPoseMat = transfo._matrix * keyPoseMat;
+			
+			if (i%5==0 || i==resultingTransformations.size()-1)	// TODO - define criterion for keynode
+			{
+				// new keynode
+				keyTransfo._idDest = resultingTransformations[i]._idDest;
+				keyTransfo._matrix = keyPoseMat;
+
+				// add a new vertex
+				g_graph.addVertex(nbPose, cameraPoseMat);
+		
+				// add the edge = constraints
+				g_graph.addEdge(nbPose-1, nbPose, keyTransfo);
+				
+				keyPoseTransformations.push_back(keyTransfo);
+				nbPose++;
+
+				// remap from the last keynode
+				keyPoseMat = Eigen::Matrix4f::Identity();
+				keyTransfo._idOrig = resultingTransformations[i]._idDest;
+			}
+			
+			if (i>20 && i%5 == 0 && !found)
+			{
+				// loop closure with frame #1
+				bool validMatch = matchFrames(
+						resultingTransformations[0]._idOrig,
+						resultingTransformations[i]._idDest,
+						frameDataLoopClosure,
+						frameData2,
+						true,
+						transfo);
+				
+				if (validMatch)
+				{
+				    // add the edge = constraints
+					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+					std::cerr << " LOOP CLOSURE DETECTED " << std::endl;
+					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+				    g_graph.addEdge(0, nbPose-1, transfo);
+				    found = true;
+				}
+			}
+			
+		}
+		
+		saveMaps(keyPoseTransformations);
+    }
+}
+
+
+// -----------------------------------------------------------------------------------------------------
+//  buildMapSequence
+// -----------------------------------------------------------------------------------------------------
 void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 {
 	if (sequenceFramesID.size()>=2)
@@ -1122,30 +1241,7 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 			frameData1.assignData(frameData2);
 		}
 	    
-		g_graph.setSaveDirectory(g_resultDirectory.c_str());
-		g_graph.save("graph.g2o");
-		
-		// build initial map and point cloud, cumulate the transfos
-		buildMap(sequenceFramesID, resultingTransformations, true, savePointCloud, "cloud_full.pcd");
-		
-		// optimize the graph
-		g_graph.optimize();
-		g_graph.save("graph_opt.g2o");
-		
-		// extract the transformations from the optimized graph
-		resultingTransformations.clear();
-		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
-		{		
-			Transformation tfoGraph;
-			bool valid = g_graph.getTransfo(iFrame, tfoGraph);
-			if (! valid)
-				break;
-					
-			resultingTransformations.push_back(tfoGraph);
-			//cout << "camera pose graph\n" << cumulatedTransformationGraph.inverse() << std::endl;
-		}
-		// build optimized map and point cloud, don't cumulate the transfos (already done in the graph)
-		buildMap(sequenceFramesID, resultingTransformations, false, savePointCloud, "cloud_full_opt.pcd");
+		saveMaps(resultingTransformations);
 		
 		frameData1.releaseData();
 		frameData2.releaseData();
@@ -1242,6 +1338,9 @@ int main(int argc, char** argv)
 			fileTransfo.ignore(256, '\n');	// to reach end of line
 			fileTransfo.peek();
 		}
+		
+		if (sequenceFramesID.size()>1 && resultingTransformations.size()>0)
+			rebuildMap(resultingTransformations);
     }
     else if (strcmp(argv[1], "--save") == 0)
     {
