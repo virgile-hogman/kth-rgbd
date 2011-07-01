@@ -76,31 +76,26 @@ void Graph::addEdge(int id1, int id2, const Transformation &transfo)
     _optimizer.addEdge(edgeSE3);
 }
 
-void Graph::getTransfo(int id, Transformation& transfo)
+bool Graph::getTransfo(int id, Transformation& transfo)
 {
 	g2o::VertexSE3 *vertexSE3;
 	
     std::cerr << "Get transfo from frameId = " << id << std::endl;
+	
+    transfo._idOrig = -1;
+	transfo._idDest = id;
+	transfo._error = 0;
+	transfo._matrix = Eigen::Matrix4f::Identity();
      
 	vertexSE3 = (g2o::VertexSE3*)_optimizer.vertex(id);
-	
 	if (vertexSE3 != NULL)
 	{
-		transfo._isValid = true;
-		transfo._idOrig = -1;
-		transfo._idDest = id;
-	
 		Eigen::Matrix4d mat = vertexSE3->estimate().to_homogenious_matrix();
 		// downcast to float
 		transfo._matrix = mat.cast<float>();
+		return true;
 	}
-	else
-	{
-		transfo._isValid = false;
-		transfo._idOrig = -1;
-		transfo._idDest = id;
-		transfo._matrix = Eigen::Matrix4f::Identity();
-	}
+	return false;
 }
 
 void Graph::optimize()
