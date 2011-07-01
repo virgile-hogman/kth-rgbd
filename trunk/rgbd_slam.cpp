@@ -41,6 +41,7 @@ extern "C" {
 // standard
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
 
 #include <vector>
 #include <list>
@@ -64,11 +65,11 @@ using namespace std;
 #define NN_SQ_DIST_RATIO_THR 0.49
 
 
-#define MATCH_RELATIVE_DEPTH	0.05	// relative difference of depth for a valid match (higher -> more tolerant)
+#define MATCH_RELATIVE_DEPTH	0.1	// relative difference of depth for a valid match (higher -> more tolerant)
 
 #define NB_RANSAC_ITERATIONS	20		// number of RANSAC iterations (loops)
 #define MIN_NB_INLIERS_ABS		10		// minimum number of inliers
-#define MIN_NB_INLIERS_REL		0.6		// minimum rate of inliers relatively to the initial matches
+#define MIN_NB_INLIERS_REL		0.3		// minimum rate of inliers relatively to the initial matches
 
 #define MAX_INLIER_DISTANCE		0.04	// error tolerance for inliers transformation (higher -> more tolerant)
 
@@ -974,8 +975,8 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 				cloudFull += cloudFrameTransformed;
 				cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
 				
-/*				if (iPose % 10 == 0 && iPose<poseTransformations.size()-10)
-					subsamplePointCloud(cloudFull);*/
+				if (iPose % 50 == 0 && iPose<poseTransformations.size()-50)
+					subsamplePointCloud(cloudFull,70);
 			}
 		}
 	}
@@ -1057,7 +1058,16 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 
 	    // add vertex for the initial pose
 		g_graph.addVertex(0, cameraPoseMat);
-	    
+		
+		char buf[256];
+		sprintf(buf, "%s/transfo.dat", g_resultDirectory.c_str());
+		std::ofstream fileTransfo(buf);
+		// archive sequence
+		fileTransfo << sequenceFramesID.size() << " ";
+		for (int iFrame=0; iFrame<sequenceFramesID.size(); iFrame++)
+			fileTransfo << sequenceFramesID[iFrame] << " ";
+		fileTransfo << std::endl;
+		
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
 		{
 			// match frame to frame (current with previous)
@@ -1071,6 +1081,13 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 			
 			if (!validMatch)
 				break;	// no valid transform
+			
+			// archive transfo
+			fileTransfo << transfo._idOrig << " " << transfo._idDest << " ";
+			for (int irow=0; irow<4; irow++)
+				for (int icol=0; icol<4; icol++)
+					fileTransfo << transfo._matrix(irow,icol) << " ";
+			fileTransfo << std::endl;
 			
 			resultingTransformations.push_back(transfo);
 			
@@ -1162,12 +1179,12 @@ int main(int argc, char** argv)
 	if (argc>3 && atoi(argv[3])<=0)
 		savePointCloud = false;
 	
-    printf("Start\n");
-    
     FrameData::_DataPath = g_dataDirectory;
     
     if (strcmp(argv[1], "--load") == 0)
     {
+        printf("Load sequence\n");
+        
     	// load sequence from directory
     	if ( ! boost::filesystem::exists( g_dataDirectory ) )
     		return -1;
@@ -1187,10 +1204,56 @@ int main(int argc, char** argv)
     	// build map 
     	buildMapSequence(sequenceFramesID, savePointCloud);
 	}
-    
-    if (strcmp(argv[1], "--save") == 0)
+    else if (strcmp(argv[1], "--build") == 0)
+    {
+        printf("Build map\n");
+        
+    	// build map from existing transformation data
+    	if ( ! boost::filesystem::exists( g_dataDirectory ) )
+    		return -1;
+    	if ( ! boost::filesystem::exists( g_resultDirectory ) )
+    		return -1;
+    	
+		
+		char buf[256];
+		sprintf(buf, "%s/transfo.dat", g_resultDirectory.c_str());
+		std::ifstream fileTransfo(buf);
+		
+		// archive sequence
+		int nRead, len;
+		fileTransfo >> len;
+		std::cout << "Sequence length: " << len << std::endl;
+		for (int iFrame=0; iFrame<len; iFrame++)
+		{
+			fileTransfo >> nRead;
+			sequenceFramesID.push_back(nRead);
+			std::cout << nRead << " ";
+		}
+		std::cout << std::endl;
+		
+		TransformationVector resultingTransformations;
+		Transformation transfo;
+		while (! fileTransfo.eof())
+		{
+			// archive transfo
+			fileTransfo >> transfo._idOrig >> transfo._idDest;
+			std::cout << "Matrix "<< transfo._idOrig << "-" << transfo._idDest << ":\n";
+			for (int irow=0; irow<4; irow++)
+				for (int icol=0; icol<4; icol++)
+					fileTransfo >> transfo._matrix(irow,icol);
+			
+			std::cout << transfo._matrix << std::endl;
+			resultingTransformations.push_back(transfo);
+			
+			fileTransfo.ignore(256, '\n');	// to reach end of line
+			fileTransfo.peek();
+		}
+    }
+    else if (strcmp(argv[1], "--save") == 0)
     {
         XnStatus nRetVal = XN_STATUS_OK;
+        
+        printf("Acquire sequence\n");
         
         // use the same directory to generate and reload the data
         g_dataDirectory = g_genDirectory;
