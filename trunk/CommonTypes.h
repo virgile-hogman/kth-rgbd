@@ -24,7 +24,6 @@ typedef	unsigned short	TDepthPixel;	// 16 bits
 class Transformation
 {
 public:
-	bool			_isValid;
 	Eigen::Matrix4f	_matrix;
 	double			_error;
 	int				_idOrig;

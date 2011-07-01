@@ -444,13 +444,15 @@ bool matchFrames(
 	double vScale=0.5;
 	int    lineWidth=1;
 	
+	bool validTransformation = false;
+	
 	int maxDeltaDepthArea=50;
 	int sizeFeatureArea=-1;
+	
 	
 	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 	
-	resultingTransfo._isValid = false;
 	resultingTransfo._matrix = Eigen::Matrix4f::Identity();
 	resultingTransfo._error = 1.0;
 	resultingTransfo._idOrig = frameID1;
@@ -754,9 +756,9 @@ bool matchFrames(
 			std:cerr << best_transformation << std::endl;
 			fflush(stderr);
 
-			resultingTransfo._isValid = true;
 			resultingTransfo._matrix = best_transformation;
 			resultingTransfo._error = best_error;
+			validTransformation = true;
 			
 			// draw inliers
 			IplImage* stacked_inliers = NULL;
@@ -820,7 +822,7 @@ bool matchFrames(
 		}
 	}
 	
-	return resultingTransfo._isValid;
+	return validTransformation;
 }
 
 bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
@@ -943,13 +945,6 @@ void buildMap(vector<int> &framesID, TransformationVector &poseTransformations, 
 		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
 		if (valid_sequence)
 		{
-			if (! poseTransformations[iPose]._isValid)
-			{
-				valid_sequence = false;
-				cout << "--- Invalid sequence - aborting point cloud accumulation --- \n" << std::endl;
-				// but the pose loop continues just to display the next transformations
-			}
-			
 			// update global point cloud
 			if (savePointCloud)
 			{
@@ -1142,9 +1137,8 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
 		{		
 			Transformation tfoGraph;
-			g_graph.getTransfo(iFrame, tfoGraph);
-			
-			if (! tfoGraph._isValid)
+			bool valid = g_graph.getTransfo(iFrame, tfoGraph);
+			if (! valid)
 				break;
 					
 			resultingTransformations.push_back(tfoGraph);

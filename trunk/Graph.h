@@ -17,7 +17,7 @@ public:
 	
 	void optimize();
 	
-	void getTransfo(int id, Transformation& transfo);
+	bool getTransfo(int id, Transformation& transfo);
 	
 	void save(const char *directory);
 	void setSaveDirectory(const std::string &directory) { _saveDirectory = directory; }
