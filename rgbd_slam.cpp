@@ -142,7 +142,7 @@ XnStatus connectKinect()
     nRetVal = xnFPSInit(&xnFPS, 180);
     CHECK_RC(nRetVal, "FPS Init");
 
-    g_context.SetGlobalMirror(true); //mirror image 
+    g_context.SetGlobalMirror(false); //mirror image 
 
     g_depth.GetAlternativeViewPointCap().SetViewPoint(g_image);
     if (g_depth.GetIntProperty ("ShadowValue", shadow_value) != XN_STATUS_OK)
@@ -566,13 +566,13 @@ bool matchFrames(
 					index_matches.push_back(i);
 			
 					// convert pixels to metric
-					float x1 = (feat1->x - NBPIXELS_X_HALF) * depth1 * constant;
+					float z1 = (feat1->x - NBPIXELS_X_HALF) * depth1 * constant;
 					float y1 = (NBPIXELS_Y_HALF - feat1->y) * depth1 * constant;
-					float z1 = depth1 * 0.001 ; // given depth values are in mm
+					float x1 = depth1 * 0.001 ; // given depth values are in mm
 					
-					float x2 = (feat2->x - NBPIXELS_X_HALF) * depth2 * constant;
+					float z2 = (feat2->x - NBPIXELS_X_HALF) * depth2 * constant;
 					float y2 = (NBPIXELS_Y_HALF - feat2->y) * depth2 * constant;
-					float z2 = depth2 * 0.001 ; // given depth values are in mm
+					float x2 = depth2 * 0.001 ; // given depth values are in mm
 
 					Eigen::Vector3f orig(x1,y1,z1);
 					Eigen::Vector3f dest(x2,y2,z2);
@@ -863,10 +863,10 @@ bool generatePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 				pcl::PointXYZRGB pt;
 				
 				// locate point in meters
-				pt.x = (ind_x - NBPIXELS_X_HALF) * depth * constant;
+				pt.z = (ind_x - NBPIXELS_X_HALF) * depth * constant;
 				pt.y = (NBPIXELS_Y_HALF - ind_y) * depth * constant;
-				pt.z = depth * 0.001 ; // given depth values are in mm
-				
+				pt.x = depth * 0.001 ; // given depth values are in mm
+
 				unsigned char b = ((uchar *)(img->imageData + ind_y*img->widthStep))[ind_x*img->nChannels + 0];
 				unsigned char g = ((uchar *)(img->imageData + ind_y*img->widthStep))[ind_x*img->nChannels + 1];
 				unsigned char r = ((uchar *)(img->imageData + ind_y*img->widthStep))[ind_x*img->nChannels + 2];
@@ -983,9 +983,8 @@ void saveMapPointCloud(const TransformationVector &poseTransformations, bool doC
 		else
 			globalTransfo = poseTransformations[iPose]._matrix;
 			
-		cout << globalTransfo.inverse() << std::endl;
-
-		cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
+		//cout << globalTransfo.inverse() << std::endl;
+		//cout << "Mean error:" << poseTransformations[iPose]._error << std::endl;
 		// update global point cloud
 
 		cout << "Generating point cloud frame #" << poseTransformations[iPose]._idDest << " (" << iPose+2 << "/" << poseTransformations.size()+1 << ")...";
@@ -1019,8 +1018,8 @@ void saveMapPointCloud(const TransformationVector &poseTransformations, bool doC
 		//subsamplePointCloud(cloudFull, 70);
 
 		// correct x-axis mirroring
-		for (int i=0; i<cloudFull.size(); i++)
-			cloudFull.points[i].x = -cloudFull.points[i].x;
+		/*for (int i=0; i<cloudFull.size(); i++)
+			cloudFull.points[i].x = -cloudFull.points[i].x;*/
 		
 		cout << "Saving global point cloud binary..." << std::endl;    			
 		sprintf(buf_full, "%s/%s", g_resultDirectory.c_str(), filenamePCD);
@@ -1041,17 +1040,17 @@ void saveMaps(const TransformationVector &resultingTransformations)
 	TransformationVector transfosFromGraph;
 	
 	g_graph.setSaveDirectory(g_resultDirectory.c_str());
-	g_graph.save("graph.g2o");
+	g_graph.save("graph_initial.g2o");
 	
 	// build initial map and point cloud, cumulate the transfos
 	saveMapPointCloud(resultingTransformations, true, "cloud_full.pcd");
 	
 	// optimize the graph
 	g_graph.optimize();
-	g_graph.save("graph_opt.g2o");
+	g_graph.save("graph_optimized.g2o");
 	
 	// extract the transformations from the optimized graph
-	for (int i=0; i<resultingTransformations.size(); i++)
+	for (int i=0; i<resultingTransformations.size()-1; i++)
 	{		
 		Transformation tfoGraph;
 		bool valid = g_graph.getTransfo(i+1, tfoGraph);
@@ -1069,9 +1068,9 @@ void saveMaps(const TransformationVector &resultingTransformations)
 
 
 // -----------------------------------------------------------------------------------------------------
-//  rebuildMap
+//  buildMap
 // -----------------------------------------------------------------------------------------------------
-void rebuildMap(const TransformationVector &resultingTransformations)
+void buildMap(const TransformationVector &resultingTransformations)
 {
 	TransformationVector keyPoseTransformations;
 	Transformation transfo;
@@ -1081,7 +1080,7 @@ void rebuildMap(const TransformationVector &resultingTransformations)
 	int nbPose=0;
 	
 	FrameData frameDataLoopClosure;
-	FrameData frameData2;
+	FrameData frameDataCurrent;
 	bool found = false;
 	
 	// initialize the graph
@@ -1099,16 +1098,16 @@ void rebuildMap(const TransformationVector &resultingTransformations)
 		{
 			transfo = resultingTransformations[i];
 			
-			cameraPoseMat = transfo._matrix * cameraPoseMat;
+			cameraPoseMat = cameraPoseMat * transfo._matrix.inverse();
 			std::cerr << "Camera mat " << transfo._idOrig << "-" << transfo._idDest << "\n" << cameraPoseMat << std::endl;
 			
-			keyPoseMat = transfo._matrix * keyPoseMat;
+			keyPoseMat = keyPoseMat * transfo._matrix.inverse();
 			
-			if (i%5==0 || i==resultingTransformations.size()-1)	// TODO - define criterion for keynode
+			if (i%5==0 || i==resultingTransformations.size()-1)	// TODO - define better criterion for keynode
 			{
 				// new keynode
 				keyTransfo._idDest = resultingTransformations[i]._idDest;
-				keyTransfo._matrix = keyPoseMat;
+				keyTransfo._matrix = keyPoseMat.inverse();
 
 				// add a new vertex
 				g_graph.addVertex(nbPose, cameraPoseMat);
@@ -1131,7 +1130,7 @@ void rebuildMap(const TransformationVector &resultingTransformations)
 						resultingTransformations[0]._idOrig,
 						resultingTransformations[i]._idDest,
 						frameDataLoopClosure,
-						frameData2,
+						frameDataCurrent,
 						true,
 						transfo);
 				
@@ -1154,25 +1153,17 @@ void rebuildMap(const TransformationVector &resultingTransformations)
 
 
 // -----------------------------------------------------------------------------------------------------
-//  buildMapSequence
+//  buildMapFromSequence
 // -----------------------------------------------------------------------------------------------------
-void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
+void buildMapFromSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 {
 	if (sequenceFramesID.size()>=2)
 	{
 		FrameData frameData1, frameData2;
-		FrameData frameDataLoopClosure;
 		TransformationVector resultingTransformations;
 		Transformation transfo;
 		bool validMatch;
-		Eigen::Matrix4f cameraPoseMat(Eigen::Matrix4f::Identity());
 
-		// initialize the graph
-	    g_graph.initialize();
-
-	    // add vertex for the initial pose
-		g_graph.addVertex(0, cameraPoseMat);
-		
 		char buf[256];
 		sprintf(buf, "%s/transfo.dat", g_resultDirectory.c_str());
 		std::ofstream fileTransfo(buf);
@@ -1205,43 +1196,13 @@ void buildMapSequence(vector<int> &sequenceFramesID, bool savePointCloud)
 			
 			resultingTransformations.push_back(transfo);
 			
-			cameraPoseMat = transfo._matrix * cameraPoseMat;
-			std::cerr << "Camera mat\n" << cameraPoseMat << std::endl;
-
-		    // add a new vertex
-		    g_graph.addVertex(iFrame, cameraPoseMat);
-	    
-		    // add the edge = constraints
-		    g_graph.addEdge(iFrame-1, iFrame, transfo);
-		    
-			if (iFrame>1 && iFrame%6 == 0)
-			{
-				// loop closure with frame #1
-				validMatch = matchFrames(
-						sequenceFramesID[1],
-						sequenceFramesID[iFrame],
-						frameDataLoopClosure,
-						frameData2,
-						true,
-						transfo);
-				
-				if (validMatch)
-				{
-				    // add the edge = constraints
-					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-					std::cerr << " LOOP CLOSURE DETECTED " << std::endl;
-					std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-				    g_graph.addEdge(1, iFrame, transfo);
-				}
-			}
-			
 			// free data
 			frameData1.releaseData();
 			// reassign the last frame to avoid reloading all the data twice
 			frameData1.assignData(frameData2);
 		}
 	    
-		saveMaps(resultingTransformations);
+		buildMap(resultingTransformations);
 		
 		frameData1.releaseData();
 		frameData2.releaseData();
@@ -1292,7 +1253,7 @@ int main(int argc, char** argv)
         boost::filesystem::create_directories(g_resultDirectory);       
 		
     	// build map 
-    	buildMapSequence(sequenceFramesID, savePointCloud);
+    	buildMapFromSequence(sequenceFramesID, savePointCloud);
 	}
     else if (strcmp(argv[1], "--build") == 0)
     {
@@ -1327,20 +1288,20 @@ int main(int argc, char** argv)
 		{
 			// archive transfo
 			fileTransfo >> transfo._idOrig >> transfo._idDest;
-			std::cout << "Matrix "<< transfo._idOrig << "-" << transfo._idDest << ":\n";
+			std::cout << "Restore Matrix "<< transfo._idOrig << "-" << transfo._idDest << ":\n";
 			for (int irow=0; irow<4; irow++)
 				for (int icol=0; icol<4; icol++)
 					fileTransfo >> transfo._matrix(irow,icol);
 			
-			std::cout << transfo._matrix << std::endl;
+			//std::cout << transfo._matrix << std::endl;
 			resultingTransformations.push_back(transfo);
 			
 			fileTransfo.ignore(256, '\n');	// to reach end of line
-			fileTransfo.peek();
+			fileTransfo.peek();				// to update the eof flag (if no empty line)
 		}
 		
 		if (sequenceFramesID.size()>1 && resultingTransformations.size()>0)
-			rebuildMap(resultingTransformations);
+			buildMap(resultingTransformations);
     }
     else if (strcmp(argv[1], "--save") == 0)
     {
@@ -1373,7 +1334,7 @@ int main(int argc, char** argv)
         	generateFrames(nbFrames, sequenceFramesID);
         
         	// build map 
-        	buildMapSequence(sequenceFramesID, savePointCloud);
+        	buildMapFromSequence(sequenceFramesID, savePointCloud);
         	
             g_context.Shutdown();
         }
