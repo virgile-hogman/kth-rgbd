@@ -24,9 +24,9 @@ void Graph::initialize()
 	_optimizer.setMethod(g2o::SparseOptimizer::LevenbergMarquardt);
 	_optimizer.setVerbose(true);
 	
-	g2o::BlockSolverX::LinearSolverType * linearSolver;
-    linearSolver = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
-    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(&_optimizer,linearSolver);
+	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
+    linearSolver = new g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>();
+    g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(&_optimizer,linearSolver);
     _optimizer.setSolver(solver_ptr);
 }
 
@@ -35,16 +35,16 @@ void Graph::addVertex(int id, const Eigen::Matrix4f &transfo)
 {
 	g2o::VertexSE3 *vertexSE3 = NULL;
 	
-    Eigen::Matrix3f rot = Eigen::Matrix3f::Identity();
+    Eigen::Matrix4f rot = Eigen::Matrix4f::Identity();
         
     /*rot(0,0) = 0;
     rot(0,2) = 1;
     rot(2,0) = -1;
     rot(2,2) = 0;*/
     		
-    Eigen::Affine3f eigenTransform(transfo);
+    Eigen::Affine3f eigenTransform(rot * transfo);
     
-    Eigen::Quaternionf eigenRotation(rot * eigenTransform.rotation());
+    Eigen::Quaternionf eigenRotation(eigenTransform.rotation());
     
     g2o::SE3Quat poseSE3(
     		// NOTE the order of the arguments : w comes first!
@@ -73,15 +73,15 @@ void Graph::addEdge(int id1, int id2, const Transformation &transfo)
 {
     //SE2 transf = transfo._matrix.inverse();
     
-    Eigen::Matrix3f rot = Eigen::Matrix3f::Identity();
+    Eigen::Matrix4f rot = Eigen::Matrix4f::Identity();
         
     /*rot(0,0) = 0;
     rot(0,2) = 1;
     rot(2,0) = -1;
     rot(2,2) = 0;*/
     		
-    Eigen::Affine3f eigenTransform(transfo._matrix);			
-    Eigen::Quaternionf eigenRotation(rot * eigenTransform.rotation());
+    Eigen::Affine3f eigenTransform(rot * transfo._matrix);			
+    Eigen::Quaternionf eigenRotation(eigenTransform.rotation());
     
     g2o::SE3Quat transfoSE3(
     		// NOTE the order of the arguments : w comes first!    		
@@ -92,8 +92,8 @@ void Graph::addEdge(int id1, int id2, const Transformation &transfo)
     g2o::EdgeSE3* edgeSE3 = new g2o::EdgeSE3;
     edgeSE3->vertices()[0] = _optimizer.vertex(id1);
     edgeSE3->vertices()[1] = _optimizer.vertex(id2);
-    edgeSE3->setMeasurement(transfoSE3);
-    edgeSE3->setInverseMeasurement(transfoSE3.inverse());
+    edgeSE3->setMeasurement(transfoSE3.inverse());
+    edgeSE3->setInverseMeasurement(transfoSE3);
     
     Eigen::Matrix<double, 6, 6, 0, 6, 6> mat;
     mat.setIdentity(6,6);
@@ -106,9 +106,7 @@ bool Graph::getTransfo(int id, Transformation& transfo)
 {
 	g2o::VertexSE3 *vertexSE3;
 	
-    std::cerr << "Get transfo from frameId = " << id << std::endl;
-	
-    transfo._idOrig = -1;
+   transfo._idOrig = -1;
 	transfo._idDest = id;
 	transfo._error = 0;
 	transfo._matrix = Eigen::Matrix4f::Identity();
@@ -116,7 +114,7 @@ bool Graph::getTransfo(int id, Transformation& transfo)
 	vertexSE3 = (g2o::VertexSE3*)_optimizer.vertex(id);
 	if (vertexSE3 != NULL)
 	{
-		Eigen::Matrix4d mat = vertexSE3->estimate().to_homogenious_matrix();
+		Eigen::Matrix4d mat = vertexSE3->estimate().to_homogenious_matrix().inverse();
 		// downcast to float
 		transfo._matrix = mat.cast<float>();
 		return true;
