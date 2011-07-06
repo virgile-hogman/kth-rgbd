@@ -18,7 +18,7 @@ extern "C" {
 #include "Config.h"
 #include "CommonTypes.h"
 #include "FrameData.h"
-#include "FeatureMatching.h"
+#include "Matching.h"
 #include "Timer.h"
 
 #include <iostream>
@@ -43,59 +43,45 @@ using namespace std;
 
 
 // -----------------------------------------------------------------------------------------------------
-//  computeInliersAndError
+//  evaluateTransform
 // -----------------------------------------------------------------------------------------------------
-void computeInliersAndError(
+void evaluateTransform(
 		const Eigen::Matrix4f& transformation,
-        const std::vector<Eigen::Vector3f>& matches_orig,
-        const std::vector<Eigen::Vector3f>& matches_dest,
+        const std::vector<Eigen::Vector3f>& matchesOrig,
+        const std::vector<Eigen::Vector3f>& matchesDest,
+        double maxError,        
         std::vector<int>& inliers, //output var
-        double& mean_error,
-        double max_inlier_error_in_m)
+        double& meanError)
 {
-    vector<pair<float,int> > dists;
-    std::vector<int> inliers_temp;
-
-    inliers.clear();
-    mean_error = 0.0;
+	inliers.clear();
+    meanError = 0.0;
     
-    for (unsigned int id = 0; id < matches_orig.size(); id++){ //compute new error and inliers
-
+    // for every matching point
+    for (unsigned int id = 0; id < matchesOrig.size(); id++)
+    {
         // vectors with homogeneous coordinates
-        Eigen::Vector4f orig(matches_orig[id][0], matches_orig[id][1], matches_orig[id][2], 1.0); 
-        Eigen::Vector4f dest(matches_dest[id][0], matches_dest[id][1], matches_dest[id][2], 1.0);
+        Eigen::Vector4f orig(matchesOrig[id][0], matchesOrig[id][1], matchesOrig[id][2], 1.0); 
+        Eigen::Vector4f dest(matchesDest[id][0], matchesDest[id][1], matchesDest[id][2], 1.0);
 
-        // project the point and compute the difference wrt the match
-        Eigen::Vector4f vec = (transformation * orig) - dest;
+        // project the original point and compute the difference vector wrt the match
+        Eigen::Vector4f vectorDiff = (transformation * orig) - dest;
+        
+        // compute the error
+        double error = vectorDiff.dot(vectorDiff);
 
-        double error = vec.dot(vec);
-
-        if (error > max_inlier_error_in_m) 
+        if (error > maxError) 
             continue; //ignore outliers
 
         error = sqrt(error);
-        dists.push_back(pair<float,int>(error,id));
-        inliers_temp.push_back(id); //include inlier
+        inliers.push_back(id); //include inlier
 
-        mean_error += error;
+        meanError += error;
     }
 
-    if (inliers_temp.size()==0){
-        mean_error = -1;
-        inliers.clear();
-    }
+    if (inliers.size()>0)
+    	meanError /= inliers.size();
     else
-    {
-        mean_error /= inliers_temp.size();
-
-        // sort inlier ascending according to their error
-        sort(dists.begin(),dists.end());
-
-        inliers.resize(inliers_temp.size());
-        for (unsigned int i=0; i<inliers_temp.size(); i++){
-            inliers[i] = dists[i].second;
-        }
-    }
+    	meanError = -1.0;
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -183,15 +169,15 @@ bool matchFrames(
     fprintf( stderr, "Frames %03d-%03d:\t Searching for matches... ", frameID1, frameID2 );
 	fflush(stdout);
 	
-	struct feature** neighbour_features = NULL;
+	struct feature** neighbourFeatures = NULL;
 	struct kd_node* kd_root;
 	CvPoint pt1, pt2;
 	double d0, d1;
-	int k, i, nb_matches = 0, nb_valid_matches = 0;
+	int k, i, nbInitialMatches = 0, nbValidMatches = 0;
 	struct feature* feat;
-	vector<int> index_matches;
-	vector<Eigen::Vector3f>	vector_matches_orig;
-	vector<Eigen::Vector3f>	vector_matches_dest;
+	vector<int> indexMatches;
+	vector<Eigen::Vector3f>	matchesOrig;
+	vector<Eigen::Vector3f>	matchesDest;
 	vector<int>	indexArea1, indexArea2, indexArea3;
     
 	float constant = 0.001 / CameraDevice::_FocalLength;    // TODO - redefine this properly
@@ -203,23 +189,23 @@ bool matchFrames(
 		// ... looking in the 1st frame
 		feat = frameData1.getFeatures() + i;
 		// search for 2 nearest neighbours
-		k = kdtree_bbf_knn( kd_root, feat, 2, &neighbour_features, KDTREE_BBF_MAX_NN_CHKS );
+		k = kdtree_bbf_knn( kd_root, feat, 2, &neighbourFeatures, KDTREE_BBF_MAX_NN_CHKS );
 		if( k == 2 )
 		{
 			// the neighbours are ordered in increasing descriptor distance
-			d0 = descr_dist_sq( feat, neighbour_features[0] );
-			d1 = descr_dist_sq( feat, neighbour_features[1] );
+			d0 = descr_dist_sq( feat, neighbourFeatures[0] );
+			d1 = descr_dist_sq( feat, neighbourFeatures[1] );
 			// check if the 2 are close enough
 			if( d0 < d1 * NN_SQ_DIST_RATIO_THR )
 			{
 	            const struct feature* feat1 = frameData1.getFeature(i);
-	            const struct feature* feat2 = neighbour_features[0];
+	            const struct feature* feat2 = neighbourFeatures[0];
 	            
 				// draw a line through the 2 points in the stacked image
 				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
 				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
 				pt2.y += frameData1.getImage()->height;
-				nb_matches++;
+				nbInitialMatches++;
 				
 				// read depth info
 				const TDepthPixel depth1 = frameData1.getFeatureDepth(feat1);
@@ -233,10 +219,10 @@ bool matchFrames(
 					// draw a green line
 					cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
 					// this is a valid match
-					nb_valid_matches++;
+					nbValidMatches++;
 					// fwd link the previous features to the new features according to the match
-					frameData1.setFeatureMatch(i, neighbour_features[0]);
-					index_matches.push_back(i);
+					frameData1.setFeatureMatch(i, neighbourFeatures[0]);
+					indexMatches.push_back(i);
 			
 					// convert pixels to metric
 					float z1 = (feat1->x - NBPIXELS_X_HALF) * depth1 * constant;
@@ -250,15 +236,15 @@ bool matchFrames(
 					Eigen::Vector3f orig(x1,y1,z1);
 					Eigen::Vector3f dest(x2,y2,z2);
 					
-					vector_matches_orig.push_back(orig);
-					vector_matches_dest.push_back(dest);
+					matchesOrig.push_back(orig);
+					matchesDest.push_back(dest);
 					
 					if (feat1->x < 210)
-						indexArea1.push_back(nb_valid_matches-1);
+						indexArea1.push_back(nbValidMatches-1);
 					else if (feat1->x > 430)
-						indexArea3.push_back(nb_valid_matches-1);
+						indexArea3.push_back(nbValidMatches-1);
 					else
-						indexArea2.push_back(nb_valid_matches-1);
+						indexArea2.push_back(nbValidMatches-1);
 				}
 				else
 				{
@@ -277,7 +263,7 @@ bool matchFrames(
 				}
 			}
 		}
-		free( neighbour_features );
+		free( neighbourFeatures );
 	}
 	
 	// free memory
@@ -288,27 +274,27 @@ bool matchFrames(
 	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
 		
 	// save stacked image
-	sprintf(buf,"Matches:%d/%d (%d%%)", nb_valid_matches, nb_matches, nb_valid_matches*100/nb_matches);
+	sprintf(buf,"Matches:%d/%d (%d%%)", nbValidMatches, nbInitialMatches, nbValidMatches*100/nbInitialMatches);
 	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 	sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameID1, frameID2);
 	cvSaveImage(buf, imgStacked);
 	cvReleaseImage(&imgStacked);
 
 	tm.stop();
-    fprintf( stderr, "\tKeeping %d/%d matches.\t(%dms)\n", nb_valid_matches, nb_matches, tm.duration() );
+    fprintf( stderr, "\tKeeping %d/%d matches.\t(%dms)\n", nbValidMatches, nbInitialMatches, tm.duration() );
 	fflush(stdout);
 
 		
 	// ---------------------------------------------------------------------------
 	//  find transformation through RANSAC iterations 
 	// ---------------------------------------------------------------------------
-	if (nb_valid_matches>3)
+	if (nbValidMatches>3)
 	{
 		// find transform pairs
 	    pcl::TransformationFromCorrespondences tfc;
-        Eigen::Matrix4f best_transformation;
-        std::vector<int> index_best_inliers;
-        double best_error = 0.1;
+        Eigen::Matrix4f bestTransformation;
+        std::vector<int> indexBestInliers;
+        double bestError = 0.1;
         
         vector<int>	initialPairs;	// just to track the 3 first points
 	    
@@ -320,9 +306,9 @@ bool matchFrames(
 			{
 				// pickup 3 points from matches
 				for (int k = 0; k < 3; k++) {
-					int id_match = rand() % nb_valid_matches;
-					//int index1 = index_matches[id_match];
-					tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
+					int id_match = rand() % nbValidMatches;
+					//int index1 = indexMatches[id_match];
+					tfc.add(matchesOrig[id_match], matchesDest[id_match]);
 				}
 			}
 			else
@@ -336,47 +322,47 @@ bool matchFrames(
 				}
 				// select 1 random point from area1
 				id_match = indexArea1[rand() % indexArea1.size()];
-				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-				initialPairs.push_back(index_matches[id_match]);
+				tfc.add(matchesOrig[id_match], matchesDest[id_match]);
+				initialPairs.push_back(indexMatches[id_match]);
 				// select 1 random point from area2
 				id_match = indexArea2[rand() % indexArea2.size()];
-				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-				initialPairs.push_back(index_matches[id_match]);
+				tfc.add(matchesOrig[id_match], matchesDest[id_match]);
+				initialPairs.push_back(indexMatches[id_match]);
 				// select 1 random point from area3
 				id_match = indexArea3[rand() % indexArea3.size()];
-				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
-				initialPairs.push_back(index_matches[id_match]);
+				tfc.add(matchesOrig[id_match], matchesDest[id_match]);
+				initialPairs.push_back(indexMatches[id_match]);
 			}
 			
 	        // compute transformation from matches
 	        Eigen::Matrix4f transformation = tfc.getTransformation().matrix();
 	        
 	        // compute error and keep only inliers
-	        std::vector<int> index_inliers;
-	        double mean_error;
-	        double max_inlier_distance_in_m = MAX_INLIER_DISTANCE;
+	        std::vector<int> indexInliers;
+	        double meanError;
+	        double maxInlierDistance = MAX_INLIER_DISTANCE;
 	        
-	        computeInliersAndError(transformation,
-	        		vector_matches_orig,
-	        		vector_matches_dest,
-	        		index_inliers,
-	        		mean_error,
-	        		max_inlier_distance_in_m * max_inlier_distance_in_m);
+	        evaluateTransform(transformation,
+	        		matchesOrig,
+	        		matchesDest,
+	        		maxInlierDistance * maxInlierDistance,
+	        		indexInliers,
+	        		meanError);
 	        
-	        //fprintf(stderr, "Found %d inliers\tMean error:%f", index_inliers.size(), mean_error);
+	        //fprintf(stderr, "Found %d inliers\tMean error:%f", indexInliers.size(), meanError);
 	        
-	        if (mean_error<0 || mean_error >= max_inlier_distance_in_m)
+	        if (meanError<0 || meanError >= maxInlierDistance)
 	        	continue;	// skip these 3 points and go for a new iteration
 	        	
-	        if (index_inliers.size()<MIN_NB_INLIERS_ABS || index_inliers.size()<nb_valid_matches*MIN_NB_INLIERS_REL)
+	        if (indexInliers.size()<MIN_NB_INLIERS_ABS || indexInliers.size()<nbValidMatches*MIN_NB_INLIERS_REL)
 	        	continue;	// not enough inliers found
 	        
-			if (mean_error < best_error)
+			if (meanError < bestError)
 	        {
-		        //fprintf(stderr, "\t => Best candidate transformation! ", index_inliers.size(), mean_error);
-	        	best_transformation = transformation;
-	        	best_error = mean_error;
-	        	index_best_inliers = index_inliers;
+		        //fprintf(stderr, "\t => Best candidate transformation! ", indexInliers.size(), meanError);
+	        	bestTransformation = transformation;
+	        	bestError = meanError;
+	        	indexBestInliers = indexInliers;
 	        }
 	        
 			// ----------------------------------------------------
@@ -384,114 +370,111 @@ bool matchFrames(
 			// ----------------------------------------------------
 			//fprintf(stderr, "\nRecomputing transfo... \t");
 			tfc.reset();
-			//for (int k = 0; k < 3; k++) {
-			//    int id_inlier = rand() % index_inliers.size();
-			//for (int id_inlier = 0; id_inlier < 3; id_inlier++) {	// the 3 best	        
-			for (int id_inlier = 0; id_inlier < index_inliers.size(); id_inlier++) {
-				int id_match  = index_inliers[id_inlier];
-				tfc.add(vector_matches_orig[id_match], vector_matches_dest[id_match]);
+			for (int idInlier = 0; idInlier < indexInliers.size(); idInlier++) {
+				int idMatch  = indexInliers[idInlier];
+				tfc.add(matchesOrig[idMatch], matchesDest[idMatch]);
 			}
 			// compute transformation from inliers
 			transformation = tfc.getTransformation().matrix();
 			
-			computeInliersAndError(transformation,
-					vector_matches_orig,
-					vector_matches_dest,
-					index_inliers,
-					mean_error,
-					max_inlier_distance_in_m * max_inlier_distance_in_m);
+			evaluateTransform(transformation,
+					matchesOrig,
+					matchesDest,
+					maxInlierDistance * maxInlierDistance,
+					indexInliers,
+					meanError);
 			
-			if (mean_error<0 || mean_error >= max_inlier_distance_in_m)
+			if (meanError<0 || meanError >= maxInlierDistance)
 				continue;	// skip these 3 points and go for a new iteration
 				
-			if (index_inliers.size()<MIN_NB_INLIERS_ABS || index_inliers.size()<nb_valid_matches*MIN_NB_INLIERS_REL)
+			if (indexInliers.size()<MIN_NB_INLIERS_ABS || indexInliers.size()<nbValidMatches*MIN_NB_INLIERS_REL)
 				continue;	// not enough inliers found
 			
-			//fprintf(stderr, "Found %d inliers\tMean error:%f", index_inliers.size(), mean_error);
+			//fprintf(stderr, "Found %d inliers\tMean error:%f", indexInliers.size(), meanError);
 			
-			if (mean_error < best_error)
+			if (meanError < bestError)
 			{
-				//fprintf(stderr, "\t => Best transformation! ", index_inliers.size(), mean_error);
-				best_transformation = transformation;
-				best_error = mean_error;
-				index_best_inliers = index_inliers;
+				//fprintf(stderr, "\t => Best transformation! ", indexInliers.size(), meanError);
+				bestTransformation = transformation;
+				bestError = meanError;
+				indexBestInliers = indexInliers;
 			}
 		}
 		fprintf(stderr, "\n");
 		
 		
-		if (index_best_inliers.size()>0)
+		if (indexBestInliers.size()>0)
 		{
 			// SUCCESS - TRANSFORMATION IS DEFINED
 			
 			// print the transformation matrix
-			std::cerr << "Best Transformation --->\t" << index_best_inliers.size() << " inliers and mean error="<< best_error << std::endl;
-			std:cerr << best_transformation << std::endl;
+			std::cerr << "Best Transformation --->\t" << indexBestInliers.size() << " inliers and mean error="<< bestError << std::endl;
+			std:cerr << bestTransformation << std::endl;
 			fflush(stderr);
 
-			resultingTransfo._matrix = best_transformation;
-			resultingTransfo._error = best_error;
+			resultingTransfo._matrix = bestTransformation;
+			resultingTransfo._error = bestError;
 			validTransformation = true;
 			
 			// draw inliers
-			IplImage* stacked_inliers = NULL;
+			IplImage* imgStackedInliers = NULL;
 			
 			// stack the 2 images
-			stacked_inliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
+			imgStackedInliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
 						
 			// draw red lines for outliers
 			// all the initial matches are drawn here - the inliers will be overwritten with green
-			for (int i=0; i<index_matches.size(); i++)
+			for (int i=0; i<indexMatches.size(); i++)
 			{
-				int id_match = index_matches[i];
-	            const struct feature* feat1 = frameData1.getFeature(id_match);
-	            const struct feature* feat2 = frameData1.getFeatureMatch(id_match);
+				int idMatch = indexMatches[i];
+	            const struct feature* feat1 = frameData1.getFeature(idMatch);
+	            const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
 				
 				// draw a line through the 2 points in the stacked image
 				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
 				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
 				pt2.y += frameData1.getImage()->height;
 				// draw a green line
-				cvLine( stacked_inliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
+				cvLine( imgStackedInliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
 			}
 			// draw green lines for the best inliers
-			for (int i=0; i<index_best_inliers.size(); i++)
+			for (int i=0; i<indexBestInliers.size(); i++)
 			{
-				int id_inlier = index_best_inliers[i];
-				int id_match = index_matches[id_inlier];
-	            const struct feature* feat1 = frameData1.getFeature(id_match);
-	            const struct feature* feat2 = frameData1.getFeatureMatch(id_match);
+				int idInlier = indexBestInliers[i];
+				int idMatch = indexMatches[idInlier];
+	            const struct feature* feat1 = frameData1.getFeature(idMatch);
+	            const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
 				
 				// draw a line through the 2 points in the stacked image
 				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
 				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
 				pt2.y += frameData1.getImage()->height;
 				// draw a green line
-				cvLine( stacked_inliers, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
+				cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
 			}
 			fprintf(stderr, "\n"); fflush(stderr);
 			
 			// draw lines for the 3 initial points
 			for (int i=0; i<initialPairs.size(); i++)
 			{
-				int id_match = initialPairs[i];
-	            const struct feature* feat1 = frameData1.getFeature(id_match);
-	            const struct feature* feat2 = frameData1.getFeatureMatch(id_match);
+				int idMatch = initialPairs[i];
+	            const struct feature* feat1 = frameData1.getFeature(idMatch);
+	            const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
 				
 				// draw a line through the 2 points in the stacked image
 				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
 				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
 				pt2.y += frameData1.getImage()->height;
 				// draw a green line
-				cvLine( stacked_inliers, pt1, pt2, CV_RGB(0,0,140), 2, 8, 0 );
+				cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,0,140), 2, 8, 0 );
 			}
 			
 			// save stacked image
-			sprintf(buf,"inliers:%d/%d (%d%%)", index_best_inliers.size(), nb_valid_matches, index_best_inliers.size()*100/nb_valid_matches);
-			cvPutText(stacked_inliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
+			sprintf(buf,"inliers:%d/%d (%d%%)", indexBestInliers.size(), nbValidMatches, indexBestInliers.size()*100/nbValidMatches);
+			cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 			sprintf(buf, "%s/sift_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameID1, frameID2);
-			cvSaveImage(buf, stacked_inliers);
-			cvReleaseImage(&stacked_inliers);
+			cvSaveImage(buf, imgStackedInliers);
+			cvReleaseImage(&imgStackedInliers);
 		}
 	}
 	
