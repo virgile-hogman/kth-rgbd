@@ -1,10 +1,5 @@
-///////////////////
-// SIFT EXTRACTION
-///////////////////
-
 
 #include "FrameData.h"
-
 
 // Open CV
 #include "highgui.h"
@@ -15,34 +10,32 @@
 
 std::string FrameData::_DataPath;
 
-bool FrameData::find_file( const boost::filesystem::path & dir_path,     		// in this directory,
-                const std::string & file_name,	// search for this name,
-                std::string & path_found )        		// placing path here if found
+bool FrameData::find_file(
+		const boost::filesystem::path & dir_path,   // in this directory,
+        const std::string & file_name,				// search for this name,
+        std::string & path_found )        			// placing path here if found
 {
-  if ( ! boost::filesystem::exists( dir_path ) )
-	  return false;
-  
-  
-  char bufPattern[256];
-  sprintf(bufPattern, "%s_%%d", file_name.c_str());
-  int timestamp;
-  //printf("Looking for file with pattern %s.bmp\n", bufPattern);
-  fflush(stdout);
-	  
-  boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
-  for (  boost::filesystem::directory_iterator itr( dir_path );
-        itr != end_itr;
-        ++itr )
-  {
-	  if (boost::filesystem::extension(*itr)==".bmp" &&
-		  sscanf(itr->leaf().c_str(), bufPattern, &timestamp)==1)
+	if ( ! boost::filesystem::exists( dir_path ) )
+		return false;
+
+	char bufPattern[256];
+	sprintf(bufPattern, "%s_%%d", file_name.c_str());
+	int timestamp;
+	//printf("Looking for file with pattern %s.bmp\n", bufPattern);
+	fflush(stdout);
+
+	boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
+	for (boost::filesystem::directory_iterator itr( dir_path ); itr != end_itr; ++itr )
+	{
+		if (boost::filesystem::extension(*itr)==".bmp" &&
+		sscanf(itr->leaf().c_str(), bufPattern, &timestamp)==1)
 		{
 			// add frame
-		  path_found = itr->path().string().c_str();
-		  return true;
+			path_found = itr->path().string().c_str();
+			return true;
 		}
-  }
-  return false;
+	}
+	return false;
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -199,7 +192,8 @@ void FrameData::copyData(const FrameData &srcFrameData)
 }
 
 int FrameData::computeFeatures()
-{	
+{
+	// extract the SIFT features
 	if (_pImage != NULL)
 		_nbFeatures = sift_features( _pImage, &_pFeatures );
 	else
