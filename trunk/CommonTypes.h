@@ -36,6 +36,19 @@ public:
 typedef std::vector<Transformation, Eigen::aligned_allocator<Eigen::Vector4f> > TransformationVector;
 
 
+class Pose
+{
+public:
+	Eigen::Matrix4f	_matrix;
+	int				_id;
+public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+// for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html
+};
+
+typedef std::vector<Pose, Eigen::aligned_allocator<Eigen::Vector4f> > PoseVector;
+
+
 //vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f> > g_transformations;
 
 

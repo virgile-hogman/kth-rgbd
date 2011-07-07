@@ -12,10 +12,6 @@ extern "C" {
 
 #include <boost/filesystem.hpp>
 
-
-// -----------------------------------------------------------------------------------------------------
-//  FrameData
-// -----------------------------------------------------------------------------------------------------
 class FrameData
 {
 private:
@@ -83,9 +79,10 @@ public:
 	static std::string _DataPath;
 	
 	
-static bool find_file( const boost::filesystem::path & dir_path,     		// in this directory,
-                const std::string & file_name,	// search for this name,
-                std::string & path_found );        		// placing path here if found
+	static bool find_file(
+			const boost::filesystem::path & dir_path,	// in this directory,
+            const std::string & file_name,				// search for this name,
+            std::string & path_found );					// placing path here if found
 };
 
 #endif

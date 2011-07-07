@@ -4,12 +4,11 @@
 #include "CommonTypes.h"
 #include "FrameData.h"
 
-bool matchFrames(
+bool computeTransformation(
 		int frameID1,
 		int frameID2,
 		FrameData &frameData1,
 		FrameData &frameData2,
-		bool methodRandom,
 		Transformation &resultingTransfo);
 
 #endif // FEATURE_MATCHING_H
