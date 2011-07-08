@@ -68,15 +68,15 @@ void evaluateTransform(
 		Eigen::Vector4f vectorDiff = (transformation * orig) - dest;
 
 		// compute the error
-		double error = vectorDiff.dot(vectorDiff);
+		double error = vectorDiff.squaredNorm();
 
+		// check if outlier
 		if (error > maxError)
-			continue; //ignore outliers
+			continue;
 
-		error = sqrt(error);
-		inliers.push_back(id); //include inlier
-
-		meanError += error;
+		// this is an inlier
+		inliers.push_back(id);
+		meanError += sqrt(error);
 	}
 
 	if (inliers.size()>0)
@@ -123,7 +123,6 @@ bool findTransformRANSAC(
 		// pickup 3 points from matches
 		for (int k = 0; k < 3; k++) {
 			int id_match = rand() % nbValidMatches;
-			//int index1 = indexMatches[id_match];
 			tfc.add(matchesOrig[id_match], matchesDest[id_match]);
 		}
 
@@ -182,7 +181,7 @@ bool findTransformRANSAC(
 		}
 
 		// ----------------------------------------------------
-		// recompute a new transformation with the inliers
+		// recompute a new transformation with all the inliers
 		// ----------------------------------------------------
 		//fprintf(stderr, "\nRecomputing transfo... \t");
 		tfc.reset();
@@ -225,6 +224,7 @@ bool findTransformRANSAC(
 
 		resultTransform._matrix = bestTransformationMat;
 		resultTransform._error = bestError;
+		resultTransform._ratioInliers = float(indexBestInliers.size())/nbValidMatches;
 		validTransformation = true;
 
 		// draw inliers
@@ -364,7 +364,7 @@ void findFeatureMatchesKD(
 				// check if depth values are close enough (values in mm)
 				if (depth1>0 && //depth1<2000 &&
 					depth2>0 && //depth2<2000 &&
-					abs(depth1-depth2)/float(depth1) < MATCH_RELATIVE_DEPTH)	// read: relative diff 
+					abs(depth1-depth2)/float(depth1) < MATCH_RELATIVE_DEPTH)	// read: relative diff
 				{
 					// draw a green line
 					cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
@@ -464,6 +464,7 @@ bool computeTransformation(
 	resultingTransform._error = 1.0;
 	resultingTransform._idOrig = frameID1;
 	resultingTransform._idDest = frameID2;
+	resultingTransform._ratioInliers = 0;
 
 	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
