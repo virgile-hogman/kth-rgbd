@@ -116,7 +116,7 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 	for (int iPose=0; iPose<cameraPoses.size(); iPose++)
 	{
 		cout << "----------------------------------------------------------------------------\n";
-		cout << "Generating point cloud frame #" << cameraPoses[iPose]._id << " (" << iPose+1 << "/" << cameraPoses.size() << ")\n";
+		cout << "Append point cloud frame #" << cameraPoses[iPose]._id << " (" << iPose+1 << "/" << cameraPoses.size() << ")\n";
 		cout << cameraPoses[iPose]._matrix << std::endl;
 
 		getFramePointCloud(cameraPoses[iPose]._id, cloudFrame);
@@ -152,6 +152,25 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 	}
 }
 
+double getDistanceTransform(const Eigen::Matrix4f &transformMat)
+{
+	Eigen::Vector3d translation(transformMat(0,3), transformMat(1,3), transformMat(2,3));
+	return translation.norm();
+}
+
+#define PI 3.14159265
+double getAngleTransform(const Eigen::Matrix4f &transformMat)
+{
+	// convert angle to degrees (should not be multiple of PI!)
+	return acos((transformMat(0,0)+transformMat(1,1)+transformMat(2,2) - 1) /2) * 180.0 / PI;
+}
+
+bool isKeyTransform(const Eigen::Matrix4f &transformMat)
+{
+	return (getAngleTransform(transformMat) > 10 || getDistanceTransform(transformMat) > 0.5);
+}
+
+
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
@@ -168,7 +187,12 @@ void buildMap(const TransformationVector &sequenceTransform)
 	FrameData frameDataLoopClosure;
 	FrameData frameDataCurrent;
 	bool found = false;
+	double totalDistance = 0.0;
 	
+	float bestRatioLoopClosure = 0;
+	int idPoseLoopClosure = -1;
+	bool addLoopClosure = false;
+
 	char buf[256];
 	sprintf(buf, "%s/poses.dat", Config::_ResultDirectory.c_str());
 	std::ofstream filePoses(buf);
@@ -198,16 +222,20 @@ void buildMap(const TransformationVector &sequenceTransform)
 		{
 			// compute new position of the camera, by cumulating the inverse transforms (right side)
 			currentPoseMat = currentPoseMat * sequenceTransform[i]._matrix.inverse();
-			//std::cerr << "Camera position: " << transfo._idOrig << "-" << sequenceTransform[i]._idDest << "\n" << currentPoseMat << std::endl;
+			//std::cerr << "Camera position: " << sequenceTransform[i]._idOrig << "-" << sequenceTransform[i]._idDest << "\n" << currentPoseMat << std::endl;
 			
 			// update key transformation by cumulating the transforms (left side)
 			keyTransformMat = sequenceTransform[i]._matrix * keyTransformMat;
 			
-			if (i%5==0 || i==sequenceTransform.size()-1)	// TODO - define valid criterion for keynode
+			cout << keyTransform._idOrig << "-" << sequenceTransform[i]._idDest << "\r";
+			if (isKeyTransform(keyTransformMat) || i==sequenceTransform.size()-1)
 			{
 				// -------------------------------------------------------------------------------------------
 				//  new keynode: define camera position in the graph
 				// -------------------------------------------------------------------------------------------
+				totalDistance += getDistanceTransform(keyTransformMat);
+				cout << "Distance= " << getDistanceTransform(keyTransformMat) << " m\tAngle= " << getAngleTransform(keyTransformMat) << " deg\n";
+
 				keyTransform._idDest = sequenceTransform[i]._idDest;
 				keyTransform._matrix = keyTransformMat;
 
@@ -229,8 +257,9 @@ void buildMap(const TransformationVector &sequenceTransform)
 				// -------------------------------------------------------------------------------------------
 				//  check for loop closure
 				// -------------------------------------------------------------------------------------------
-				if (nbPose>sequenceTransform.size()/10)	// TODO - define valid criterion for loop closure check
+				if (totalDistance > 5.0 || getAngleTransform(currentPoseMat) > 300.0)
 				{
+					cout << "Checking loop closure after TotalDistance=" << totalDistance << " m\tAngle=" <<  getAngleTransform(currentPoseMat) << "deg\n";
 					// loop closure with frame #1
 					bool validTransform = computeTransformation(
 							sequenceTransform[0]._idOrig,
@@ -239,19 +268,45 @@ void buildMap(const TransformationVector &sequenceTransform)
 							frameDataCurrent,
 							transform);
 
+					addLoopClosure = (idPoseLoopClosure>0);
 					if (validTransform)
 					{
 						// add the edge = new constraint
-						std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-						std::cerr << " LOOP CLOSURE DETECTED " << std::endl;
-						std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
-						g_graph.addEdge(0, nbPose-1, transform);
-						found = true;
+						std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!\n";
+						std::cerr << " LOOP CLOSURE DETECTED \n";
+						std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!\n";
+						std::cerr << "Ratio: " << transform._ratioInliers << "\n";
+
+						if (transform._ratioInliers >= bestRatioLoopClosure)
+						{
+							// keep track of the loop closure info
+							bestRatioLoopClosure = transform._ratioInliers;
+							idPoseLoopClosure = nbPose-1;
+							// a better loop closure is found
+							// it may be improved so don't insert it yet
+							addLoopClosure = false;
+						}
 					}
 				}
-			}
+				if (addLoopClosure)
+				{
+					std::cerr << "Adding edge for Loop Closure, ratio: " << bestRatioLoopClosure << "\n";
+					// add new constraint
+					g_graph.addEdge(0, idPoseLoopClosure, transform);
+					// reset loop closure
+					idPoseLoopClosure = -1;
+					bestRatioLoopClosure = 0;
+					totalDistance = 0;
+				}
+			} // key pose
 		}
-		
+		if (idPoseLoopClosure>0)
+		{
+			std::cerr << "Adding edge for Loop Closure, ratio: " << bestRatioLoopClosure << "\n";
+			// add new constraint
+			g_graph.addEdge(0, idPoseLoopClosure, transform);
+		}
+
 		// build initial map and point cloud
 		g_graph.save("graph_initial.g2o");
 		generateMapPCD(cameraPoses, "cloud_initial.pcd");
