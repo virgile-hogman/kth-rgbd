@@ -48,8 +48,8 @@ float bad_point = std::numeric_limits<float>::quiet_NaN ();
 #define CHECK_RC(rc, what)                                            \
     if (rc != XN_STATUS_OK)                                            \
 {                                                                \
-    printf("%s failed: %s\n", what, xnGetStatusString(rc));        \
-    return rc;                                                    \
+	printf("%s failed: %s\n", what, xnGetStatusString(rc));        \
+	return rc;                                                    \
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -57,45 +57,45 @@ float bad_point = std::numeric_limits<float>::quiet_NaN ();
 // -----------------------------------------------------------------------------------------------------
 bool CameraDevice::connect()
 {
-    //Connect to kinect
-    printf("Connecting to Kinect... ");
-    fflush(stdout);
-    XnStatus nRetVal = XN_STATUS_OK;
-    EnumerationErrors errors;
-    nRetVal = g_context.InitFromXmlFile(OPENNI_CONFIG_XML_PATH, &errors);
-    if (nRetVal == XN_STATUS_NO_NODE_PRESENT)
-    {
-        XnChar strError[1024];
-        errors.ToString(strError, 1024);
-        printf("%s\n", strError);
-        return false;
-    }
-    else if (nRetVal != XN_STATUS_OK)
-    {
-        printf("Open failed: %s\n", xnGetStatusString(nRetVal));
-        return false;
-    }
-    printf("OK\n");   
-    
-    nRetVal = g_context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_depth);
-    CHECK_RC(nRetVal, "Find depth generator");
+	//Connect to kinect
+	printf("Connecting to Kinect... ");
+	fflush(stdout);
+	XnStatus nRetVal = XN_STATUS_OK;
+	EnumerationErrors errors;
+	nRetVal = g_context.InitFromXmlFile(OPENNI_CONFIG_XML_PATH, &errors);
+	if (nRetVal == XN_STATUS_NO_NODE_PRESENT)
+	{
+		XnChar strError[1024];
+		errors.ToString(strError, 1024);
+		printf("%s\n", strError);
+		return false;
+	}
+	else if (nRetVal != XN_STATUS_OK)
+	{
+		printf("Open failed: %s\n", xnGetStatusString(nRetVal));
+		return false;
+	}
+	printf("OK\n");
 
-    nRetVal = g_context.FindExistingNode(XN_NODE_TYPE_IMAGE, g_image);
-    CHECK_RC(nRetVal, "Find image generator");
+	nRetVal = g_context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_depth);
+	CHECK_RC(nRetVal, "Find depth generator");
 
-    nRetVal = xnFPSInit(&xnFPS, 180);
-    CHECK_RC(nRetVal, "FPS Init");
+	nRetVal = g_context.FindExistingNode(XN_NODE_TYPE_IMAGE, g_image);
+	CHECK_RC(nRetVal, "Find image generator");
 
-    g_context.SetGlobalMirror(false); //mirror image 
+	nRetVal = xnFPSInit(&xnFPS, 180);
+	CHECK_RC(nRetVal, "FPS Init");
 
-    g_depth.GetAlternativeViewPointCap().SetViewPoint(g_image);
-    if (g_depth.GetIntProperty ("ShadowValue", shadow_value) != XN_STATUS_OK)
-      printf ("[OpenNIDriver] Could not read shadow value!");
+	g_context.SetGlobalMirror(false); //mirror image
 
-    if (g_depth.GetIntProperty ("NoSampleValue", no_sample_value) != XN_STATUS_OK)
-      printf ("[OpenNIDriver] Could not read no sample value!");
+	g_depth.GetAlternativeViewPointCap().SetViewPoint(g_image);
+	if (g_depth.GetIntProperty ("ShadowValue", shadow_value) != XN_STATUS_OK)
+		printf ("[OpenNIDriver] Could not read shadow value!");
 
-    return (nRetVal == XN_STATUS_OK);
+	if (g_depth.GetIntProperty ("NoSampleValue", no_sample_value) != XN_STATUS_OK)
+		printf ("[OpenNIDriver] Could not read no sample value!");
+
+	return (nRetVal == XN_STATUS_OK);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -114,17 +114,17 @@ void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img, int frameID)
 	if (frameID<0)
 		frameID = g_imageMD.FrameID();	// use ID given by Kinect
 	
-    // Convert to IplImage 24 bit, 3 channels
-    for(unsigned int i = 0; i < g_imageMD.XRes()*g_imageMD.YRes();i++)
-    {
-        tmp_img->imageData[3*i+0]=pImageMap[i].nBlue;
-        tmp_img->imageData[3*i+1]=pImageMap[i].nGreen;
-        tmp_img->imageData[3*i+2]=pImageMap[i].nRed;
-    }
- 
-    char buf[256];
-    sprintf(buf, "%s/frame_%d_rgb.bmp", Config::_DataDirectory.c_str(), frameID);
-    cvSaveImage(buf, tmp_img);
+	// Convert to IplImage 24 bit, 3 channels
+	for(unsigned int i = 0; i < g_imageMD.XRes()*g_imageMD.YRes();i++)
+	{
+		tmp_img->imageData[3*i+0]=pImageMap[i].nBlue;
+		tmp_img->imageData[3*i+1]=pImageMap[i].nGreen;
+		tmp_img->imageData[3*i+2]=pImageMap[i].nRed;
+	}
+
+	char buf[256];
+	sprintf(buf, "%s/frame_%d_rgb.bmp", Config::_DataDirectory.c_str(), frameID);
+	cvSaveImage(buf, tmp_img);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -175,10 +175,10 @@ int saveHistogramImage(
 		for (XnUInt x = 0; x < g_depthMD.XRes(); ++x, ++pDepth, ++i)
 		{
 			unsigned char nHistValue = 0;
-			
+
 			if (*pDepth != 0)
 				nHistValue = depthHistogram[*pDepth];
-			
+
 			// yellow pixels
 			pImgDepth->imageData[3*i+0] = 0;			//Blue
 			pImgDepth->imageData[3*i+1] = nHistValue;	//Green
@@ -187,9 +187,9 @@ int saveHistogramImage(
 	}
 
 	if (frameID<0)
-		frameID = g_depthMD.FrameID();	// use ID given by Kinect
+	frameID = g_depthMD.FrameID();	// use ID given by Kinect
+
 	
-		
 	char bufFilename[256];
 	sprintf(bufFilename,"%s/frame_%d_histo.bmp", Config::_DataDirectory.c_str(), frameID);
 	cvSaveImage(bufFilename, pImgDepth);
@@ -268,7 +268,7 @@ int saveDepthImage(
 		char bufsys[256];
 		sprintf(bufsys, "chmod a+rw %s", buf);
 		system(bufsys);
-    }
+	}
 	
 	return g_depthMD.FrameID();
 }

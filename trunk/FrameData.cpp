@@ -201,12 +201,22 @@ int FrameData::computeFeatures()
 	return _nbFeatures;
 }
 
-void FrameData::drawFeatures(CvFont &font)
+void FrameData::drawFeatures()
 {
+	CvFont font;
+	double hScale=0.5;
+	double vScale=0.5;
+	int    lineWidth=1;
 	char buf[256];
-	sprintf(buf,"Frame%d nf:%d", _frameID, _nbFeatures);
+
+	sprintf(buf,"Frame%d -- %d feat.", _frameID, _nbFeatures);
+
 	// draw SIFT features 
 	draw_features(_pImage, _pFeatures, _nbFeatures);
+
+	// define a font to write some text
+	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
+
 	cvPutText(_pImage, buf, cvPoint(5, 20), &font, cvScalar(255,255,0));
 }
 
