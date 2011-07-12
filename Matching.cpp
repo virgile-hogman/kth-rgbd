@@ -86,6 +86,83 @@ void evaluateTransform(
 }
 
 // -----------------------------------------------------------------------------------------------------
+//  drawInliers
+// -----------------------------------------------------------------------------------------------------
+void drawInliers(
+		FrameData &frameData1,
+		FrameData &frameData2,
+		const vector<int> &indexMatches,
+		const vector<int> &indexBestInliers,
+		const vector<int> &initialPairs)
+{
+	CvPoint pt1, pt2;
+	CvFont font;
+	double hScale=0.5;
+	double vScale=0.5;
+	int    lineWidth=1;
+	// define a font to write some text
+	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
+
+	IplImage* imgStackedInliers = NULL;
+
+	// stack the 2 images
+	imgStackedInliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
+
+	// draw red lines for outliers
+	// all the initial matches are drawn here - the inliers will be overwritten with green
+	for (int i=0; i<indexMatches.size(); i++)
+	{
+		int idMatch = indexMatches[i];
+		const struct feature* feat1 = frameData1.getFeature(idMatch);
+		const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
+
+		// draw a line through the 2 points in the stacked image
+		pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+		pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+		pt2.y += frameData1.getImage()->height;
+		// draw a green line
+		cvLine( imgStackedInliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
+	}
+	// draw green lines for the best inliers
+	for (int i=0; i<indexBestInliers.size(); i++)
+	{
+		int idInlier = indexBestInliers[i];
+		int idMatch = indexMatches[idInlier];
+		const struct feature* feat1 = frameData1.getFeature(idMatch);
+		const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
+
+		// draw a line through the 2 points in the stacked image
+		pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+		pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+		pt2.y += frameData1.getImage()->height;
+		// draw a green line
+		cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
+	}
+	// draw lines for the 3 initial points
+	for (int i=0; i<initialPairs.size(); i++)
+	{
+		int idMatch = initialPairs[i];
+		const struct feature* feat1 = frameData1.getFeature(idMatch);
+		const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
+
+		// draw a line through the 2 points in the stacked image
+		pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+		pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+		pt2.y += frameData1.getImage()->height;
+		// draw a green line
+		cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,0,140), 2, 8, 0 );
+	}
+
+	// save stacked image
+	char buf[256];
+	sprintf(buf,"inliers:%d/%d (%d%%)", indexBestInliers.size(), indexMatches.size(), indexBestInliers.size()*100/indexMatches.size());
+	cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
+	sprintf(buf, "%s/sift_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+	cvSaveImage(buf, imgStackedInliers);
+	cvReleaseImage(&imgStackedInliers);
+}
+
+// -----------------------------------------------------------------------------------------------------
 //  findTransformRANSAC
 // -----------------------------------------------------------------------------------------------------
 bool findTransformRANSAC(
@@ -96,17 +173,9 @@ bool findTransformRANSAC(
 		vector<Eigen::Vector3f>	&matchesDest,
 		Transformation &resultTransform)
 {
-	CvPoint pt1, pt2;
-	CvFont font;
-	double hScale=0.5;
-	double vScale=0.5;
-	int    lineWidth=1;
 	bool validTransformation = false;
 
 	int nbValidMatches = indexMatches.size();
-
-	// define a font to write some text
-	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 
 	// find transform pairs
 	pcl::TransformationFromCorrespondences tfc;
@@ -227,73 +296,16 @@ bool findTransformRANSAC(
 		resultTransform._ratioInliers = float(indexBestInliers.size())/nbValidMatches;
 		validTransformation = true;
 
-		// draw inliers
-		IplImage* imgStackedInliers = NULL;
-
-		// stack the 2 images
-		imgStackedInliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
-
-		// draw red lines for outliers
-		// all the initial matches are drawn here - the inliers will be overwritten with green
-		for (int i=0; i<indexMatches.size(); i++)
-		{
-			int idMatch = indexMatches[i];
-			const struct feature* feat1 = frameData1.getFeature(idMatch);
-			const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
-
-			// draw a line through the 2 points in the stacked image
-			pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
-			pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-			pt2.y += frameData1.getImage()->height;
-			// draw a green line
-			cvLine( imgStackedInliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
-		}
-		// draw green lines for the best inliers
-		for (int i=0; i<indexBestInliers.size(); i++)
-		{
-			int idInlier = indexBestInliers[i];
-			int idMatch = indexMatches[idInlier];
-			const struct feature* feat1 = frameData1.getFeature(idMatch);
-			const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
-
-			// draw a line through the 2 points in the stacked image
-			pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
-			pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-			pt2.y += frameData1.getImage()->height;
-			// draw a green line
-			cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
-		}
-		// draw lines for the 3 initial points
-		for (int i=0; i<initialPairs.size(); i++)
-		{
-			int idMatch = initialPairs[i];
-			const struct feature* feat1 = frameData1.getFeature(idMatch);
-			const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
-
-			// draw a line through the 2 points in the stacked image
-			pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
-			pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-			pt2.y += frameData1.getImage()->height;
-			// draw a green line
-			cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,0,140), 2, 8, 0 );
-		}
-
-		// save stacked image
-		char buf[256];
-		sprintf(buf,"inliers:%d/%d (%d%%)", indexBestInliers.size(), nbValidMatches, indexBestInliers.size()*100/nbValidMatches);
-		cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-		sprintf(buf, "%s/sift_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
-		cvSaveImage(buf, imgStackedInliers);
-		cvReleaseImage(&imgStackedInliers);
+		drawInliers(frameData1, frameData2, indexMatches, indexBestInliers, initialPairs);
 	}
 
 	return validTransformation;
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  findFeatureMatchesKD
+//  kdSearchFeatureMatches
 // -----------------------------------------------------------------------------------------------------
-void findFeatureMatchesKD(
+void kdSearchFeatureMatches(
 		FrameData &frameData1,
 		FrameData &frameData2,
 		vector<int> &indexMatches,
@@ -307,30 +319,29 @@ void findFeatureMatchesKD(
 	CvPoint pt1, pt2;
 	double d0, d1;
 	int k, i, nbInitialMatches = 0, nbValidMatches = 0;
-
 	char buf[256];
+	float constant = 0.001 / CameraDevice::_FocalLength;    // TODO - redefine this properly
 	IplImage* imgStacked = NULL;
+
 	CvFont font;
 	double hScale=0.5;
 	double vScale=0.5;
 	int    lineWidth=1;
-	float constant = 0.001 / CameraDevice::_FocalLength;    // TODO - redefine this properly
-	
+	// define a font to write some text
+	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
+
 	//vector<int>	indexArea1, indexArea2, indexArea3;
 
 	indexMatches.clear();
 	matchesOrig.clear();
 	matchesDest.clear();
 
+	// stack the 2 images
+	imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
+
 	tm.start();
 	fprintf( stderr, "Frames %03d-%03d:\t Searching for matches... ", frameData1.getFrameID(), frameData2.getFrameID());
 	fflush(stdout);
-
-	// define a font to write some text
-	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
-
-	// stack the 2 images
-	imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
 
 	// try match the new features found in the 2d frame...
 	kdRoot = kdtree_build(frameData2.getFeatures(), frameData2.getNbFeatures());
@@ -399,17 +410,16 @@ void findFeatureMatchesKD(
 				}
 				else
 				{
-					// ignore the pairs without depth any info, but show the remaining outliners
+					// ignore the pairs without depth any info, but show the remaining outliers
 					if (depth1>0 || depth2>0)
 					{
-						char bufDiff[256];
 						// draw a red line
 						cvLine(imgStacked, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0);
 						//cvPutText(imgStacked, bufDiff, cvPoint((pt1.x+pt2.x)/2 -20,(pt1.y+pt2.y)/2), &font, cvScalar(255,255,0));
-						sprintf(bufDiff,"_%u", depth1);
-						cvPutText(imgStacked, bufDiff, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
-						sprintf(bufDiff,"_%u", depth2);
-						cvPutText(imgStacked, bufDiff, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
+						sprintf(buf,"_%u", depth1);
+						cvPutText(imgStacked, buf, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
+						sprintf(buf,"_%u", depth2);
+						cvPutText(imgStacked, buf, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
 					}
 				}
 			}
@@ -420,16 +430,16 @@ void findFeatureMatchesKD(
 	// free memory
 	kdtree_release(kdRoot);
 	
-	// debug
-	//const XnDepthPixel* p1 = g_arrayMD[frameID1-1].Data();
-	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
-		
 	sprintf(buf,"Matches:%d/%d (%d%%)", nbValidMatches, nbInitialMatches, nbValidMatches*100/nbInitialMatches);
 	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 	sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 	// save stacked image
 	cvSaveImage(buf, imgStacked);
 	cvReleaseImage(&imgStacked);
+
+	// debug
+	//const XnDepthPixel* p1 = g_arrayMD[frameID1-1].Data();
+	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
 
 	tm.stop();
 	fprintf( stderr, "\tKeeping %d/%d matches.\t(%dms)\n", nbValidMatches, nbInitialMatches, tm.duration() );
@@ -452,10 +462,6 @@ bool computeTransformation(
 	vector<int> indexMatches;
 	vector<Eigen::Vector3f>	matchesOrig;
 	vector<Eigen::Vector3f>	matchesDest;
-	CvFont font;
-	double hScale=0.5;
-	double vScale=0.5;
-	int    lineWidth=1;
 	bool validTransform = false;
 
 	int nbValidMatches = indexMatches.size();
@@ -465,9 +471,6 @@ bool computeTransformation(
 	resultingTransform._idOrig = frameID1;
 	resultingTransform._idDest = frameID2;
 	resultingTransform._ratioInliers = 0;
-
-	// define a font to write some text
-	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 
 	// ---------------------------------------------------------------------------
 	// feature extraction
@@ -486,7 +489,7 @@ bool computeTransformation(
 
 		frameData1.computeFeatures();
 		frameData1.removeInvalidFeatures(sizeFeatureArea, maxDeltaDepthArea);
-		frameData1.drawFeatures(font);
+		frameData1.drawFeatures();
 	}
 
 	// load data Frame2
@@ -499,7 +502,7 @@ bool computeTransformation(
 
 		frameData2.computeFeatures();
 		frameData2.removeInvalidFeatures(sizeFeatureArea, maxDeltaDepthArea);
-		frameData2.drawFeatures(font);
+		frameData2.drawFeatures();
 	}
 
 	tm.stop();
@@ -512,9 +515,9 @@ bool computeTransformation(
 		return false;
 
 	// ---------------------------------------------------------------------------
-	// feature matching Kd-tree search
+	// feature matching through kd-tree search
 	// ---------------------------------------------------------------------------
-	findFeatureMatchesKD(
+	kdSearchFeatureMatches(
 		frameData1,
 		frameData2,
 		indexMatches,

@@ -71,7 +71,7 @@ public:
 	
 	int computeFeatures();
 
-	void drawFeatures(CvFont &font);
+	void drawFeatures();
 	
 	void removeInvalidFeatures(int sizeSurfaceArea, int maxDeltaDepthArea);
 	
