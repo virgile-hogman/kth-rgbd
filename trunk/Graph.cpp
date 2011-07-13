@@ -25,12 +25,11 @@ void Graph::initialize()
 	_optimizer.setSolver(solver_ptr);
 }
 
-
-void Graph::addVertex(int id, const Eigen::Matrix4f &pose)
+void Graph::addVertex(const Pose &pose)
 {
 	g2o::VertexSE3 *vertexSE3 = NULL;
 
-	Eigen::Affine3f eigenTransform(pose);
+	Eigen::Affine3f eigenTransform(pose._matrix);
 	Eigen::Quaternionf eigenRotation(eigenTransform.rotation());
 
 	g2o::SE3Quat poseSE3(
@@ -40,19 +39,25 @@ void Graph::addVertex(int id, const Eigen::Matrix4f &pose)
 	
 	// add new vertex to the graph
 	vertexSE3 = new g2o::VertexSE3();
-	vertexSE3->setId(id);
+	vertexSE3->setId(pose._id);
 	vertexSE3->estimate() = poseSE3;
 	
-	if (id==0)
-		vertexSE3->setFixed(true);
+	if (_optimizer.vertices().size()==0)
+		vertexSE3->setFixed(true);	// fix the first vertex only
 
 	_optimizer.addVertex(vertexSE3);
 }
 
-void Graph::addEdge(int id1, int id2, const Transformation &transfo)
+void Graph::addEdge(const Transformation &transfo)
 {
 	Eigen::Affine3f eigenTransform(transfo._matrix);
 	Eigen::Quaternionf eigenRotation(eigenTransform.rotation());
+
+	int id1 = transfo._idOrig;
+	int id2 = transfo._idDest;
+
+	std::cout << "addEdge id1=" << id1 << " id2=" << id2 << "\n";
+	fflush(stdout);
 
 	g2o::SE3Quat transfoSE3(
 			// NOTE the order of the arguments : w comes first!
@@ -73,11 +78,18 @@ void Graph::addEdge(int id1, int id2, const Transformation &transfo)
 	_optimizer.addEdge(edgeSE3);
 }
 
-bool Graph::getPose(int id, Pose &pose)
+void Graph::optimize()
+{
+	_optimizer.initializeOptimization();
+	_optimizer.setVerbose(true);
+	_optimizer.optimize(5);
+}
+
+bool Graph::extractPose(Pose &pose)
 {
 	g2o::VertexSE3 *vertexSE3 = NULL;
 	
-	vertexSE3 = (g2o::VertexSE3*)_optimizer.vertex(id);
+	vertexSE3 = (g2o::VertexSE3*)_optimizer.vertex(pose._id);
 	if (vertexSE3 != NULL)
 	{
 		Eigen::Matrix4d mat = vertexSE3->estimate().to_homogenious_matrix();
@@ -90,11 +102,21 @@ bool Graph::getPose(int id, Pose &pose)
 	return false;
 }
 
-void Graph::optimize()
+bool Graph::extractAllPoses(PoseVector &poses)
 {
-	_optimizer.initializeOptimization();
-	_optimizer.setVerbose(true);
-	_optimizer.optimize(5);
+	// extract the updated camera position from the optimized graph
+	for (int i=0; i<poses.size(); i++)
+	{
+		// get the pose from the graph
+		if (! extractPose(poses[i]))
+		{
+			std::cerr << "Error in graph extraction!" << std::endl;
+			// cut the remaining poses, they are not valid anymore
+			poses.resize(i);
+			return false;
+		}
+	}
+	return true;
 }
 
 void Graph::save(const char* filename)

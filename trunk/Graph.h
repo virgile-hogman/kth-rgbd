@@ -12,13 +12,14 @@ public:
 	
 	void initialize();
 	
-	void addVertex(int id, const Eigen::Matrix4f &pose);
-	void addEdge(int id1, int id2, const Transformation &transfo);
+	void addVertex(const Pose &pose);
+	void addEdge(const Transformation &transfo);
 	
 	void optimize();
 	
-	bool getPose(int id, Pose &pose);
-	
+	bool extractPose(Pose &pose);
+	bool extractAllPoses(PoseVector &poses);
+
 	void save(const char *directory);
 	
 private:
