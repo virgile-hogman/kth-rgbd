@@ -192,12 +192,9 @@ void buildMap(const TransformationVector &sequenceTransform)
 	vector <int>		loopClosureVectorId;
 	vector <FrameData*>	loopClosureVectorData;
 
-	Transformation bestTransformLoopClosure;
-	float bestRatioLoopClosure = 0;
-	int idPoseLoopClosureFrom = -1;
-	int idPoseLoopClosureTo = -1;
+	Transformation bestTransformLC;
 	bool foundLoopClosure = false;
-	bool betterLoopClosure = false;
+	bool improvingLoopClosure = false;
 
 	char buf[256];
 	sprintf(buf, "%s/poses.dat", Config::_ResultDirectory.c_str());
@@ -211,13 +208,13 @@ void buildMap(const TransformationVector &sequenceTransform)
 		// -------------------------------------------------------------------------------------------
 		//  origin
 		// -------------------------------------------------------------------------------------------
-		// add vertex for the initial pose
-		g_graph.addVertex(0, currentPoseMat);
 		// origin
 		cameraPose._matrix = currentPoseMat;
 		cameraPose._id = sequenceTransform[0]._idOrig;
 		cameraPoses.push_back(cameraPose);
-		loopClosureVectorId.push_back(0);
+		// add vertex for the initial pose
+		g_graph.addVertex(cameraPose);
+		loopClosureVectorId.push_back(cameraPose._id);
 		pLoopClosureFrameData = new FrameData;
 		loopClosureVectorData.push_back(pLoopClosureFrameData);
 		nbPose++;
@@ -248,14 +245,14 @@ void buildMap(const TransformationVector &sequenceTransform)
 				keyTransform._idDest = sequenceTransform[iTransform]._idDest;
 				keyTransform._matrix = keyTransformMat;
 
-				// add a new vertex at current camera position
-				g_graph.addVertex(nbPose, currentPoseMat);
+				// add a vertex = current camera pose
 				cameraPose._matrix = currentPoseMat;
 				cameraPose._id = sequenceTransform[iTransform]._idDest;
 				cameraPoses.push_back(cameraPose);
+				g_graph.addVertex(cameraPose);
 
-				// add the edge = new constraint relative to the key transform
-				g_graph.addEdge(nbPose-1, nbPose, keyTransform);
+				// add an edge = new constraint relative to the key transform
+				g_graph.addEdge(keyTransform);
 				sequenceKeyTransform.push_back(keyTransform);
 				nbPose++;
 
@@ -270,39 +267,36 @@ void buildMap(const TransformationVector &sequenceTransform)
 					getAngleTransform(currentPoseMat) > Config::_LoopClosureAngle)
 				{
 					// looking for a better loop closure
-					betterLoopClosure = false;
+					improvingLoopClosure = false;
 
 					for (int iLoopClosure=0; iLoopClosure<loopClosureVectorId.size(); iLoopClosure++)
 					{
 						cout << "Checking loop closure ";
-						cout << "\tCandidate frames: " << sequenceTransform[loopClosureVectorId[iLoopClosure]]._idOrig << "-" << sequenceTransform[iTransform]._idDest;
+						cout << "\tCandidate frames: " << loopClosureVectorId[iLoopClosure] << "-" << cameraPose._id;
 						cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPoseMat) << "(deg)\n";
 
 						// loop closure with frame
 						bool validTransform = computeTransformation(
-								cameraPoses[loopClosureVectorId[iLoopClosure]]._id,
-								sequenceTransform[iTransform]._idDest,
+								loopClosureVectorId[iLoopClosure],
+								cameraPose._id,
 								*loopClosureVectorData[iLoopClosure],
 								frameDataCurrent,
 								transform);
 
 						if (validTransform)
 						{
-							cout << " LOOP CLOSURE DETECTED (" << sequenceTransform[loopClosureVectorId[iLoopClosure]]._idOrig;
-							cout << "-" << sequenceTransform[iTransform]._idDest <<  ") \n";
+							cout << " LOOP CLOSURE DETECTED (" << loopClosureVectorId[iLoopClosure];
+							cout << "-" << cameraPose._id <<  ") \n";
 							cout << "Ratio: " << transform._ratioInliers << "\n";
 
-							if (transform._ratioInliers >= bestRatioLoopClosure)
+							if (transform._ratioInliers >= bestTransformLC._ratioInliers)
 							{
 								// a better loop closure is found
 								foundLoopClosure = true;
 								// it may be improved so don't insert it yet
-								betterLoopClosure = true;
+								improvingLoopClosure = true;
 								// keep the loop closure info
-								bestTransformLoopClosure = transform;
-								bestRatioLoopClosure = transform._ratioInliers;
-								idPoseLoopClosureFrom = loopClosureVectorId[iLoopClosure];
-								idPoseLoopClosureTo = nbPose-1;
+								bestTransformLC = transform;
 							}
 						}
 					}
@@ -310,20 +304,21 @@ void buildMap(const TransformationVector &sequenceTransform)
 				}
 
 				// trigger the loop closure unless a better one has just been found
-				if (foundLoopClosure && !betterLoopClosure)
+				if (foundLoopClosure && !improvingLoopClosure)
 				{
 					cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 					cout << "Adding edge for Loop Closure";
-					cout << " between vertex " << idPoseLoopClosureFrom << " and " << idPoseLoopClosureTo;
-					cout << " - ratio: " << bestRatioLoopClosure << "\n";
+					cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest;
+					cout << " - ratio: " << bestTransformLC._ratioInliers << "\n";
 					cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 					// add the edge = new constraint
-					g_graph.addEdge(idPoseLoopClosureFrom, idPoseLoopClosureTo, bestTransformLoopClosure);
+					g_graph.addEdge(bestTransformLC);
 					// reset loop closure
 					foundLoopClosure = false;
-					idPoseLoopClosureFrom = -1;
-					idPoseLoopClosureTo = -1;
-					bestRatioLoopClosure = 0;
+					bestTransformLC._idOrig = -1;
+					bestTransformLC._idDest = -1;
+					bestTransformLC._ratioInliers = 0;
+					bestTransformLC._matrix = Eigen::Matrix4f::Identity();
 					totalDistance = 0;
 				}
 
@@ -331,7 +326,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 				if (loopClosureVectorId.size() < Config::_LoopClosureWindowSize)
 				{
 					// add the current pose
-					loopClosureVectorId.push_back(nbPose-1);
+					loopClosureVectorId.push_back(cameraPose._id);
 					pLoopClosureFrameData = new FrameData;
 					loopClosureVectorData.push_back(pLoopClosureFrameData);
 				}
@@ -342,11 +337,11 @@ void buildMap(const TransformationVector &sequenceTransform)
 		{
 			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 			cout << "Adding edge for Loop Closure";
-			cout << " between vertex " << idPoseLoopClosureFrom << " and " << idPoseLoopClosureTo;
-			cout << " - ratio: " << bestRatioLoopClosure << "\n";
+			cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest;
+			cout << " - ratio: " << bestTransformLC._ratioInliers << "\n";
 			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 			// add new constraint
-			g_graph.addEdge(idPoseLoopClosureFrom, idPoseLoopClosureTo, bestTransformLoopClosure);
+			g_graph.addEdge(bestTransformLC);
 		}
 
 		g_graph.save("graph_initial.g2o");
@@ -361,21 +356,11 @@ void buildMap(const TransformationVector &sequenceTransform)
 		g_graph.optimize();
 		g_graph.save("graph_optimized.g2o");
 
+		g_graph.extractAllPoses(cameraPoses);
+
 		// extract the updated camera position from the optimized graph
 		for (int i=0; i<cameraPoses.size(); i++)
 		{
-			// get the pose from the graph)
-			if (! g_graph.getPose(i, cameraPose))
-			{
-				cerr << "Error in graph extraction!" << std::endl;
-				// cut the remaining poses, they are not valid anymore
-				cameraPoses.resize(i);
-				break;
-			}
-
-			// update matrix
-			cameraPoses[i]._matrix = cameraPose._matrix;
-
 			filePoses << "Camera [" << i << "] - Frame #" << cameraPoses[i]._id << "\n";
 			filePoses << cameraPoses[i]._matrix << "\n----------------------------------------\n";
 		}
