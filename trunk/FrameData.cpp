@@ -10,12 +10,16 @@
 
 std::string FrameData::_DataPath;
 
+// depth range for valid features (in mm)
+#define FEATURE_DEPTH_MIN 0
+#define FEATURE_DEPTH_MAX 6000
+
 bool FrameData::find_file(
 		const boost::filesystem::path & dir_path,   // in this directory,
         const std::string & file_name,				// search for this name,
         std::string & path_found )        			// placing path here if found
 {
-	if ( ! boost::filesystem::exists( dir_path ) )
+	if (! boost::filesystem::exists(dir_path))
 		return false;
 
 	char bufPattern[256];
@@ -28,7 +32,7 @@ bool FrameData::find_file(
 	for (boost::filesystem::directory_iterator itr( dir_path ); itr != end_itr; ++itr )
 	{
 		if (boost::filesystem::extension(*itr)==".bmp" &&
-		sscanf(itr->leaf().c_str(), bufPattern, &timestamp)==1)
+			sscanf(itr->leaf().c_str(), bufPattern, &timestamp)==1)
 		{
 			// add frame
 			path_found = itr->path().string().c_str();
@@ -195,7 +199,10 @@ int FrameData::computeFeatures()
 {
 	// extract the SIFT features
 	if (_pImage != NULL)
+	{
 		_nbFeatures = sift_features( _pImage, &_pFeatures );
+		removeInvalidFeatures();
+	}
 	else
 		_nbFeatures = 0;
 	return _nbFeatures;
@@ -220,26 +227,31 @@ void FrameData::drawFeatures()
 	cvPutText(_pImage, buf, cvPoint(5, 20), &font, cvScalar(255,255,0));
 }
 
-void FrameData::removeInvalidFeatures(int sizeSurfaceArea, int maxDeltaDepthArea)
+void FrameData::removeInvalidFeatures()
 {
 	std::vector<int>	validIdFeatures;
 	struct feature*		pNewFeatures = NULL; 
 	
+	const int maxDeltaDepthArea=50;
+	const int sizeFeatureArea=-1;
+
 	// generate a list of the valid features
 	for (int i=0; i < _nbFeatures; i++)
 	{
 		TDepthPixel depthFeature = getFeatureDepth(&_pFeatures[i]); 
-		if (depthFeature == 0)	// no available depth information 
+		if (depthFeature == 0 ||	// no available depth information
+			depthFeature < FEATURE_DEPTH_MIN ||
+			depthFeature > FEATURE_DEPTH_MAX)
 			continue;
 		
-		if (sizeSurfaceArea<=0)	
+		if (sizeFeatureArea<=0)
 			validIdFeatures.push_back(i);
 		else
 		{
 			bool validArea = true;
 			// look n pixels around
-			for (int row=-sizeSurfaceArea; row<=sizeSurfaceArea && validArea; row++)
-				for (int col=-sizeSurfaceArea; col<=sizeSurfaceArea && validArea; col++)
+			for (int row=-sizeFeatureArea; row<=sizeFeatureArea && validArea; row++)
+				for (int col=-sizeFeatureArea; col<=sizeFeatureArea && validArea; col++)
 				{
 					TDepthPixel depthNeighbour = _depthData[(cvRound(_pFeatures[i].y)+col) * 640 + cvRound(_pFeatures[i].x)+row];
 					if (depthNeighbour!=0 && abs(depthFeature-depthNeighbour)>maxDeltaDepthArea)
