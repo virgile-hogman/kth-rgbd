@@ -87,7 +87,10 @@ bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int ratioKeep)
 {
 	pcl::PointCloud<pcl::PointXYZRGB> cloudTemp;
-	//cloudTemp.points.resize(cloudFull.size()/2);
+
+	if (ratioKeep<0 || ratioKeep>=100)
+		return;
+
 	for (int i=0; i<pointCloud.size(); i++)
 	{
 		if (rand()%100 < ratioKeep)
@@ -121,8 +124,8 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 
 		getFramePointCloud(cameraPoses[iPose]._id, cloudFrame);
 
-		// subsample frame keeping 70%
-		subsamplePointCloud(cloudFrame, 70);
+		// subsample frame
+		subsamplePointCloud(cloudFrame, Config::_RatioKeepSubsamplePCD);
 		
 		// apply transformation to the point cloud
 		pcl::getTransformedPointCloud(
@@ -134,13 +137,13 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 		cloudFull += cloudFrameTransformed;
 		cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
 		
-		/*if (iPose % 50 == 0 || iPose==poseTransformations.size()-1)
-			subsamplePointCloud(cloudFull,70);*/
+		if (cloudFull.size() > 2E6)
+			subsamplePointCloud(cloudFull, Config::_RatioKeepSubsamplePCD);
 	}
 	if (cloudFull.size()>0)
 	{
-		// subsample final point cloud keeping 70%
-		//subsamplePointCloud(cloudFull, 70);
+		// subsample final point cloud
+		//subsamplePointCloud(cloudFull, Config::_RatioKeepSubsamplePCD);
 		
 		cout << "Saving global point cloud binary..." << std::endl;    			
 		sprintf(buf_full, "%s/%s", Config::_ResultDirectory.c_str(), filenamePCD);
@@ -170,35 +173,40 @@ bool isKeyTransform(const Eigen::Matrix4f &transformMat)
 	return (getAngleTransform(transformMat) > 10 || getDistanceTransform(transformMat) > 0.5);
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  savePoses
+// -----------------------------------------------------------------------------------------------------
+void savePoses(PoseVector poses, const char *filename)
+{
+	char buf[256];
+	sprintf(buf, "%s/%s", filename, Config::_ResultDirectory.c_str());
+	std::ofstream filePoses(buf);
+
+	for (int i=0; i<poses.size(); i++)
+	{
+		filePoses << "Pose [" << i << "] - Frame #" << poses[i]._id << "\n";
+		filePoses << poses[i]._matrix << "\n----------------------------------------\n";
+	}
+}
 
 // -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
 void buildMap(const TransformationVector &sequenceTransform)
 {
+	PoseVector	cameraPoses;
+	Pose		currentPose;
 	TransformationVector sequenceKeyTransform;
 	Transformation keyTransform;
 	Transformation transform;
-	Eigen::Matrix4f currentPoseMat(Eigen::Matrix4f::Identity());	// origin
-	Eigen::Matrix4f keyTransformMat(Eigen::Matrix4f::Identity());	// transform from origin
-	PoseVector	cameraPoses;
-	Pose		cameraPose;
-	int nbPose=0;
-	FrameData *pLoopClosureFrameData = NULL;
-	FrameData frameDataCurrent;
-	bool found = false;
 	double totalDistance = 0.0;
-	
-	vector <int>		loopClosureVectorId;
-	vector <FrameData*>	loopClosureVectorData;
-
+	FrameData *pFrameDataLC = NULL;
+	FrameData frameDataCurrent;
+	vector <int>		idCandidateLC;
+	vector <FrameData*>	bufferFrameDataLC;
 	Transformation bestTransformLC;
 	bool foundLoopClosure = false;
-	bool improvingLoopClosure = false;
-
-	char buf[256];
-	sprintf(buf, "%s/poses.dat", Config::_ResultDirectory.c_str());
-	std::ofstream filePoses(buf);
+	bool insertLoopClosure = false;
 
 	// initialize the graph
     g_graph.initialize();
@@ -208,18 +216,17 @@ void buildMap(const TransformationVector &sequenceTransform)
 		// -------------------------------------------------------------------------------------------
 		//  origin
 		// -------------------------------------------------------------------------------------------
-		// origin
-		cameraPose._matrix = currentPoseMat;
-		cameraPose._id = sequenceTransform[0]._idOrig;
-		cameraPoses.push_back(cameraPose);
+    	currentPose._matrix = Eigen::Matrix4f::Identity();
+    	currentPose._id = sequenceTransform[0]._idOrig;
+    	cameraPoses.push_back(currentPose);
 		// add vertex for the initial pose
-		g_graph.addVertex(cameraPose);
-		loopClosureVectorId.push_back(cameraPose._id);
-		pLoopClosureFrameData = new FrameData;
-		loopClosureVectorData.push_back(pLoopClosureFrameData);
-		nbPose++;
-		
+		g_graph.addVertex(currentPose);
+		keyTransform._matrix = Eigen::Matrix4f::Identity();
 		keyTransform._idOrig = sequenceTransform[0]._idOrig;
+		// insert as candidate for loop closure
+		pFrameDataLC = new FrameData;
+		bufferFrameDataLC.push_back(pFrameDataLC);
+		idCandidateLC.push_back(currentPose._id);
 		
 		// -------------------------------------------------------------------------------------------
 		//  loop on the global sequence of transformations
@@ -227,74 +234,69 @@ void buildMap(const TransformationVector &sequenceTransform)
 		for (int iTransform=0; iTransform<sequenceTransform.size(); iTransform++)
 		{
 			// compute new position of the camera, by cumulating the inverse transforms (right side)
-			currentPoseMat = currentPoseMat * sequenceTransform[iTransform]._matrix.inverse();
-			//std::cerr << "Camera position: " << sequenceTransform[iTransform]._idOrig << "-" << sequenceTransform[iTransform]._idDest << "\n" << currentPoseMat << std::endl;
+			currentPose._matrix = currentPose._matrix * sequenceTransform[iTransform]._matrix.inverse();
+			currentPose._id = sequenceTransform[iTransform]._idDest;
 			
 			// update key transformation by cumulating the transforms (left side)
-			keyTransformMat = sequenceTransform[iTransform]._matrix * keyTransformMat;
-			
+			keyTransform._matrix = sequenceTransform[iTransform]._matrix * keyTransform._matrix;
 			cout << keyTransform._idOrig << "-" << sequenceTransform[iTransform]._idDest << "\r";
-			if (isKeyTransform(keyTransformMat) || iTransform==sequenceTransform.size()-1)
+			
+			if (isKeyTransform(keyTransform._matrix) || iTransform==sequenceTransform.size()-1)
 			{
 				// -------------------------------------------------------------------------------------------
 				//  new keynode: define camera position in the graph
 				// -------------------------------------------------------------------------------------------
-				totalDistance += getDistanceTransform(keyTransformMat);
-				cout << "Distance=" << getDistanceTransform(keyTransformMat) << "(m)\tAngle=" << getAngleTransform(keyTransformMat) << "(deg)\n";
-
-				keyTransform._idDest = sequenceTransform[iTransform]._idDest;
-				keyTransform._matrix = keyTransformMat;
+				totalDistance += getDistanceTransform(keyTransform._matrix);
+				cout << "Distance=" << getDistanceTransform(keyTransform._matrix) << "(m)\tAngle=" << getAngleTransform(keyTransform._matrix) << "(deg)\n";
 
 				// add a vertex = current camera pose
-				cameraPose._matrix = currentPoseMat;
-				cameraPose._id = sequenceTransform[iTransform]._idDest;
-				cameraPoses.push_back(cameraPose);
-				g_graph.addVertex(cameraPose);
+				cameraPoses.push_back(currentPose);
+				g_graph.addVertex(currentPose);
 
 				// add an edge = new constraint relative to the key transform
-				g_graph.addEdge(keyTransform);
+				keyTransform._idDest = currentPose._id;
 				sequenceKeyTransform.push_back(keyTransform);
-				nbPose++;
+				g_graph.addEdge(keyTransform);
 
 				// remap from this position (relative key transform)
-				keyTransformMat = Eigen::Matrix4f::Identity();
-				keyTransform._idOrig = sequenceTransform[iTransform]._idDest;
+				keyTransform._matrix = Eigen::Matrix4f::Identity();
+				keyTransform._idOrig = currentPose._id;
 			
 				// -------------------------------------------------------------------------------------------
-				//  check for loop closure
+				//  loop closure
 				// -------------------------------------------------------------------------------------------
 				if (totalDistance > Config::_LoopClosureDistance ||
-					getAngleTransform(currentPoseMat) > Config::_LoopClosureAngle)
+					getAngleTransform(currentPose._matrix) > Config::_LoopClosureAngle)
 				{
-					// looking for a better loop closure
-					improvingLoopClosure = false;
+					insertLoopClosure = true;
 
-					for (int iLoopClosure=0; iLoopClosure<loopClosureVectorId.size(); iLoopClosure++)
+					for (int indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
 					{
 						cout << "Checking loop closure ";
-						cout << "\tCandidate frames: " << loopClosureVectorId[iLoopClosure] << "-" << cameraPose._id;
-						cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPoseMat) << "(deg)\n";
+						cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
+						cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPose._matrix) << "(deg)\n";
 
 						// loop closure with frame
 						bool validTransform = computeTransformation(
-								loopClosureVectorId[iLoopClosure],
-								cameraPose._id,
-								*loopClosureVectorData[iLoopClosure],
+								idCandidateLC[indexLC],
+								currentPose._id,
+								*bufferFrameDataLC[indexLC],
 								frameDataCurrent,
 								transform);
 
 						if (validTransform)
 						{
-							cout << " LOOP CLOSURE DETECTED (" << loopClosureVectorId[iLoopClosure];
-							cout << "-" << cameraPose._id <<  ") \n";
+							cout << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
+							cout << "-" << currentPose._id <<  ") \n";
 							cout << "Ratio: " << transform._ratioInliers << "\n";
 
+							// looking for a better loop closure
 							if (transform._ratioInliers >= bestTransformLC._ratioInliers)
 							{
 								// a better loop closure is found
 								foundLoopClosure = true;
 								// it may be improved so don't insert it yet
-								improvingLoopClosure = true;
+								insertLoopClosure = false;
 								// keep the loop closure info
 								bestTransformLC = transform;
 							}
@@ -304,15 +306,15 @@ void buildMap(const TransformationVector &sequenceTransform)
 				}
 
 				// trigger the loop closure unless a better one has just been found
-				if (foundLoopClosure && !improvingLoopClosure)
+				if (foundLoopClosure && insertLoopClosure)
 				{
 					cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 					cout << "Adding edge for Loop Closure";
-					cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest;
-					cout << " - ratio: " << bestTransformLC._ratioInliers << "\n";
+					cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 					cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 					// add the edge = new constraint
 					g_graph.addEdge(bestTransformLC);
+
 					// reset loop closure
 					foundLoopClosure = false;
 					bestTransformLC._idOrig = -1;
@@ -320,15 +322,22 @@ void buildMap(const TransformationVector &sequenceTransform)
 					bestTransformLC._ratioInliers = 0;
 					bestTransformLC._matrix = Eigen::Matrix4f::Identity();
 					totalDistance = 0;
+
+					// the candidates are also reset
+					idCandidateLC.clear();
+					// free loop closure data
+					for (int indexLC=0; indexLC<bufferFrameDataLC.size(); indexLC++)
+						delete bufferFrameDataLC[indexLC];
+					bufferFrameDataLC.clear();
 				}
 
 				// new candidate for loop closure
-				if (loopClosureVectorId.size() < Config::_LoopClosureWindowSize)
+				if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
 				{
 					// add the current pose
-					loopClosureVectorId.push_back(cameraPose._id);
-					pLoopClosureFrameData = new FrameData;
-					loopClosureVectorData.push_back(pLoopClosureFrameData);
+					pFrameDataLC = new FrameData;
+					bufferFrameDataLC.push_back(pFrameDataLC);
+					idCandidateLC.push_back(currentPose._id);
 				}
 
 			} // key pose
@@ -337,8 +346,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 		{
 			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 			cout << "Adding edge for Loop Closure";
-			cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest;
-			cout << " - ratio: " << bestTransformLC._ratioInliers << "\n";
+			cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 			// add new constraint
 			g_graph.addEdge(bestTransformLC);
@@ -356,29 +364,25 @@ void buildMap(const TransformationVector &sequenceTransform)
 		g_graph.optimize();
 		g_graph.save("graph_optimized.g2o");
 
+		// extract the updated camera positions from the optimized graph
 		g_graph.extractAllPoses(cameraPoses);
-
-		// extract the updated camera position from the optimized graph
-		for (int i=0; i<cameraPoses.size(); i++)
-		{
-			filePoses << "Camera [" << i << "] - Frame #" << cameraPoses[i]._id << "\n";
-			filePoses << cameraPoses[i]._matrix << "\n----------------------------------------\n";
-		}
 
 		// generate optimized point cloud
 		if (Config::_GenerateOptimizedPCD)
 			generateMapPCD(cameraPoses, "cloud_optimized.pcd");
 
+		savePoses(cameraPoses, "poses.dat");
+
 		// free loop closure data
-		for (int i=0; i<loopClosureVectorData.size(); i++)
-			delete loopClosureVectorData[i];
+		for (int indexLC=0; indexLC<bufferFrameDataLC.size(); indexLC++)
+			delete bufferFrameDataLC[indexLC];
     }
 }
 
 // -----------------------------------------------------------------------------------------------------
 //  buildFromSequence
 // -----------------------------------------------------------------------------------------------------
-void Map::buildFromSequence(std::vector<int> &sequenceFramesID, bool savePointCloud)
+void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 {
 	if (sequenceFramesID.size()>=2)
 	{
@@ -386,6 +390,8 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID, bool savePointCl
 		TransformationVector sequenceTransform;
 		Transformation transform;
 		bool validTransform;
+		int indexLastFrame;
+		int nbResyncAttempts=0;
 
 		char buf[256];
 		sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
@@ -396,27 +402,40 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID, bool savePointCl
 			fileTransform << sequenceFramesID[iFrame] << " ";
 		fileTransform << std::endl;
 		
+		indexLastFrame = 0;
 		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
 		{
 			// match frame to frame (current with previous)
 			validTransform = computeTransformation(
-					sequenceFramesID[iFrame-1],
+					sequenceFramesID[indexLastFrame],
 					sequenceFramesID[iFrame],
 					frameData1,
 					frameData2,
 					transform);
 			
 			if (!validTransform)
-				break;	// no valid transform => abort the sequence
+			{
+				// no valid transform
+				std::cerr << "No valid transformation!!";
+				std::cerr << "\tRatio=" << transform._ratioInliers*100 << "% ";
+				std::cerr << "\tResync attempt #" <<  nbResyncAttempts+1 << "\n";
+				if (++nbResyncAttempts < 3)
+					continue;	// skip current frame
+				else
+					break;		// abort
+			}
 			
+			// valid transform
+			nbResyncAttempts = 0;
+			sequenceTransform.push_back(transform);
+			indexLastFrame = iFrame;
+
 			// archive transform
 			fileTransform << transform._idOrig << " " << transform._idDest << " ";
 			for (int irow=0; irow<4; irow++)
 				for (int icol=0; icol<4; icol++)
 					fileTransform << transform._matrix(irow,icol) << " ";
 			fileTransform << std::endl;
-			
-			sequenceTransform.push_back(transform);
 			
 			// free data
 			frameData1.releaseData();

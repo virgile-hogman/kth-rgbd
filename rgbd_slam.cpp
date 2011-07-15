@@ -65,30 +65,24 @@ void loadSequence(const char *dataDirectory, int skipCount, int min, int max, ve
 // -----------------------------------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
-	bool savePointCloud = true;
 	vector<int> sequenceFramesID;
 	int nbFrames=2;	// by default
 	Map map;
     
 	if (argc<1)
 	{
-		printf("Usage: %s --load | --save <nbFrames>", argv[0]);
+		printf("Usage: %s --record <nbFrames> | --replay <from> <to> <skip> | --reconstruct", argv[0]);
 		return -1;
 	}
-	if (argc>2)
-		nbFrames = atoi(argv[2]);
-	
-	if (argc>3 && atoi(argv[3])<=0)
-		savePointCloud = false;
 	
     FrameData::_DataPath = Config::_DataDirectory;
     
     // ---------------------------------------------------------------------------------------------------
     //  load sequence from RGB+D input datafiles
     // ---------------------------------------------------------------------------------------------------
-    if (strcmp(argv[1], "--load") == 0)
+    if (strcmp(argv[1], "--replay") == 0)
     {
-        printf("Load sequence\n");
+        printf("Replay sequence\n");
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
     		return -1;
 
@@ -105,15 +99,18 @@ int main(int argc, char** argv)
         boost::filesystem::create_directories(Config::_ResultDirectory);       
 		
     	// build map 
-    	map.buildFromSequence(sequenceFramesID, savePointCloud);
+    	map.buildFromSequence(sequenceFramesID);
 	}
     // ---------------------------------------------------------------------------------------------------
     //  map reconstruction from transformations archive
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "--build") == 0)
+    else if (strcmp(argv[1], "--reconstruct") == 0)
     {
-        printf("Build map\n");
+        printf("Reconstruct map from archive\n");
         
+    	if (argc>2)
+    		nbFrames = atoi(argv[2]);
+
     	// build map from existing transformation data
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
     		return -1;
@@ -125,10 +122,10 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  acquire data from camera and build map
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "--save") == 0)
+    else if (strcmp(argv[1], "--record") == 0)
     {
     	CameraDevice cameraKinect;
-        printf("Acquire sequence from camera\n");
+        printf("Record sequence from camera\n");
         
         // use the same directory to generate and reload the data
         Config::_DataDirectory = Config::_GenDirectory;
@@ -149,7 +146,7 @@ int main(int argc, char** argv)
             cameraKinect.generateFrames(nbFrames, sequenceFramesID);
         
         	// build map 
-        	map.buildFromSequence(sequenceFramesID, savePointCloud);
+        	map.buildFromSequence(sequenceFramesID);
         	
         	cameraKinect.disconnect();
         }

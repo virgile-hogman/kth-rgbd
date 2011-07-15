@@ -26,21 +26,21 @@ extern "C" {
 using namespace std;
 
 /* the maximum number of keypoint NN candidates to check during BBF search */
-#define KDTREE_BBF_MAX_NN_CHKS	200
+#define KDTREE_BBF_MAX_NN_CHKS		200
 /* threshold on squared ratio of distances between NN and 2nd NN */
-#define NN_SQ_DIST_RATIO_THR	0.49
+#define NN_SQ_DIST_RATIO_THR		0.49
 
 // relative difference of depth for a valid match (higher -> more tolerant)
-#define MATCH_RELATIVE_DEPTH	0.1
+#define MATCH_RELATIVE_DEPTH		0.1
 
 // number of RANSAC iterations (loops)
-#define NB_RANSAC_ITERATIONS	20
+#define NB_RANSAC_ITERATIONS		20
 // minimum number of inliers, absolute value
-#define MIN_NB_INLIERS_ABS		10
-// minimum rate of inliers, relative rate wrt to the initial matches
-#define MIN_NB_INLIERS_REL		0.3
+#define MIN_NB_INLIERS				10
+// minimum ratio of inliers, relative rate wrt to the initial matches
+#define MIN_RATIO_INLIERS			0.3
 // error tolerance for inliers transformation (higher -> more tolerant)
-#define MAX_INLIER_DISTANCE		0.04
+#define MAX_INLIER_DISTANCE			0.05
 
 
 // -----------------------------------------------------------------------------------------------------
@@ -48,14 +48,16 @@ using namespace std;
 // -----------------------------------------------------------------------------------------------------
 void evaluateTransform(
 		const Eigen::Matrix4f& transformation,
-        const std::vector<Eigen::Vector3f>& matchesOrig,
-        const std::vector<Eigen::Vector3f>& matchesDest,
+        const std::vector<Eigen::Vector3f> &matchesOrig,
+        const std::vector<Eigen::Vector3f> &matchesDest,
         double maxError,        
-        std::vector<int>& inliers, //output var
-        double& meanError)
+        std::vector<int> &inliers,
+        double &meanError,
+        float &ratio)
 {
 	inliers.clear();
 	meanError = 0.0;
+	ratio = 0.0;
 
 	// for every matching point
 	for (unsigned int id = 0; id < matchesOrig.size(); id++)
@@ -70,11 +72,11 @@ void evaluateTransform(
 		// compute the error
 		double error = vectorDiff.squaredNorm();
 
-		// check if outlier
+		// check and ignore outlier
 		if (error > maxError)
 			continue;
 
-		// this is an inlier
+		// keep the inlier
 		inliers.push_back(id);
 		meanError += sqrt(error);
 	}
@@ -83,6 +85,8 @@ void evaluateTransform(
 		meanError /= inliers.size();
 	else
 		meanError = -1.0;
+
+	ratio = (float)inliers.size()/matchesOrig.size();
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -174,23 +178,25 @@ bool findTransformRANSAC(
 		Transformation &resultTransform)
 {
 	bool validTransformation = false;
-
-	int nbValidMatches = indexMatches.size();
-
 	// find transform pairs
 	pcl::TransformationFromCorrespondences tfc;
 	Eigen::Matrix4f bestTransformationMat;
 	std::vector<int> indexBestInliers;
-	double bestError = 0.1;
-
 	vector<int>	initialPairs;	// to track the 3 first points
+	int nbValidMatches = indexMatches.size();
+	double bestError = 1E10;	// large value
+	float bestRatio = 0;
+
+	if (nbValidMatches < 3)
+		return false;
 
 	for (int iteration=0; iteration<NB_RANSAC_ITERATIONS ; iteration++)
 	{
 		//fprintf(stderr, "\nIteration %d ... \t", iteration+1);
 		tfc.reset();
 		// pickup 3 points from matches
-		for (int k = 0; k < 3; k++) {
+		for (int i=0; i<3; i++)
+		{
 			int id_match = rand() % nbValidMatches;
 			tfc.add(matchesOrig[id_match], matchesDest[id_match]);
 		}
@@ -223,27 +229,32 @@ bool findTransformRANSAC(
 
 		// compute error and keep only inliers
 		std::vector<int> indexInliers;
-		double meanError;
 		double maxInlierDistance = MAX_INLIER_DISTANCE;
+		double meanError;
+		float ratio;
 
 		evaluateTransform(transformation,
 			matchesOrig,
 			matchesDest,
 			maxInlierDistance * maxInlierDistance,
 			indexInliers,
-			meanError);
+			meanError,
+			ratio);
 
-		//fprintf(stderr, "Found %d inliers\tMean error:%f", indexInliers.size(), meanError);
+		//printf("Found %d inliers (%d%%)\tMean error:%f\n", indexInliers.size(), indexInliers.size()*100/nbValidMatches, meanError);
 
 		if (meanError<0 || meanError >= maxInlierDistance)
 			continue;	// skip these 3 points and go for a new iteration
 
-		if (indexInliers.size()<MIN_NB_INLIERS_ABS || indexInliers.size()<nbValidMatches*MIN_NB_INLIERS_REL)
-			continue;	// not enough inliers found
-
 		if (meanError < bestError)
 		{
-			//fprintf(stderr, "\t => Best candidate transformation! ", indexInliers.size(), meanError);
+			if (ratio > bestRatio)
+				bestRatio = ratio;
+
+			if (indexInliers.size()<MIN_NB_INLIERS || ratio<MIN_RATIO_INLIERS)
+				continue;	// not enough inliers found
+
+			//printf("\t => Best candidate transformation! ", indexInliers.size(), meanError);
 			bestTransformationMat = transformation;
 			bestError = meanError;
 			indexBestInliers = indexInliers;
@@ -266,18 +277,20 @@ bool findTransformRANSAC(
 				matchesDest,
 				maxInlierDistance * maxInlierDistance,
 				indexInliers,
-				meanError);
+				meanError,
+				ratio);
 
 		if (meanError<0 || meanError >= maxInlierDistance)
 			continue;	// skip these 3 points and go for a new iteration
 
-		if (indexInliers.size()<MIN_NB_INLIERS_ABS || indexInliers.size()<nbValidMatches*MIN_NB_INLIERS_REL)
-			continue;	// not enough inliers found
-
-		//fprintf(stderr, "Found %d inliers\tMean error:%f", indexInliers.size(), meanError);
-
 		if (meanError < bestError)
 		{
+			if (ratio > bestRatio)
+				bestRatio = ratio;
+
+			if (indexInliers.size()<MIN_NB_INLIERS || ratio<MIN_RATIO_INLIERS)
+				continue;	// not enough inliers found
+
 			//fprintf(stderr, "\t => Best transformation! ", indexInliers.size(), meanError);
 			bestTransformationMat = transformation;
 			bestError = meanError;
@@ -287,16 +300,24 @@ bool findTransformRANSAC(
 
 	if (indexBestInliers.size()>0)
 	{
-		// RANSAC success!
-		std::cerr << "Best Transformation --->\t" << indexBestInliers.size() << " inliers and mean error="<< bestError << std::endl;
-		std::cerr << bestTransformationMat << std::endl;
+		// RANSAC success
+		std::cout << "Best Transformation --->\t" << indexBestInliers.size() << "/" << nbValidMatches;
+		std::cout << " inliers (" << indexBestInliers.size()*100/nbValidMatches <<  "%)";
+		std::cout << "\terror="<< bestError << std::endl;
+		std::cout << bestTransformationMat << std::endl;
 
+		validTransformation = true;
 		resultTransform._matrix = bestTransformationMat;
 		resultTransform._error = bestError;
 		resultTransform._ratioInliers = float(indexBestInliers.size())/nbValidMatches;
-		validTransformation = true;
 
 		drawInliers(frameData1, frameData2, indexMatches, indexBestInliers, initialPairs);
+	}
+	else
+	{
+		// no valid transformation found
+		validTransformation = false;
+		resultTransform._ratioInliers = bestRatio;
 	}
 
 	return validTransformation;
@@ -340,16 +361,18 @@ void kdSearchFeatureMatches(
 	imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
 
 	tm.start();
-	fprintf( stderr, "Frames %03d-%03d:\t Searching for matches... ", frameData1.getFrameID(), frameData2.getFrameID());
+	fprintf( stdout, "Frames %03d-%03d:\t Searching for matches... ", frameData1.getFrameID(), frameData2.getFrameID());
 	fflush(stdout);
 
 	// try match the new features found in the 2d frame...
 	kdRoot = kdtree_build(frameData2.getFeatures(), frameData2.getNbFeatures());
+	fflush(stdout);
 	for( i=0; i < frameData1.getNbFeatures(); i++ )
 	{
 		// ... looking in the 1st frame
 		feat = frameData1.getFeatures() + i;
 		// search for 2 nearest neighbours
+		fflush(stdout);
 		k = kdtree_bbf_knn(kdRoot, feat, 2, &neighbourFeatures, KDTREE_BBF_MAX_NN_CHKS);
 		if( k == 2 )
 		{
@@ -373,8 +396,8 @@ void kdSearchFeatureMatches(
 				const TDepthPixel depth2 = frameData2.getFeatureDepth(feat2);				
 				
 				// check if depth values are close enough (values in mm)
-				if (depth1>0 && //depth1<2000 &&
-					depth2>0 && //depth2<2000 &&
+				if (depth1>0 &&
+					depth2>0 &&
 					abs(depth1-depth2)/float(depth1) < MATCH_RELATIVE_DEPTH)	// read: relative diff
 				{
 					// draw a green line
@@ -426,11 +449,17 @@ void kdSearchFeatureMatches(
 		}
 		free(neighbourFeatures);
 	}
+	fflush(stdout);
 	
 	// free memory
 	kdtree_release(kdRoot);
 	
-	sprintf(buf,"Matches:%d/%d (%d%%)", nbValidMatches, nbInitialMatches, nbValidMatches*100/nbInitialMatches);
+	int ratio;
+	if (nbInitialMatches!=0)
+		ratio = nbValidMatches*100/nbInitialMatches;
+	else
+		ratio = 0;
+	sprintf(buf,"Matches:%d/%d (%d%%)", nbValidMatches, nbInitialMatches, ratio);
 	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 	sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 	// save stacked image
@@ -442,7 +471,7 @@ void kdSearchFeatureMatches(
 	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
 
 	tm.stop();
-	fprintf( stderr, "\tKeeping %d/%d matches.\t(%dms)\n", nbValidMatches, nbInitialMatches, tm.duration() );
+	fprintf( stderr, "\tMatches: %d/%d (%d%%).\t(%dms)\n", nbValidMatches, nbInitialMatches, ratio, tm.duration() );
 	fflush(stdout);
 }
 
@@ -457,8 +486,7 @@ bool computeTransformation(
 		Transformation &resultingTransform)
 {
 	Timer tm;
-	int maxDeltaDepthArea=50;
-	int sizeFeatureArea=-1;
+
 	vector<int> indexMatches;
 	vector<Eigen::Vector3f>	matchesOrig;
 	vector<Eigen::Vector3f>	matchesDest;
@@ -488,7 +516,6 @@ bool computeTransformation(
 			return false;
 
 		frameData1.computeFeatures();
-		frameData1.removeInvalidFeatures(sizeFeatureArea, maxDeltaDepthArea);
 		frameData1.drawFeatures();
 	}
 
@@ -501,7 +528,6 @@ bool computeTransformation(
 			return false;
 
 		frameData2.computeFeatures();
-		frameData2.removeInvalidFeatures(sizeFeatureArea, maxDeltaDepthArea);
 		frameData2.drawFeatures();
 	}
 

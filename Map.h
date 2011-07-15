@@ -7,7 +7,7 @@ class Map
 {
 public:
 		
-	void buildFromSequence(std::vector<int> &sequenceFramesID, bool savePointCloud);
+	void buildFromSequence(std::vector<int> &sequenceFramesID);
 	
 	void buildFromArchive();
 

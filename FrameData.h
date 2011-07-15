@@ -73,7 +73,7 @@ public:
 
 	void drawFeatures();
 	
-	void removeInvalidFeatures(int sizeSurfaceArea, int maxDeltaDepthArea);
+	void removeInvalidFeatures();
 	
 	// directory where to load/save the data files
 	static std::string _DataPath;
