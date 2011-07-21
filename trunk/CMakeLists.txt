@@ -22,6 +22,6 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 
-add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp Graph.cpp Map.cpp Config.cpp CameraDevice.cpp Matching.cpp)
+add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp Graph.cpp Map.cpp Config.cpp ConfigFile.cpp CameraDevice.cpp Matching.cpp)
 target_link_libraries(rgbd_slam feat OpenNI cv highgui boost_filesystem pcl_io g2o_core g2o_math_groups g2o_solver_cholmod g2o_types_slam3d) 
 
