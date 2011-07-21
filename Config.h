@@ -6,6 +6,8 @@
 class Config
 {
 public:
+	static void LoadConfig(std::string filename);
+
 	static std::string		_DataDirectory;
 	static std::string		_GenDirectory;
 	static std::string		_ResultDirectory;
