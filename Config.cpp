@@ -12,6 +12,8 @@ int			Config::_LoopClosureWindowSize = 5;
 bool		Config::_GenerateInitialPCD = true;
 bool		Config::_GenerateOptimizedPCD = true;
 int			Config::_RatioKeepSubsamplePCD = 80;
+int			Config::_MaxNbPointsPCD = 2E6;
+int			Config::_RatioFramePCD = 1;
 
 void Config::LoadConfig(std::string filename)
 {
@@ -28,4 +30,6 @@ void Config::LoadConfig(std::string filename)
 	Config::_GenerateInitialPCD = config.read<bool>("GenerateInitialPCD", true);
 	Config::_GenerateOptimizedPCD = config.read<bool>("GenerateOptimizedPCD", true);
 	Config::_RatioKeepSubsamplePCD = config.read<int>("RatioKeepSubsamplePCD", 80);
+	Config::_MaxNbPointsPCD = config.read<int>("MaxNbPointsPCD", 2E6);
+	Config::_RatioFramePCD = config.read<int>("RatioFramePCD", 1);
 }

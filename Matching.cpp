@@ -97,7 +97,8 @@ void drawInliers(
 		FrameData &frameData2,
 		const vector<int> &indexMatches,
 		const vector<int> &indexBestInliers,
-		const vector<int> &initialPairs)
+		const vector<int> &initialPairs,
+		bool forLoopClosure)
 {
 	CvPoint pt1, pt2;
 	CvFont font;
@@ -161,7 +162,10 @@ void drawInliers(
 	char buf[256];
 	sprintf(buf,"inliers:%d/%d (%d%%)", indexBestInliers.size(), indexMatches.size(), indexBestInliers.size()*100/indexMatches.size());
 	cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-	sprintf(buf, "%s/sift_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+	if (forLoopClosure)
+		sprintf(buf, "%s/loopc_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+	else
+		sprintf(buf, "%s/sift_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 	cvSaveImage(buf, imgStackedInliers);
 	cvReleaseImage(&imgStackedInliers);
 }
@@ -175,7 +179,8 @@ bool findTransformRANSAC(
 		vector<int> &indexMatches,
 		vector<Eigen::Vector3f>	&matchesOrig,
 		vector<Eigen::Vector3f>	&matchesDest,
-		Transformation &resultTransform)
+		Transformation &resultTransform,
+		bool forLoopClosure)
 {
 	bool validTransformation = false;
 	// find transform pairs
@@ -311,7 +316,7 @@ bool findTransformRANSAC(
 		resultTransform._error = bestError;
 		resultTransform._ratioInliers = float(indexBestInliers.size())/nbValidMatches;
 
-		drawInliers(frameData1, frameData2, indexMatches, indexBestInliers, initialPairs);
+		drawInliers(frameData1, frameData2, indexMatches, indexBestInliers, initialPairs, forLoopClosure);
 	}
 	else
 	{
@@ -331,7 +336,8 @@ void kdSearchFeatureMatches(
 		FrameData &frameData2,
 		vector<int> &indexMatches,
 		vector<Eigen::Vector3f>	&matchesOrig,
-		vector<Eigen::Vector3f>	&matchesDest)
+		vector<Eigen::Vector3f>	&matchesDest,
+		bool forLoopClosure)
 {
 	Timer tm;
 	struct feature** neighbourFeatures = NULL;	// SIFT feature
@@ -461,9 +467,13 @@ void kdSearchFeatureMatches(
 		ratio = 0;
 	sprintf(buf,"Matches:%d/%d (%d%%)", nbValidMatches, nbInitialMatches, ratio);
 	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-	sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+	if (forLoopClosure)
+		sprintf(buf, "%s/loopc_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+	else
+		sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 	// save stacked image
-	cvSaveImage(buf, imgStacked);
+	if (! forLoopClosure)
+		cvSaveImage(buf, imgStacked);
 	cvReleaseImage(&imgStacked);
 
 	// debug
@@ -483,7 +493,8 @@ bool computeTransformation(
 		int frameID2,
 		FrameData &frameData1,
 		FrameData &frameData2,
-		Transformation &resultingTransform)
+		Transformation &resultingTransform,
+		bool forLoopClosure)
 {
 	Timer tm;
 
@@ -548,7 +559,8 @@ bool computeTransformation(
 		frameData2,
 		indexMatches,
 		matchesOrig,
-		matchesDest);
+		matchesDest,
+		forLoopClosure);
 
 	// ---------------------------------------------------------------------------
 	//  find transformation through RANSAC iterations 
@@ -561,9 +573,28 @@ bool computeTransformation(
 				indexMatches,
 				matchesOrig,
 				matchesDest,
-				resultingTransform);
+				resultingTransform,
+				forLoopClosure);
 	}
 
 	return validTransform;
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  checkLoopClosure
+// -----------------------------------------------------------------------------------------------------
+bool checkLoopClosure(
+		int frameID1,
+		int frameID2,
+		FrameData &frameData1,
+		FrameData &frameData2,
+		Transformation &resultingTransform)
+{
+	return computeTransformation(
+			 frameID1,
+			 frameID2,
+			 frameData1,
+			 frameData2,
+			 resultingTransform,
+			 true);
+}

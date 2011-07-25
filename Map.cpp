@@ -115,9 +115,13 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFull;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
+	int nbPCD=0;
 	
 	for (int iPose=0; iPose<cameraPoses.size(); iPose++)
 	{
+		if (iPose % Config::_RatioFramePCD != 0)
+			continue;	// skip frame
+
 		cout << "----------------------------------------------------------------------------\n";
 		cout << "Append point cloud frame #" << cameraPoses[iPose]._id << " (" << iPose+1 << "/" << cameraPoses.size() << ")\n";
 		cout << cameraPoses[iPose]._matrix << std::endl;
@@ -137,16 +141,31 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 		cloudFull += cloudFrameTransformed;
 		cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
 		
-		if (cloudFull.size() > 2E6)
-			subsamplePointCloud(cloudFull, Config::_RatioKeepSubsamplePCD);
+		if (cloudFull.size() > Config::_MaxNbPointsPCD)
+		{
+			// max size reached
+			cout << "Saving global point cloud binary...\n";
+			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_ResultDirectory.c_str(), filenamePCD, nbPCD++);
+			cout << "File: " << buf_full << "\n";
+			pcl::io::savePCDFile(buf_full, cloudFull, true);
+			// bug in PCL - the binary file is not created with the good rights!
+			char bufsys[256];
+			sprintf(bufsys, "chmod a+rw %s", buf_full);
+			system(bufsys);
+			cloudFull.points.clear();
+		}
 	}
 	if (cloudFull.size()>0)
 	{
 		// subsample final point cloud
 		//subsamplePointCloud(cloudFull, Config::_RatioKeepSubsamplePCD);
 		
-		cout << "Saving global point cloud binary..." << std::endl;    			
-		sprintf(buf_full, "%s/%s", Config::_ResultDirectory.c_str(), filenamePCD);
+		cout << "Saving global point cloud binary...\n";
+		if (nbPCD>0)
+			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_ResultDirectory.c_str(), filenamePCD, nbPCD);
+		else
+			sprintf(buf_full, "%s/%s.pcd", Config::_ResultDirectory.c_str(), filenamePCD);
+		cout << "File: " << buf_full << "\n";
 		pcl::io::savePCDFile(buf_full, cloudFull, true);
 		// bug in PCL - the binary file is not created with the good rights!
 		char bufsys[256];
@@ -174,12 +193,39 @@ bool isKeyTransform(const Eigen::Matrix4f &transformMat)
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  savePoses
+//  loadPoses
 // -----------------------------------------------------------------------------------------------------
-void savePoses(PoseVector poses, const char *filename)
+void loadPoses(PoseVector &poses, const char *filename)
 {
 	char buf[256];
-	sprintf(buf, "%s/%s", filename, Config::_ResultDirectory.c_str());
+	sprintf(buf, "%s/%s", Config::_ResultDirectory.c_str(), filename);
+	std::ifstream filePoses(buf);
+	Pose pose;
+
+	poses.clear();
+	while (! filePoses.eof())
+	{
+		filePoses.ignore(256, '#');	// to reach id
+		filePoses >> pose._id;
+		for (int irow=0; irow<4; irow++)
+			for (int icol=0; icol<4; icol++)
+				filePoses >> pose._matrix(irow,icol);
+
+		//std::cout << transfo._matrix << std::endl;
+		poses.push_back(pose);
+
+		filePoses.ignore(256, '\n');	// to reach end of line
+		filePoses.peek();				// to update the eof flag (if no empty line)
+	}
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  savePoses
+// -----------------------------------------------------------------------------------------------------
+void savePoses(const PoseVector &poses, const char *filename)
+{
+	char buf[256];
+	sprintf(buf, "%s/%s", Config::_ResultDirectory.c_str(), filename);
 	std::ofstream filePoses(buf);
 
 	for (int i=0; i<poses.size(); i++)
@@ -187,6 +233,33 @@ void savePoses(PoseVector poses, const char *filename)
 		filePoses << "Pose [" << i << "] - Frame #" << poses[i]._id << "\n";
 		filePoses << poses[i]._matrix << "\n----------------------------------------\n";
 	}
+}
+
+void Map::regeneratePCD()
+{
+	PoseVector	cameraPoses;
+
+	// initia graph
+    g_graph.initialize();
+
+	g_graph.load("graph_initial.g2o");
+
+	// extract the updated camera positions from the optimized graph
+	g_graph.extractAllPoses(cameraPoses);
+
+	// build initial point cloud
+	if (Config::_GenerateInitialPCD)
+		generateMapPCD(cameraPoses, "cloud_initial");
+
+	//  optimized graph
+	g_graph.load("graph_optimized.g2o");
+
+	// extract the updated camera positions from the optimized graph
+	g_graph.extractAllPoses(cameraPoses);
+
+	// generate optimized point cloud
+	if (Config::_GenerateOptimizedPCD)
+		generateMapPCD(cameraPoses, "cloud_optimized");
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -205,8 +278,14 @@ void buildMap(const TransformationVector &sequenceTransform)
 	vector <int>		idCandidateLC;
 	vector <FrameData*>	bufferFrameDataLC;
 	Transformation bestTransformLC;
+	int indexBestLC;
 	bool foundLoopClosure = false;
 	bool insertLoopClosure = false;
+
+	// save the graph
+	char bufLog[256];
+	sprintf(bufLog, "%s/%s", Config::_ResultDirectory.c_str(), "loop_closure.log");
+	std::ofstream logLC(bufLog);
 
 	// initialize the graph
     g_graph.initialize();
@@ -269,22 +348,53 @@ void buildMap(const TransformationVector &sequenceTransform)
 					getAngleTransform(currentPose._matrix) > Config::_LoopClosureAngle)
 				{
 					insertLoopClosure = true;
+					vector<int> currentCandidates;
 
-					for (int indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
+					// define sample list
+					int nbSamples = Config::_LoopClosureWindowSize;
+					if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
+						nbSamples = idCandidateLC.size();
+					if (foundLoopClosure)
+						nbSamples = 1;	// candidate already known
+					else
 					{
-						cout << "Checking loop closure ";
+						// generate list of indexes where samples will be pickup once
+						int sizeLC = idCandidateLC.size()-20;
+						if (sizeLC<0)
+							sizeLC = 0;
+						for (int i=0; i<sizeLC; i++)	// don't take the 20 last frames
+							currentCandidates.push_back(i);
+						if (nbSamples>currentCandidates.size())
+							nbSamples = currentCandidates.size();
+					}
+
+					// check loop closure for every sample
+					for (int iSample=0; iSample<nbSamples; iSample++)
+					{
+						int indexLC;
+						if (foundLoopClosure && nbSamples==1)
+							indexLC = indexBestLC;	// candidate already known
+						else
+						{
+							// pickup a candidate randomly
+							int indexRandom = rand() % currentCandidates.size();
+							indexLC = currentCandidates[indexRandom];
+							// remove this item from the list
+							currentCandidates.erase(currentCandidates.begin() + indexRandom);
+						}
+						cout << "Checking loop closure " << iSample+1 << "/" << nbSamples;
 						cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
 						cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPose._matrix) << "(deg)\n";
 
 						// loop closure with frame
-						bool validTransform = computeTransformation(
+						bool validLC = checkLoopClosure(
 								idCandidateLC[indexLC],
 								currentPose._id,
 								*bufferFrameDataLC[indexLC],
 								frameDataCurrent,
 								transform);
 
-						if (validTransform)
+						if (validLC)
 						{
 							cout << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
 							cout << "-" << currentPose._id <<  ") \n";
@@ -299,6 +409,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 								insertLoopClosure = false;
 								// keep the loop closure info
 								bestTransformLC = transform;
+								indexBestLC = indexLC;
 							}
 						}
 					}
@@ -312,8 +423,33 @@ void buildMap(const TransformationVector &sequenceTransform)
 					cout << "Adding edge for Loop Closure";
 					cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 					cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+					logLC << "Adding edge for Loop Closure";
+					logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
+
 					// add the edge = new constraint
 					g_graph.addEdge(bestTransformLC);
+
+					// remove the candidates included in the ID range of the loop closure
+					// this supposes the ID are sorted
+					cout << "Removing candidates... " ;
+					int sizeLC = idCandidateLC.size();
+					for (int indexLC=sizeLC; indexLC>=0; indexLC--)
+					{
+						if (idCandidateLC[indexLC] >= bestTransformLC._idOrig &&
+							idCandidateLC[indexLC] <= bestTransformLC._idDest)
+						{
+							cout << indexLC << ": id=" << idCandidateLC[indexLC] << "\n";
+							// free loop closure data
+							if (bufferFrameDataLC[indexLC]!=NULL)
+								delete bufferFrameDataLC[indexLC];
+							// remove candidate
+							idCandidateLC.erase(idCandidateLC.begin()+indexLC);
+							bufferFrameDataLC.erase(bufferFrameDataLC.begin()+indexLC);
+						}
+					}
+					cout << "\n";
+					cout << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
+					logLC << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
 
 					// reset loop closure
 					foundLoopClosure = false;
@@ -322,23 +458,13 @@ void buildMap(const TransformationVector &sequenceTransform)
 					bestTransformLC._ratioInliers = 0;
 					bestTransformLC._matrix = Eigen::Matrix4f::Identity();
 					totalDistance = 0;
-
-					// the candidates are also reset
-					idCandidateLC.clear();
-					// free loop closure data
-					for (int indexLC=0; indexLC<bufferFrameDataLC.size(); indexLC++)
-						delete bufferFrameDataLC[indexLC];
-					bufferFrameDataLC.clear();
 				}
 
 				// new candidate for loop closure
-				if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
-				{
-					// add the current pose
-					pFrameDataLC = new FrameData;
-					bufferFrameDataLC.push_back(pFrameDataLC);
-					idCandidateLC.push_back(currentPose._id);
-				}
+				// add the current pose
+				pFrameDataLC = new FrameData;
+				bufferFrameDataLC.push_back(pFrameDataLC);
+				idCandidateLC.push_back(currentPose._id);
 
 			} // key pose
 		}
@@ -348,6 +474,8 @@ void buildMap(const TransformationVector &sequenceTransform)
 			cout << "Adding edge for Loop Closure";
 			cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+			logLC << "Adding edge for Loop Closure";
+			logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 			// add new constraint
 			g_graph.addEdge(bestTransformLC);
 		}
@@ -356,7 +484,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 
 		// build initial point cloud
 		if (Config::_GenerateInitialPCD)
-			generateMapPCD(cameraPoses, "cloud_initial.pcd");
+			generateMapPCD(cameraPoses, "cloud_initial");
 
 		// -------------------------------------------------------------------------------------------
 		//  optimize the graph
@@ -369,7 +497,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 
 		// generate optimized point cloud
 		if (Config::_GenerateOptimizedPCD)
-			generateMapPCD(cameraPoses, "cloud_optimized.pcd");
+			generateMapPCD(cameraPoses, "cloud_optimized");
 
 		savePoses(cameraPoses, "poses.dat");
 

@@ -20,6 +20,8 @@ public:
 	static bool				_GenerateInitialPCD;
 	static bool				_GenerateOptimizedPCD;
 	static int				_RatioKeepSubsamplePCD;
+	static int				_MaxNbPointsPCD;
+	static int				_RatioFramePCD;
 };
 
 #endif //CONFIG_H
