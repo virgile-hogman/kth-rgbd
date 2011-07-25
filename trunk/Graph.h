@@ -20,6 +20,7 @@ public:
 	bool extractPose(Pose &pose);
 	bool extractAllPoses(PoseVector &poses);
 
+	void load(const char *directory);
 	void save(const char *directory);
 	
 private:

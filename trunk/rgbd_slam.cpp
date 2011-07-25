@@ -75,8 +75,10 @@ int main(int argc, char** argv)
 		return -1;
 	}
 	
+	// load configuration
+	Config::LoadConfig("kth-rgbd.cfg");
     FrameData::_DataPath = Config::_DataDirectory;
-    
+
     // ---------------------------------------------------------------------------------------------------
     //  load sequence from RGB+D input datafiles
     // ---------------------------------------------------------------------------------------------------
@@ -108,9 +110,6 @@ int main(int argc, char** argv)
     {
         printf("Reconstruct map from archive\n");
         
-    	if (argc>2)
-    		nbFrames = atoi(argv[2]);
-
     	// build map from existing transformation data
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
     		return -1;
@@ -118,6 +117,21 @@ int main(int argc, char** argv)
     		return -1;
     	
     	map.buildFromArchive();
+    }
+    // ---------------------------------------------------------------------------------------------------
+    //  regenerate PCD files from archive
+    // ---------------------------------------------------------------------------------------------------
+    else if (strcmp(argv[1], "--regenerate") == 0)
+    {
+        printf("Regenerate PCD files from archive\n");
+
+    	// build map from existing transformation data
+    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
+    		return -1;
+    	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
+    		return -1;
+
+    	map.regeneratePCD();
     }
     // ---------------------------------------------------------------------------------------------------
     //  acquire data from camera and build map

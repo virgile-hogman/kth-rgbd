@@ -11,6 +11,8 @@ public:
 	
 	void buildFromArchive();
 
+	void regeneratePCD();
+
 };
 
 #endif // MAP_H

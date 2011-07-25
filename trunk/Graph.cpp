@@ -10,6 +10,8 @@
 #include "Config.h"
 #include "Graph.h"
 
+#include <list>
+
 Graph::Graph()
 {
 }
@@ -98,9 +100,34 @@ bool Graph::extractPose(Pose &pose)
 
 bool Graph::extractAllPoses(PoseVector &poses)
 {
+	Pose pose;
+	std::list<int> listID;
+
+	poses.clear();
+    for (g2o::HyperGraph::VertexIDMap::iterator it=_optimizer.vertices().begin();
+    		it!=_optimizer.vertices().end();
+    		it++)
+    {
+    	listID.push_back(it->first);
+    }
+    listID.sort();
+
+    for (std::list<int>::iterator it=listID.begin(); it!=listID.end(); ++it)
+    {
+    	// id must be set before
+    	pose._id = *it;
+		if (! extractPose(pose))
+		{
+			std::cerr << "Error in graph extraction!" << std::endl;
+			return false;
+		}
+    	poses.push_back(pose);
+    }
+    return true;
+/*
 	for (int i=0; i<poses.size(); i++)
 	{
-		if (! extractPose(poses[i]))
+		if (! extractPose(poses[i]))	// id must be set before
 		{
 			std::cerr << "Error in graph extraction!" << std::endl;
 			// cut the remaining poses, they are not valid anymore
@@ -108,7 +135,18 @@ bool Graph::extractAllPoses(PoseVector &poses)
 			return false;
 		}
 	}
-	return true;
+	return true;*/
+}
+
+void Graph::load(const char* filename)
+{
+	// save the graph
+	char buf_graph[256];
+	sprintf(buf_graph, "%s/%s", Config::_ResultDirectory.c_str(), filename);
+	std::ifstream file(buf_graph);
+
+	_optimizer.clear();
+	_optimizer.load(file);
 }
 
 void Graph::save(const char* filename)
@@ -116,6 +154,7 @@ void Graph::save(const char* filename)
 	// save the graph
 	char buf_graph[256];
 	sprintf(buf_graph, "%s/%s", Config::_ResultDirectory.c_str(), filename);
-	std::ofstream foutopt(buf_graph);
-	_optimizer.save(foutopt);
+	std::ofstream file(buf_graph);
+
+	_optimizer.save(file);
 }

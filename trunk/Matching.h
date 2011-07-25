@@ -9,6 +9,14 @@ bool computeTransformation(
 		int frameID2,
 		FrameData &frameData1,
 		FrameData &frameData2,
+		Transformation &resultingTransfo,
+		bool forLoopClosure=false);
+
+bool checkLoopClosure(
+		int frameID1,
+		int frameID2,
+		FrameData &frameData1,
+		FrameData &frameData2,
 		Transformation &resultingTransfo);
 
 #endif // FEATURE_MATCHING_H
