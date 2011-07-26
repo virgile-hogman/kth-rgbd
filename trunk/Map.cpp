@@ -263,6 +263,33 @@ void Map::regeneratePCD()
 }
 
 // -----------------------------------------------------------------------------------------------------
+//  selectCandidateLcRandom
+// -----------------------------------------------------------------------------------------------------
+int selectCandidateLcRandom(vector<int> &candidates)
+{
+	// pickup a candidate randomly
+	int indexRandom = rand() % candidates.size();
+	int indexLC = candidates[indexRandom];
+	// remove this item from the list
+	candidates.erase(candidates.begin() + indexRandom);
+	return indexLC;
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  selectCandidateLcPolynom
+// -----------------------------------------------------------------------------------------------------
+int selectCandidateLcPolynom(vector<int> &candidates)
+{
+	// pickup a candidate randomly
+	int randomValue = (rand() % 100)^2;
+	int indexRandom = randomValue * candidates.size() / 10000;
+	int indexLC = candidates[indexRandom];
+	// remove this item from the list
+	candidates.erase(candidates.begin() + indexRandom);
+	return indexLC;
+}
+
+// -----------------------------------------------------------------------------------------------------
 //  buildMap
 // -----------------------------------------------------------------------------------------------------
 void buildMap(const TransformationVector &sequenceTransform)
@@ -375,13 +402,8 @@ void buildMap(const TransformationVector &sequenceTransform)
 						if (foundLoopClosure && nbSamples==1)
 							indexLC = indexBestLC;	// candidate already known
 						else
-						{
-							// pickup a candidate randomly
-							int indexRandom = rand() % currentCandidates.size();
-							indexLC = currentCandidates[indexRandom];
-							// remove this item from the list
-							currentCandidates.erase(currentCandidates.begin() + indexRandom);
-						}
+							indexLC = selectCandidateLcPolynom(currentCandidates);
+
 						cout << "Checking loop closure " << iSample+1 << "/" << nbSamples;
 						cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
 						cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPose._matrix) << "(deg)\n";
@@ -433,7 +455,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 					// this supposes the ID are sorted
 					cout << "Removing candidates... " ;
 					int sizeLC = idCandidateLC.size();
-					for (int indexLC=sizeLC; indexLC>=0; indexLC--)
+					for (int indexLC=sizeLC-1; indexLC>=0; indexLC--)
 					{
 						if (idCandidateLC[indexLC] >= bestTransformLC._idOrig &&
 							idCandidateLC[indexLC] <= bestTransformLC._idDest)
@@ -519,19 +541,14 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 		Transformation transform;
 		bool validTransform;
 		int indexLastFrame;
-		int nbResyncAttempts=0;
+		int stepFrame = Config::_RatioFrameMatching;
 
 		char buf[256];
 		sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
 		std::ofstream fileTransform(buf);
-		// archive sequence
-		fileTransform << sequenceFramesID.size() << " ";
-		for (int iFrame=0; iFrame<sequenceFramesID.size(); iFrame++)
-			fileTransform << sequenceFramesID[iFrame] << " ";
-		fileTransform << std::endl;
 		
 		indexLastFrame = 0;
-		for (int iFrame=1; iFrame<sequenceFramesID.size(); iFrame++)
+		for (int iFrame=stepFrame; iFrame<sequenceFramesID.size(); iFrame+=stepFrame)
 		{
 			// match frame to frame (current with previous)
 			validTransform = computeTransformation(
@@ -544,19 +561,31 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 			if (!validTransform)
 			{
 				// no valid transform
+				std::cerr << transform._idOrig << "-" << transform._idDest << ": ";
 				std::cerr << "No valid transformation!!";
 				std::cerr << "\tRatio=" << transform._ratioInliers*100 << "% ";
-				std::cerr << "\tResync attempt #" <<  nbResyncAttempts+1 << "\n";
-				if (++nbResyncAttempts < 3)
+				std::cerr << "\tResync attempt #" <<  Config::_RatioFrameMatching-stepFrame+1 << "\n";
+				// try to lower step
+				stepFrame--;
+				if (stepFrame>0)
+				{
+					// go back
+					iFrame = indexLastFrame;
 					continue;	// skip current frame
+				}
 				else
-					break;		// abort
+				{
+					if (! Config::_AllowInvalidMatching)
+						break;		// abort
+					std::cerr << "INVALID TRANSFORMATION RECORDED! Frames ";
+					std::cerr << transform._idOrig << "-" << transform._idDest << "\n";
+				}
 			}
 			
 			// valid transform
-			nbResyncAttempts = 0;
 			sequenceTransform.push_back(transform);
 			indexLastFrame = iFrame;
+			stepFrame = Config::_RatioFrameMatching;
 
 			// archive transform
 			fileTransform << transform._idOrig << " " << transform._idDest << " ";
@@ -581,7 +610,6 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 
 void Map::buildFromArchive()
 {
-	vector<int> sequenceFramesID;
 	TransformationVector resultingTransformations;
 	Transformation transfo;
 	int nRead, len;
@@ -590,17 +618,7 @@ void Map::buildFromArchive()
 	sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
 	std::ifstream fileTransfo(buf);
 	
-	// archive sequence
-	fileTransfo >> len;
-	std::cout << "Sequence length: " << len << std::endl;
-	for (int iFrame=0; iFrame<len; iFrame++)
-	{
-		fileTransfo >> nRead;
-		sequenceFramesID.push_back(nRead);
-		std::cout << nRead << " ";
-	}
-	std::cout << std::endl;
-	
+	// read sequence archive
 	while (! fileTransfo.eof())
 	{
 		// archive transfo
@@ -617,6 +635,6 @@ void Map::buildFromArchive()
 		fileTransfo.peek();				// to update the eof flag (if no empty line)
 	}
 	
-	if (sequenceFramesID.size()>1 && resultingTransformations.size()>0)
+	if (resultingTransformations.size()>0)
 		buildMap(resultingTransformations);
 }

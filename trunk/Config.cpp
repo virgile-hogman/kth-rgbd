@@ -5,6 +5,10 @@ std::string Config::_DataDirectory = "data_in";
 std::string Config::_GenDirectory = "data_gen";
 std::string Config::_ResultDirectory = "data_out";
 
+int			Config::_RatioFrameMatching = 0;
+bool		Config::_AllowInvalidMatching = false;
+bool		Config::_SaveImageInitialMatching = false;
+
 float		Config::_LoopClosureDistance = 6.0;
 float		Config::_LoopClosureAngle = 300.0;
 int			Config::_LoopClosureWindowSize = 5;
@@ -22,6 +26,10 @@ void Config::LoadConfig(std::string filename)
 	Config::_DataDirectory = config.read<string>("data_in", "data_in");
 	Config::_GenDirectory = config.read<string>("data_gen", "data_gen");
 	Config::_ResultDirectory = config.read<string>("data_out", "data_out");
+
+	Config::_RatioFrameMatching = config.read<int>("RatioFrameMatching", 0);
+	Config::_AllowInvalidMatching = config.read<bool>("AllowInvalidMatching", false);
+	Config::_SaveImageInitialMatching = config.read<bool>("_SaveImageInitialMatching", false);
 
 	Config::_LoopClosureDistance = config.read<float>("LoopClosureDistance", 6.0);
 	Config::_LoopClosureAngle = config.read<float>("LoopClosureAngle", 300.0);

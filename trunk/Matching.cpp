@@ -197,7 +197,7 @@ bool findTransformRANSAC(
 
 	for (int iteration=0; iteration<NB_RANSAC_ITERATIONS ; iteration++)
 	{
-		//fprintf(stderr, "\nIteration %d ... \t", iteration+1);
+		//printf("\nIteration %d ... \t", iteration+1);
 		tfc.reset();
 		// pickup 3 points from matches
 		for (int i=0; i<3; i++)
@@ -212,7 +212,7 @@ bool findTransformRANSAC(
 			initialPairs.clear();
 			if (indexArea1.size()==0 || indexArea2.size()==0 || indexArea3.size()==0)
 			{
-				fprintf(stderr, "Data not dispatched. %d %d %d", indexArea1.size(), indexArea2.size(), indexArea3.size());
+				printf("Data not dispatched. %d %d %d", indexArea1.size(), indexArea2.size(), indexArea3.size());
 				break;
 			}
 			// select 1 random point from area1
@@ -268,7 +268,7 @@ bool findTransformRANSAC(
 		// ----------------------------------------------------
 		// recompute a new transformation with all the inliers
 		// ----------------------------------------------------
-		//fprintf(stderr, "\nRecomputing transfo... \t");
+		//printf("\nRecomputing transfo... \t");
 		tfc.reset();
 		for (int idInlier = 0; idInlier < indexInliers.size(); idInlier++) {
 			int idMatch  = indexInliers[idInlier];
@@ -296,7 +296,7 @@ bool findTransformRANSAC(
 			if (indexInliers.size()<MIN_NB_INLIERS || ratio<MIN_RATIO_INLIERS)
 				continue;	// not enough inliers found
 
-			//fprintf(stderr, "\t => Best transformation! ", indexInliers.size(), meanError);
+			//printf("\t => Best transformation! ", indexInliers.size(), meanError);
 			bestTransformationMat = transformation;
 			bestError = meanError;
 			indexBestInliers = indexInliers;
@@ -363,30 +363,33 @@ void kdSearchFeatureMatches(
 	matchesOrig.clear();
 	matchesDest.clear();
 
-	// stack the 2 images
-	imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
+	if (Config::_SaveImageInitialMatching)
+	{
+		// stack the 2 images
+		imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
+	}
 
 	tm.start();
-	fprintf( stdout, "Frames %03d-%03d:\t Searching for matches... ", frameData1.getFrameID(), frameData2.getFrameID());
+	printf("Frames %03d-%03d:\t Searching for matches... ", frameData1.getFrameID(), frameData2.getFrameID());
 	fflush(stdout);
 
 	// try match the new features found in the 2d frame...
 	kdRoot = kdtree_build(frameData2.getFeatures(), frameData2.getNbFeatures());
 	fflush(stdout);
-	for( i=0; i < frameData1.getNbFeatures(); i++ )
+	for (i=0; i < frameData1.getNbFeatures(); i++)
 	{
 		// ... looking in the 1st frame
 		feat = frameData1.getFeatures() + i;
 		// search for 2 nearest neighbours
 		fflush(stdout);
 		k = kdtree_bbf_knn(kdRoot, feat, 2, &neighbourFeatures, KDTREE_BBF_MAX_NN_CHKS);
-		if( k == 2 )
+		if (k == 2)
 		{
 			// the neighbours are ordered in increasing descriptor distance
 			d0 = descr_dist_sq( feat, neighbourFeatures[0] );
 			d1 = descr_dist_sq( feat, neighbourFeatures[1] );
 			// check if the 2 are close enough
-			if( d0 < d1 * NN_SQ_DIST_RATIO_THR )
+			if (d0 < d1 * NN_SQ_DIST_RATIO_THR)
 			{
 				const struct feature* feat1 = frameData1.getFeature(i);
 				const struct feature* feat2 = neighbourFeatures[0];
@@ -407,7 +410,8 @@ void kdSearchFeatureMatches(
 					abs(depth1-depth2)/float(depth1) < MATCH_RELATIVE_DEPTH)	// read: relative diff
 				{
 					// draw a green line
-					cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
+					if (imgStacked != NULL)
+						cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
 					// this is a valid match
 					nbValidMatches++;
 					// fwd link the previous features to the new features according to the match
@@ -442,46 +446,51 @@ void kdSearchFeatureMatches(
 					// ignore the pairs without depth any info, but show the remaining outliers
 					if (depth1>0 || depth2>0)
 					{
-						// draw a red line
-						cvLine(imgStacked, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0);
-						//cvPutText(imgStacked, bufDiff, cvPoint((pt1.x+pt2.x)/2 -20,(pt1.y+pt2.y)/2), &font, cvScalar(255,255,0));
-						sprintf(buf,"_%u", depth1);
-						cvPutText(imgStacked, buf, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
-						sprintf(buf,"_%u", depth2);
-						cvPutText(imgStacked, buf, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
+						if (imgStacked != NULL)
+						{
+							// draw a red line
+							cvLine(imgStacked, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0);
+							//cvPutText(imgStacked, bufDiff, cvPoint((pt1.x+pt2.x)/2 -20,(pt1.y+pt2.y)/2), &font, cvScalar(255,255,0));
+							sprintf(buf,"_%u", depth1);
+							cvPutText(imgStacked, buf, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
+							sprintf(buf,"_%u", depth2);
+							cvPutText(imgStacked, buf, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
+						}
 					}
 				}
 			}
 		}
-		free(neighbourFeatures);
+		if (neighbourFeatures != NULL)
+			free(neighbourFeatures);
 	}
 	fflush(stdout);
 	
 	// free memory
 	kdtree_release(kdRoot);
 	
-	int ratio;
+	int ratio=0;
 	if (nbInitialMatches!=0)
 		ratio = nbValidMatches*100/nbInitialMatches;
-	else
-		ratio = 0;
 	sprintf(buf,"Matches:%d/%d (%d%%)", nbValidMatches, nbInitialMatches, ratio);
-	cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-	if (forLoopClosure)
-		sprintf(buf, "%s/loopc_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
-	else
-		sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
-	// save stacked image
-	if (! forLoopClosure)
-		cvSaveImage(buf, imgStacked);
-	cvReleaseImage(&imgStacked);
 
+	if (imgStacked != NULL)
+	{
+		cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
+		if (forLoopClosure)
+			sprintf(buf, "%s/loopc_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+		else
+			sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+
+		// save stacked image
+		cvSaveImage(buf, imgStacked);
+		cvReleaseImage(&imgStacked);
+	}
 	// debug
 	//const XnDepthPixel* p1 = g_arrayMD[frameID1-1].Data();
-	//fprintf(stderr,"Center Depth Pixel = %u\n", p1[640*240 + 320]);
+	//printf("Center Depth Pixel = %u\n", p1[640*240 + 320]);
 
 	tm.stop();
-	fprintf( stderr, "\tMatches: %d/%d (%d%%).\t(%dms)\n", nbValidMatches, nbInitialMatches, ratio, tm.duration() );
+	printf("\tMatches: %d/%d (%d%%).\t(%dms)\n", nbValidMatches, nbInitialMatches, ratio, tm.duration() );
 	fflush(stdout);
 }
 
