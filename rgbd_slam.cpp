@@ -17,7 +17,7 @@ using namespace std;
 // -----------------------------------------------------------------------------------------------------
 //  loadSequence
 // -----------------------------------------------------------------------------------------------------
-void loadSequence(const char *dataDirectory, int skipCount, int min, int max, vector<int> &sequenceFramesID)
+void loadSequence(const char *dataDirectory, int min, int max, vector<int> &sequenceFramesID)
 {
 	int frameID;
 	list<int> listFramesID;
@@ -43,21 +43,15 @@ void loadSequence(const char *dataDirectory, int skipCount, int min, int max, ve
 	listFramesID.unique();
 	
 	// build the sequence
-	int counter = 0;
-	cout << "Sequence of frames: (";
 	while (!listFramesID.empty())
 	{
-		if (skipCount<=0 || counter==0 || counter>=skipCount)
-		{
-			cout << " " << listFramesID.front();
-			sequenceFramesID.push_back(listFramesID.front());
-			if (counter>0)
-				counter = 0;
-		}
+		sequenceFramesID.push_back(listFramesID.front());
 		listFramesID.pop_front();
-		counter++;
 	}
-	cout << ") for " << sequenceFramesID.size() << " frames." << std::endl;
+
+	cout << "Sequence of " << sequenceFramesID.size() << " frames available.\n";
+	cout << "Sequence of " << sequenceFramesID.size()/Config::_RatioFrameMatching << " frames with ";
+	cout << "Frame ratio:" << Config::_RatioFrameMatching << "\n";
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -71,7 +65,7 @@ int main(int argc, char** argv)
     
 	if (argc<1)
 	{
-		printf("Usage: %s --record <nbFrames> | --replay <from> <to> <skip> | --reconstruct", argv[0]);
+		printf("Usage: %s -record <nbFrames> | -replay <from> <to> | -remap | -pcd", argv[0]);
 		return -1;
 	}
 	
@@ -82,21 +76,19 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  load sequence from RGB+D input datafiles
     // ---------------------------------------------------------------------------------------------------
-    if (strcmp(argv[1], "--replay") == 0)
+    if (strcmp(argv[1], "-replay") == 0)
     {
         printf("Replay sequence\n");
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
     		return -1;
 
-    	int skip=0, min=-1, max=-1;
-    	if (argc>4)
-    		skip = atoi(argv[4]);
+    	int min=-1, max=-1;
     	if (argc>3)
     		max = atoi(argv[3]);
     	if (argc>2)
     		min = atoi(argv[2]);
     	
-    	loadSequence(Config::_DataDirectory.c_str(), skip, min, max, sequenceFramesID);
+     	loadSequence(Config::_DataDirectory.c_str(), min, max, sequenceFramesID);
     	
         boost::filesystem::create_directories(Config::_ResultDirectory);       
 		
@@ -106,9 +98,9 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  map reconstruction from transformations archive
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "--reconstruct") == 0)
+    else if (strcmp(argv[1], "-reconstruct") == 0)
     {
-        printf("Reconstruct map from archive\n");
+        printf("Reconstruct map from transformations archive\n");
         
     	// build map from existing transformation data
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
@@ -121,9 +113,9 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  regenerate PCD files from archive
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "--regenerate") == 0)
+    else if (strcmp(argv[1], "-pcd") == 0)
     {
-        printf("Regenerate PCD files from archive\n");
+        printf("Regenerate PCD files from graph archive\n");
 
     	// build map from existing transformation data
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
@@ -136,7 +128,7 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  acquire data from camera and build map
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "--record") == 0)
+    else if (strcmp(argv[1], "-record") == 0)
     {
     	CameraDevice cameraKinect;
         printf("Record sequence from camera\n");

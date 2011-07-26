@@ -103,6 +103,8 @@ bool Graph::extractAllPoses(PoseVector &poses)
 	Pose pose;
 	std::list<int> listID;
 
+	// using the iterator, the vertices are not returned in the same order (compare function not on id?)
+	// a temporary list is used to sort them according to the id
 	poses.clear();
     for (g2o::HyperGraph::VertexIDMap::iterator it=_optimizer.vertices().begin();
     		it!=_optimizer.vertices().end();
@@ -124,18 +126,6 @@ bool Graph::extractAllPoses(PoseVector &poses)
     	poses.push_back(pose);
     }
     return true;
-/*
-	for (int i=0; i<poses.size(); i++)
-	{
-		if (! extractPose(poses[i]))	// id must be set before
-		{
-			std::cerr << "Error in graph extraction!" << std::endl;
-			// cut the remaining poses, they are not valid anymore
-			poses.resize(i);
-			return false;
-		}
-	}
-	return true;*/
 }
 
 void Graph::load(const char* filename)

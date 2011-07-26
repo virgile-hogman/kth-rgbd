@@ -12,6 +12,10 @@ public:
 	static std::string		_GenDirectory;
 	static std::string		_ResultDirectory;
 
+	static int				_RatioFrameMatching;
+	static bool				_AllowInvalidMatching;
+	static bool				_SaveImageInitialMatching;
+
 	// triggering loop closure
 	static float			_LoopClosureDistance;
 	static float			_LoopClosureAngle;
