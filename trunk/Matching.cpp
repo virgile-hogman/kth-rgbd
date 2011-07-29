@@ -29,18 +29,8 @@ using namespace std;
 #define KDTREE_BBF_MAX_NN_CHKS		200
 /* threshold on squared ratio of distances between NN and 2nd NN */
 #define NN_SQ_DIST_RATIO_THR		0.49
-
 // relative difference of depth for a valid match (higher -> more tolerant)
 #define MATCH_RELATIVE_DEPTH		0.1
-
-// number of RANSAC iterations (loops)
-#define NB_RANSAC_ITERATIONS		20
-// minimum number of inliers, absolute value
-#define MIN_NB_INLIERS				10
-// minimum ratio of inliers, relative rate wrt to the initial matches
-#define MIN_RATIO_INLIERS			0.3
-// error tolerance for inliers transformation (higher -> more tolerant)
-#define MAX_INLIER_DISTANCE			0.05
 
 
 // -----------------------------------------------------------------------------------------------------
@@ -195,7 +185,7 @@ bool findTransformRANSAC(
 	if (nbValidMatches < 3)
 		return false;
 
-	for (int iteration=0; iteration<NB_RANSAC_ITERATIONS ; iteration++)
+	for (int iteration=0; iteration<Config::_MatchingNbIterations; iteration++)
 	{
 		//printf("\nIteration %d ... \t", iteration+1);
 		tfc.reset();
@@ -234,7 +224,7 @@ bool findTransformRANSAC(
 
 		// compute error and keep only inliers
 		std::vector<int> indexInliers;
-		double maxInlierDistance = MAX_INLIER_DISTANCE;
+		double maxInlierDistance = Config::_MatchingMaxDistanceInlier;
 		double meanError;
 		float ratio;
 
@@ -256,7 +246,7 @@ bool findTransformRANSAC(
 			if (ratio > bestRatio)
 				bestRatio = ratio;
 
-			if (indexInliers.size()<MIN_NB_INLIERS || ratio<MIN_RATIO_INLIERS)
+			if (indexInliers.size()<Config::_MatchingMinNbInlier || ratio<Config::_MatchingMinRatioInlier)
 				continue;	// not enough inliers found
 
 			//printf("\t => Best candidate transformation! ", indexInliers.size(), meanError);
@@ -293,7 +283,7 @@ bool findTransformRANSAC(
 			if (ratio > bestRatio)
 				bestRatio = ratio;
 
-			if (indexInliers.size()<MIN_NB_INLIERS || ratio<MIN_RATIO_INLIERS)
+			if (indexInliers.size()<Config::_MatchingMinNbInlier || ratio<Config::_MatchingMinRatioInlier)
 				continue;	// not enough inliers found
 
 			//printf("\t => Best transformation! ", indexInliers.size(), meanError);
@@ -363,7 +353,7 @@ void kdSearchFeatureMatches(
 	matchesOrig.clear();
 	matchesDest.clear();
 
-	if (Config::_SaveImageInitialMatching)
+	if (Config::_MatchingSaveImageInitialPairs)
 	{
 		// stack the 2 images
 		imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
