@@ -50,8 +50,8 @@ void loadSequence(const char *dataDirectory, int min, int max, vector<int> &sequ
 	}
 
 	cout << "Sequence of " << sequenceFramesID.size() << " frames available.\n";
-	cout << "Sequence of " << sequenceFramesID.size()/Config::_RatioFrameMatching << " frames with ";
-	cout << "Frame ratio:" << Config::_RatioFrameMatching << "\n";
+	cout << "Sequence of " << sequenceFramesID.size()/Config::_MatchingRatioFrame << " frames with ";
+	cout << "Frame ratio:" << Config::_MatchingRatioFrame << "\n";
 }
 
 // -----------------------------------------------------------------------------------------------------

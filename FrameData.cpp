@@ -216,7 +216,7 @@ void FrameData::drawFeatures()
 	int    lineWidth=1;
 	char buf[256];
 
-	sprintf(buf,"Frame%d -- %d feat.", _frameID, _nbFeatures);
+	sprintf(buf,"Frame%d [%d feat.]", _frameID, _nbFeatures);
 
 	// draw SIFT features 
 	draw_features(_pImage, _pFeatures, _nbFeatures);
@@ -224,7 +224,7 @@ void FrameData::drawFeatures()
 	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 
-	cvPutText(_pImage, buf, cvPoint(5, 20), &font, cvScalar(255,255,0));
+	cvPutText(_pImage, buf, cvPoint(5, 18), &font, cvScalar(255,255,0));
 }
 
 void FrameData::removeInvalidFeatures()

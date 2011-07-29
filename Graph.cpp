@@ -78,7 +78,7 @@ void Graph::optimize()
 	_optimizer.initializeOptimization();
 	// iterations
 	_optimizer.setVerbose(true);
-	_optimizer.optimize(5);
+	_optimizer.optimize(15);
 }
 
 bool Graph::extractPose(Pose &pose)

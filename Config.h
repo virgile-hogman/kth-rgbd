@@ -12,20 +12,27 @@ public:
 	static std::string		_GenDirectory;
 	static std::string		_ResultDirectory;
 
-	static int				_RatioFrameMatching;
-	static bool				_AllowInvalidMatching;
-	static bool				_SaveImageInitialMatching;
+	static int				_MatchingRatioFrame;
+	static bool				_MatchingAllowInvalid;
+	static bool				_MatchingSaveImageInitialPairs;
+	static int				_MatchingNbIterations;
+	static int				_MatchingMinNbInlier;
+	static float			_MatchingMinRatioInlier;
+	static float			_MatchingMaxDistanceInlier;
+
+	static float			_MapNodeDistance;
+	static float			_MapNodeAngle;
 
 	// triggering loop closure
 	static float			_LoopClosureDistance;
 	static float			_LoopClosureAngle;
 	static int				_LoopClosureWindowSize;
 
-	static bool				_GenerateInitialPCD;
-	static bool				_GenerateOptimizedPCD;
-	static int				_RatioKeepSubsamplePCD;
-	static int				_MaxNbPointsPCD;
-	static int				_RatioFramePCD;
+	static bool				_PcdGenerateInitial;
+	static bool				_PcdGenerateOptimized;
+	static int				_PcdRatioKeepSubsample;
+	static int				_PcdMaxNbPoints;
+	static int				_PcdRatioFrame;
 };
 
 #endif //CONFIG_H

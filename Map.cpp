@@ -119,7 +119,7 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 	
 	for (int iPose=0; iPose<cameraPoses.size(); iPose++)
 	{
-		if (iPose % Config::_RatioFramePCD != 0)
+		if (iPose % Config::_PcdRatioFrame != 0)
 			continue;	// skip frame
 
 		cout << "----------------------------------------------------------------------------\n";
@@ -129,7 +129,7 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 		getFramePointCloud(cameraPoses[iPose]._id, cloudFrame);
 
 		// subsample frame
-		subsamplePointCloud(cloudFrame, Config::_RatioKeepSubsamplePCD);
+		subsamplePointCloud(cloudFrame, Config::_PcdRatioKeepSubsample);
 		
 		// apply transformation to the point cloud
 		pcl::getTransformedPointCloud(
@@ -141,7 +141,7 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 		cloudFull += cloudFrameTransformed;
 		cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
 		
-		if (cloudFull.size() > Config::_MaxNbPointsPCD)
+		if (cloudFull.size() > Config::_PcdMaxNbPoints)
 		{
 			// max size reached
 			cout << "Saving global point cloud binary...\n";
@@ -158,7 +158,7 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 	if (cloudFull.size()>0)
 	{
 		// subsample final point cloud
-		//subsamplePointCloud(cloudFull, Config::_RatioKeepSubsamplePCD);
+		//subsamplePointCloud(cloudFull, Config::_PcdRatioKeepSubsample);
 		
 		cout << "Saving global point cloud binary...\n";
 		if (nbPCD>0)
@@ -189,7 +189,8 @@ double getAngleTransform(const Eigen::Matrix4f &transformMat)
 
 bool isKeyTransform(const Eigen::Matrix4f &transformMat)
 {
-	return (getAngleTransform(transformMat) > 10 || getDistanceTransform(transformMat) > 0.5);
+	return (getAngleTransform(transformMat) > Config::_MapNodeAngle ||
+			getDistanceTransform(transformMat) > Config::_MapNodeDistance);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -248,7 +249,7 @@ void Map::regeneratePCD()
 	g_graph.extractAllPoses(cameraPoses);
 
 	// build initial point cloud
-	if (Config::_GenerateInitialPCD)
+	if (Config::_PcdGenerateInitial)
 		generateMapPCD(cameraPoses, "cloud_initial");
 
 	//  optimized graph
@@ -258,7 +259,7 @@ void Map::regeneratePCD()
 	g_graph.extractAllPoses(cameraPoses);
 
 	// generate optimized point cloud
-	if (Config::_GenerateOptimizedPCD)
+	if (Config::_PcdGenerateOptimized)
 		generateMapPCD(cameraPoses, "cloud_optimized");
 }
 
@@ -267,6 +268,8 @@ void Map::regeneratePCD()
 // -----------------------------------------------------------------------------------------------------
 int selectCandidateLcRandom(vector<int> &candidates)
 {
+	if (candidates.size()<1)
+		return -1;
 	// pickup a candidate randomly
 	int indexRandom = rand() % candidates.size();
 	int indexLC = candidates[indexRandom];
@@ -280,13 +283,195 @@ int selectCandidateLcRandom(vector<int> &candidates)
 // -----------------------------------------------------------------------------------------------------
 int selectCandidateLcPolynom(vector<int> &candidates)
 {
-	// pickup a candidate randomly
+	if (candidates.size()<1)
+		return -1;
 	int randomValue = (rand() % 100)^2;
 	int indexRandom = randomValue * candidates.size() / 10000;
 	int indexLC = candidates[indexRandom];
 	// remove this item from the list
 	candidates.erase(candidates.begin() + indexRandom);
 	return indexLC;
+}
+
+void detectLoopClosure(const PoseVector	&cameraPoses)
+{
+	Pose		currentPose;
+	FrameData *pFrameDataLC = NULL;
+	FrameData frameDataCurrent;
+	vector <int>		idCandidateLC;
+	vector <FrameData*>	bufferFrameDataLC;
+	Transformation bestTransformLC;
+	Transformation transform;
+	int indexBestLC;
+	bool foundLoopClosure = false;
+	bool insertLoopClosure = false;
+
+	char bufLog[256];
+	sprintf(bufLog, "%s/%s", Config::_ResultDirectory.c_str(), "loop_closure.log");
+	std::ofstream logLC(bufLog);
+
+	if (cameraPoses.size()<=1)
+		return;
+
+	// loop
+	for (int i=0; i<cameraPoses.size(); i++)
+	{
+		currentPose = cameraPoses[i];
+
+		/*if (totalDistance > Config::_LoopClosureDistance ||
+			getAngleTransform(currentPose._matrix) > Config::_LoopClosureAngle)*/
+		if (true) // TODO - define LC trigger test
+		{
+			insertLoopClosure = true;
+			vector<int> currentCandidates;
+
+			// define sample list
+			int nbSamples = Config::_LoopClosureWindowSize;
+			if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
+				nbSamples = idCandidateLC.size();
+			if (foundLoopClosure)
+				nbSamples = 1;	// candidate already known
+			else
+			{
+				// generate list of indexes where samples will be pickup once
+				int sizeLC = idCandidateLC.size()-5;	// ignore last n poses
+				if (sizeLC<0)
+					sizeLC = 0;
+				for (int i=0; i<sizeLC; i++)
+					currentCandidates.push_back(i);
+				if (nbSamples>currentCandidates.size())
+					nbSamples = currentCandidates.size();
+			}
+
+			// check loop closure for every sample
+			for (int iSample=0; iSample<nbSamples; iSample++)
+			{
+				int indexLC;
+				if (foundLoopClosure && nbSamples==1)
+					indexLC = indexBestLC;	// candidate already known
+				else
+					indexLC = selectCandidateLcPolynom(currentCandidates);
+
+				/*//------------------------------------------
+				// TEMPORARY TEST - FORCE LIST
+				nbSamples=1;
+				int node=-1;
+				//cout << currentPose._id << "\n";
+				switch(currentPose._id)
+				{
+				case 647: node=35; break;
+				case 2726: node=1802; break;
+				case 6886: node=1085; break;
+				}
+				for (indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
+					if (idCandidateLC[indexLC]==node)
+						break;	// found
+				if (indexLC==idCandidateLC.size())
+					continue;
+				//------------------------------------------
+				*/
+
+				cout << "Checking loop closure " << iSample+1 << "/" << nbSamples;
+				cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
+				//cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPose._matrix) << "(deg)\n";
+				cout << "\n";
+
+				// loop closure with frame
+				bool validLC = checkLoopClosure(
+						idCandidateLC[indexLC],
+						currentPose._id,
+						*bufferFrameDataLC[indexLC],
+						frameDataCurrent,
+						transform);
+
+				if (validLC)
+				{
+					cout << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
+					cout << "-" << currentPose._id <<  ") \n";
+					cout << "Ratio: " << transform._ratioInliers << "\n";
+
+					// looking for a better loop closure
+					if (transform._ratioInliers >= bestTransformLC._ratioInliers)
+					{
+						// a better loop closure is found
+						foundLoopClosure = true;
+						// it may be improved so don't insert it yet
+						insertLoopClosure = false;
+						// keep the loop closure info
+						bestTransformLC = transform;
+						indexBestLC = indexLC;
+					}
+				}
+			}
+			//cout << "----------------------------------------------------------------------------\n";
+		}
+
+		// trigger the loop closure unless a better one has just been found
+		if (foundLoopClosure && insertLoopClosure)
+		{
+			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+			cout << "Adding edge for Loop Closure";
+			cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
+			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+			logLC << "Adding edge for Loop Closure";
+			logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
+
+			// add the edge = new constraint
+			g_graph.addEdge(bestTransformLC);
+
+			// remove the candidates included in the ID range of the loop closure
+			// this supposes the ID are sorted
+			//cout << "Removing candidates... " ;
+			int sizeLC = idCandidateLC.size();
+			for (int indexLC=sizeLC-1; indexLC>=0; indexLC--)
+			{
+				if (idCandidateLC[indexLC] >= bestTransformLC._idOrig &&
+					idCandidateLC[indexLC] <= bestTransformLC._idDest)
+				{
+					//cout << indexLC << ": id=" << idCandidateLC[indexLC] << "\n";
+					// free loop closure data
+					if (bufferFrameDataLC[indexLC]!=NULL)
+						delete bufferFrameDataLC[indexLC];
+					// remove candidate
+					idCandidateLC.erase(idCandidateLC.begin()+indexLC);
+					bufferFrameDataLC.erase(bufferFrameDataLC.begin()+indexLC);
+				}
+			}
+			cout << "\n";
+			cout << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
+			logLC << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
+
+			// reset loop closure
+			foundLoopClosure = false;
+			bestTransformLC._idOrig = -1;
+			bestTransformLC._idDest = -1;
+			bestTransformLC._ratioInliers = 0;
+			bestTransformLC._matrix = Eigen::Matrix4f::Identity();
+			//totalDistance = 0;
+		}
+
+		// insert as candidate for loop closure
+		pFrameDataLC = new FrameData;
+		bufferFrameDataLC.push_back(pFrameDataLC);
+		idCandidateLC.push_back(currentPose._id);
+	}
+
+	// pending loop closure
+	if (foundLoopClosure)
+	{
+		cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+		cout << "Adding edge for Loop Closure";
+		cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
+		cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+		logLC << "Adding edge for Loop Closure";
+		logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
+		// add new constraint
+		g_graph.addEdge(bestTransformLC);
+	}
+
+	// free loop closure data
+	for (int indexLC=0; indexLC<bufferFrameDataLC.size(); indexLC++)
+		delete bufferFrameDataLC[indexLC];
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -298,21 +483,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 	Pose		currentPose;
 	TransformationVector sequenceKeyTransform;
 	Transformation keyTransform;
-	Transformation transform;
 	double totalDistance = 0.0;
-	FrameData *pFrameDataLC = NULL;
-	FrameData frameDataCurrent;
-	vector <int>		idCandidateLC;
-	vector <FrameData*>	bufferFrameDataLC;
-	Transformation bestTransformLC;
-	int indexBestLC;
-	bool foundLoopClosure = false;
-	bool insertLoopClosure = false;
-
-	// save the graph
-	char bufLog[256];
-	sprintf(bufLog, "%s/%s", Config::_ResultDirectory.c_str(), "loop_closure.log");
-	std::ofstream logLC(bufLog);
 
 	// initialize the graph
     g_graph.initialize();
@@ -329,10 +500,6 @@ void buildMap(const TransformationVector &sequenceTransform)
 		g_graph.addVertex(currentPose);
 		keyTransform._matrix = Eigen::Matrix4f::Identity();
 		keyTransform._idOrig = sequenceTransform[0]._idOrig;
-		// insert as candidate for loop closure
-		pFrameDataLC = new FrameData;
-		bufferFrameDataLC.push_back(pFrameDataLC);
-		idCandidateLC.push_back(currentPose._id);
 		
 		// -------------------------------------------------------------------------------------------
 		//  loop on the global sequence of transformations
@@ -367,146 +534,20 @@ void buildMap(const TransformationVector &sequenceTransform)
 				// remap from this position (relative key transform)
 				keyTransform._matrix = Eigen::Matrix4f::Identity();
 				keyTransform._idOrig = currentPose._id;
-			
-				// -------------------------------------------------------------------------------------------
-				//  loop closure
-				// -------------------------------------------------------------------------------------------
-				if (totalDistance > Config::_LoopClosureDistance ||
-					getAngleTransform(currentPose._matrix) > Config::_LoopClosureAngle)
-				{
-					insertLoopClosure = true;
-					vector<int> currentCandidates;
-
-					// define sample list
-					int nbSamples = Config::_LoopClosureWindowSize;
-					if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
-						nbSamples = idCandidateLC.size();
-					if (foundLoopClosure)
-						nbSamples = 1;	// candidate already known
-					else
-					{
-						// generate list of indexes where samples will be pickup once
-						int sizeLC = idCandidateLC.size()-20;
-						if (sizeLC<0)
-							sizeLC = 0;
-						for (int i=0; i<sizeLC; i++)	// don't take the 20 last frames
-							currentCandidates.push_back(i);
-						if (nbSamples>currentCandidates.size())
-							nbSamples = currentCandidates.size();
-					}
-
-					// check loop closure for every sample
-					for (int iSample=0; iSample<nbSamples; iSample++)
-					{
-						int indexLC;
-						if (foundLoopClosure && nbSamples==1)
-							indexLC = indexBestLC;	// candidate already known
-						else
-							indexLC = selectCandidateLcPolynom(currentCandidates);
-
-						cout << "Checking loop closure " << iSample+1 << "/" << nbSamples;
-						cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
-						cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPose._matrix) << "(deg)\n";
-
-						// loop closure with frame
-						bool validLC = checkLoopClosure(
-								idCandidateLC[indexLC],
-								currentPose._id,
-								*bufferFrameDataLC[indexLC],
-								frameDataCurrent,
-								transform);
-
-						if (validLC)
-						{
-							cout << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
-							cout << "-" << currentPose._id <<  ") \n";
-							cout << "Ratio: " << transform._ratioInliers << "\n";
-
-							// looking for a better loop closure
-							if (transform._ratioInliers >= bestTransformLC._ratioInliers)
-							{
-								// a better loop closure is found
-								foundLoopClosure = true;
-								// it may be improved so don't insert it yet
-								insertLoopClosure = false;
-								// keep the loop closure info
-								bestTransformLC = transform;
-								indexBestLC = indexLC;
-							}
-						}
-					}
-					cout << "----------------------------------------------------------------------------\n";
-				}
-
-				// trigger the loop closure unless a better one has just been found
-				if (foundLoopClosure && insertLoopClosure)
-				{
-					cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-					cout << "Adding edge for Loop Closure";
-					cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
-					cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-					logLC << "Adding edge for Loop Closure";
-					logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
-
-					// add the edge = new constraint
-					g_graph.addEdge(bestTransformLC);
-
-					// remove the candidates included in the ID range of the loop closure
-					// this supposes the ID are sorted
-					cout << "Removing candidates... " ;
-					int sizeLC = idCandidateLC.size();
-					for (int indexLC=sizeLC-1; indexLC>=0; indexLC--)
-					{
-						if (idCandidateLC[indexLC] >= bestTransformLC._idOrig &&
-							idCandidateLC[indexLC] <= bestTransformLC._idDest)
-						{
-							cout << indexLC << ": id=" << idCandidateLC[indexLC] << "\n";
-							// free loop closure data
-							if (bufferFrameDataLC[indexLC]!=NULL)
-								delete bufferFrameDataLC[indexLC];
-							// remove candidate
-							idCandidateLC.erase(idCandidateLC.begin()+indexLC);
-							bufferFrameDataLC.erase(bufferFrameDataLC.begin()+indexLC);
-						}
-					}
-					cout << "\n";
-					cout << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
-					logLC << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
-
-					// reset loop closure
-					foundLoopClosure = false;
-					bestTransformLC._idOrig = -1;
-					bestTransformLC._idDest = -1;
-					bestTransformLC._ratioInliers = 0;
-					bestTransformLC._matrix = Eigen::Matrix4f::Identity();
-					totalDistance = 0;
-				}
-
-				// new candidate for loop closure
-				// add the current pose
-				pFrameDataLC = new FrameData;
-				bufferFrameDataLC.push_back(pFrameDataLC);
-				idCandidateLC.push_back(currentPose._id);
-
-			} // key pose
-		}
-		if (foundLoopClosure)
-		{
-			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-			cout << "Adding edge for Loop Closure";
-			cout << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
-			cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-			logLC << "Adding edge for Loop Closure";
-			logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
-			// add new constraint
-			g_graph.addEdge(bestTransformLC);
+			}
 		}
 
 		g_graph.save("graph_initial.g2o");
 
 		// build initial point cloud
-		if (Config::_GenerateInitialPCD)
+		if (Config::_PcdGenerateInitial)
 			generateMapPCD(cameraPoses, "cloud_initial");
+
+		// -------------------------------------------------------------------------------------------
+		//  loop closure
+		// -------------------------------------------------------------------------------------------
+		detectLoopClosure(cameraPoses);
+		g_graph.save("graph_initial.g2o");
 
 		// -------------------------------------------------------------------------------------------
 		//  optimize the graph
@@ -518,14 +559,10 @@ void buildMap(const TransformationVector &sequenceTransform)
 		g_graph.extractAllPoses(cameraPoses);
 
 		// generate optimized point cloud
-		if (Config::_GenerateOptimizedPCD)
+		if (Config::_PcdGenerateOptimized)
 			generateMapPCD(cameraPoses, "cloud_optimized");
 
 		savePoses(cameraPoses, "poses.dat");
-
-		// free loop closure data
-		for (int indexLC=0; indexLC<bufferFrameDataLC.size(); indexLC++)
-			delete bufferFrameDataLC[indexLC];
     }
 }
 
@@ -541,7 +578,7 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 		Transformation transform;
 		bool validTransform;
 		int indexLastFrame;
-		int stepFrame = Config::_RatioFrameMatching;
+		int stepFrame = Config::_MatchingRatioFrame;
 
 		char buf[256];
 		sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
@@ -564,7 +601,7 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 				std::cerr << transform._idOrig << "-" << transform._idDest << ": ";
 				std::cerr << "No valid transformation!!";
 				std::cerr << "\tRatio=" << transform._ratioInliers*100 << "% ";
-				std::cerr << "\tResync attempt #" <<  Config::_RatioFrameMatching-stepFrame+1 << "\n";
+				std::cerr << "\tResync attempt #" <<  Config::_MatchingRatioFrame-stepFrame+1 << "\n";
 				// try to lower step
 				stepFrame--;
 				if (stepFrame>0)
@@ -575,7 +612,7 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 				}
 				else
 				{
-					if (! Config::_AllowInvalidMatching)
+					if (! Config::_MatchingAllowInvalid)
 						break;		// abort
 					std::cerr << "INVALID TRANSFORMATION RECORDED! Frames ";
 					std::cerr << transform._idOrig << "-" << transform._idDest << "\n";
@@ -585,7 +622,7 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 			// valid transform
 			sequenceTransform.push_back(transform);
 			indexLastFrame = iFrame;
-			stepFrame = Config::_RatioFrameMatching;
+			stepFrame = Config::_MatchingRatioFrame;
 
 			// archive transform
 			fileTransform << transform._idOrig << " " << transform._idDest << " ";
