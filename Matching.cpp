@@ -22,6 +22,7 @@ extern "C" {
 
 #include <iostream>
 #include <vector>
+#include <fstream>
 
 using namespace std;
 
@@ -301,6 +302,13 @@ bool findTransformRANSAC(
 		std::cout << "\terror="<< bestError << std::endl;
 		std::cout << bestTransformationMat << std::endl;
 
+		char buf[256];
+		sprintf(buf, "%s/stats.log", Config::_ResultDirectory.c_str());
+		std::ofstream fileStats(buf, ios_base::app);
+		fileStats << frameData1.getFrameID() << "-" << frameData2.getFrameID();
+		fileStats << "\t" << indexBestInliers.size() << "\t" << nbValidMatches;
+		fileStats << "\t" << indexBestInliers.size()*100/nbValidMatches << "\n";
+
 		validTransformation = true;
 		resultTransform._matrix = bestTransformationMat;
 		resultTransform._error = bestError;
@@ -475,9 +483,6 @@ void kdSearchFeatureMatches(
 		cvSaveImage(buf, imgStacked);
 		cvReleaseImage(&imgStacked);
 	}
-	// debug
-	//const XnDepthPixel* p1 = g_arrayMD[frameID1-1].Data();
-	//printf("Center Depth Pixel = %u\n", p1[640*240 + 320]);
 
 	tm.stop();
 	printf("\tMatches: %d/%d (%d%%).\t(%dms)\n", nbValidMatches, nbInitialMatches, ratio, tm.duration() );

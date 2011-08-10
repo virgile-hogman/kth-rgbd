@@ -9,7 +9,7 @@ public:
 		
 	void buildFromSequence(std::vector<int> &sequenceFramesID);
 	
-	void buildFromArchive();
+	void buildFromArchive(int minFrameID, int maxFrameID);
 
 	void regeneratePCD();
 

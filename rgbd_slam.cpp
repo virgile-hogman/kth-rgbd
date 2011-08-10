@@ -65,7 +65,7 @@ int main(int argc, char** argv)
     
 	if (argc<1)
 	{
-		printf("Usage: %s -record <nbFrames> | -replay <from> <to> | -remap | -pcd", argv[0]);
+		printf("Usage: %s -record <nbFrames> | -match <from> <to> | -map | -pcd", argv[0]);
 		return -1;
 	}
 	
@@ -76,9 +76,9 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  load sequence from RGB+D input datafiles
     // ---------------------------------------------------------------------------------------------------
-    if (strcmp(argv[1], "-replay") == 0)
+    if (strcmp(argv[1], "-match") == 0)
     {
-        printf("Replay sequence\n");
+        printf("Match and map a sequence of frames\n");
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
     		return -1;
 
@@ -98,9 +98,9 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  map reconstruction from transformations archive
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-reconstruct") == 0)
+    else if (strcmp(argv[1], "-map") == 0)
     {
-        printf("Reconstruct map from transformations archive\n");
+        printf("Reconstruct map from transformations archive, with loop closure\n");
         
     	// build map from existing transformation data
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
@@ -108,7 +108,13 @@ int main(int argc, char** argv)
     	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
     		return -1;
     	
-    	map.buildFromArchive();
+    	int min=-1, max=-1;
+    	if (argc>3)
+    		max = atoi(argv[3]);
+    	if (argc>2)
+    		min = atoi(argv[2]);
+
+    	map.buildFromArchive(min, max);
     }
     // ---------------------------------------------------------------------------------------------------
     //  regenerate PCD files from archive
