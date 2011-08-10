@@ -5,6 +5,9 @@ std::string Config::_DataDirectory = "data_in";
 std::string Config::_GenDirectory = "data_gen";
 std::string Config::_ResultDirectory = "data_out";
 
+int			Config::_FeatureDepthMin = 0;
+int			Config::_FeatureDepthMax = 6000;
+
 int			Config::_MatchingRatioFrame = 0;
 bool		Config::_MatchingAllowInvalid = false;
 bool		Config::_MatchingSaveImageInitialPairs = false;
@@ -33,6 +36,9 @@ void Config::LoadConfig(std::string filename)
 	Config::_DataDirectory = config.read<string>("DirDataIn", "data_in");
 	Config::_GenDirectory = config.read<string>("DirDataGen", "data_gen");
 	Config::_ResultDirectory = config.read<string>("DirDataOut", "data_out");
+
+	Config::_FeatureDepthMin = config.read<int>("FeatureDepthMin", 0);
+	Config::_FeatureDepthMax = config.read<int>("FeatureDepthMax", 6000);
 
 	Config::_MatchingRatioFrame = config.read<int>("MatchingRatioFrame", 0);
 	Config::_MatchingAllowInvalid = config.read<bool>("MatchingAllowInvalid", false);

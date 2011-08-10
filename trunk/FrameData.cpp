@@ -1,5 +1,6 @@
 
 #include "FrameData.h"
+#include "Config.h"
 
 // Open CV
 #include "highgui.h"
@@ -9,10 +10,6 @@
 #include <stdio.h>
 
 std::string FrameData::_DataPath;
-
-// depth range for valid features (in mm)
-#define FEATURE_DEPTH_MIN 0
-#define FEATURE_DEPTH_MAX 6000
 
 bool FrameData::find_file(
 		const boost::filesystem::path & dir_path,   // in this directory,
@@ -240,8 +237,8 @@ void FrameData::removeInvalidFeatures()
 	{
 		TDepthPixel depthFeature = getFeatureDepth(&_pFeatures[i]); 
 		if (depthFeature == 0 ||	// no available depth information
-			depthFeature < FEATURE_DEPTH_MIN ||
-			depthFeature > FEATURE_DEPTH_MAX)
+			depthFeature < Config::_FeatureDepthMin ||
+			depthFeature > Config::_FeatureDepthMax)
 			continue;
 		
 		if (sizeFeatureArea<=0)

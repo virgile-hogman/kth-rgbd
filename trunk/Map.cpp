@@ -123,7 +123,7 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 			continue;	// skip frame
 
 		cout << "----------------------------------------------------------------------------\n";
-		cout << "Append point cloud frame #" << cameraPoses[iPose]._id << " (" << iPose+1 << "/" << cameraPoses.size() << ")\n";
+		cout << "Append point cloud frame #" << cameraPoses[iPose]._id << " (pose " << iPose+1 << "/" << cameraPoses.size() << ")\n";
 		cout << cameraPoses[iPose]._matrix << std::endl;
 
 		getFramePointCloud(cameraPoses[iPose]._id, cloudFrame);
@@ -139,7 +139,8 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 		
 		// apend transformed point cloud
 		cloudFull += cloudFrameTransformed;
-		cout << " Total Size: " << cloudFull.size() << " points." << std::endl;
+		cout << " Total Size: " << cloudFull.size() << " points (";
+		cout <<  cloudFull.size()*100/Config::_PcdMaxNbPoints << "% of PCD capacity)." << std::endl;
 		
 		if (cloudFull.size() > Config::_PcdMaxNbPoints)
 		{
@@ -204,19 +205,23 @@ void loadPoses(PoseVector &poses, const char *filename)
 	Pose pose;
 
 	poses.clear();
-	while (! filePoses.eof())
+
+	if (filePoses.is_open())
 	{
-		filePoses.ignore(256, '#');	// to reach id
-		filePoses >> pose._id;
-		for (int irow=0; irow<4; irow++)
-			for (int icol=0; icol<4; icol++)
-				filePoses >> pose._matrix(irow,icol);
+		while (! filePoses.eof())
+		{
+			filePoses.ignore(256, '#');	// to reach id
+			filePoses >> pose._id;
+			for (int irow=0; irow<4; irow++)
+				for (int icol=0; icol<4; icol++)
+					filePoses >> pose._matrix(irow,icol);
 
-		//std::cout << transfo._matrix << std::endl;
-		poses.push_back(pose);
+			//std::cout << transfo._matrix << std::endl;
+			poses.push_back(pose);
 
-		filePoses.ignore(256, '\n');	// to reach end of line
-		filePoses.peek();				// to update the eof flag (if no empty line)
+			filePoses.ignore(256, '\n');	// to reach end of line
+			filePoses.peek();				// to update the eof flag (if no empty line)
+		}
 	}
 }
 
@@ -293,6 +298,26 @@ int selectCandidateLcPolynom(vector<int> &candidates)
 	return indexLC;
 }
 
+void loadPresetLC(map<int,int> &presetLC)
+{
+	std::ifstream filePresetLC("preset_LC.dat");
+	int pose1, pose2;
+
+	if (filePresetLC.is_open())
+	{
+		while (! filePresetLC.eof())
+		{
+			filePresetLC >> pose1 >> pose2;
+
+			// add entry in the map
+			presetLC[pose1] = pose2;
+
+			filePresetLC.ignore(256, '\n');	// to reach end of line
+			filePresetLC.peek();				// to update the eof flag (if no empty line)
+		}
+	}
+}
+
 void detectLoopClosure(const PoseVector	&cameraPoses)
 {
 	Pose		currentPose;
@@ -310,13 +335,14 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 	sprintf(bufLog, "%s/%s", Config::_ResultDirectory.c_str(), "loop_closure.log");
 	std::ofstream logLC(bufLog);
 
-	if (cameraPoses.size()<=1)
-		return;
+	map<int,int> mapPresetLC;
+
+	loadPresetLC(mapPresetLC);
 
 	// loop
-	for (int i=0; i<cameraPoses.size(); i++)
+	for (int iPose=0; iPose<cameraPoses.size(); iPose++)
 	{
-		currentPose = cameraPoses[i];
+		currentPose = cameraPoses[iPose];
 
 		/*if (totalDistance > Config::_LoopClosureDistance ||
 			getAngleTransform(currentPose._matrix) > Config::_LoopClosureAngle)*/
@@ -324,19 +350,36 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 		{
 			insertLoopClosure = true;
 			vector<int> currentCandidates;
+			int indexLC;
+			int nbSamples = 0;
 
-			// define sample list
-			int nbSamples = Config::_LoopClosureWindowSize;
-			if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
-				nbSamples = idCandidateLC.size();
-			if (foundLoopClosure)
-				nbSamples = 1;	// candidate already known
+			// check if LC preset
+			if (mapPresetLC.find(currentPose._id) != mapPresetLC.end())
+			{
+				int node = mapPresetLC[currentPose._id];
+				cout << "Search indexLC for node " << node << " from " << currentPose._id << "\n";
+				for (indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
+					if (idCandidateLC[indexLC]==node)
+					{
+						currentCandidates.push_back(indexLC);
+						nbSamples = 1;
+						break;	// found
+					}
+			}
+			else if (foundLoopClosure)
+			{
+				// candidate already known
+				currentCandidates.push_back(indexBestLC);
+				nbSamples = 1;
+			}
 			else
 			{
+				// define random sample list
+				nbSamples = Config::_LoopClosureWindowSize;
+				if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
+					nbSamples = idCandidateLC.size();
 				// generate list of indexes where samples will be pickup once
 				int sizeLC = idCandidateLC.size()-5;	// ignore last n poses
-				if (sizeLC<0)
-					sizeLC = 0;
 				for (int i=0; i<sizeLC; i++)
 					currentCandidates.push_back(i);
 				if (nbSamples>currentCandidates.size())
@@ -346,30 +389,10 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 			// check loop closure for every sample
 			for (int iSample=0; iSample<nbSamples; iSample++)
 			{
-				int indexLC;
-				if (foundLoopClosure && nbSamples==1)
-					indexLC = indexBestLC;	// candidate already known
+				if (currentCandidates.size()==1)
+					indexLC = currentCandidates[0];	// candidate already known
 				else
-					indexLC = selectCandidateLcPolynom(currentCandidates);
-
-				/*//------------------------------------------
-				// TEMPORARY TEST - FORCE LIST
-				nbSamples=1;
-				int node=-1;
-				//cout << currentPose._id << "\n";
-				switch(currentPose._id)
-				{
-				case 647: node=35; break;
-				case 2726: node=1802; break;
-				case 6886: node=1085; break;
-				}
-				for (indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
-					if (idCandidateLC[indexLC]==node)
-						break;	// found
-				if (indexLC==idCandidateLC.size())
-					continue;
-				//------------------------------------------
-				*/
+					indexLC = selectCandidateLcPolynom(currentCandidates);	// the list is updated!
 
 				cout << "Checking loop closure " << iSample+1 << "/" << nbSamples;
 				cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
@@ -395,7 +418,7 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 					{
 						// a better loop closure is found
 						foundLoopClosure = true;
-						// it may be improved so don't insert it yet
+						// it may be improved, don't insert it yet
 						insertLoopClosure = false;
 						// keep the loop closure info
 						bestTransformLC = transform;
@@ -422,7 +445,7 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 			// remove the candidates included in the ID range of the loop closure
 			// this supposes the ID are sorted
 			//cout << "Removing candidates... " ;
-			int sizeLC = idCandidateLC.size();
+			/*int sizeLC = idCandidateLC.size();
 			for (int indexLC=sizeLC-1; indexLC>=0; indexLC--)
 			{
 				if (idCandidateLC[indexLC] >= bestTransformLC._idOrig &&
@@ -439,7 +462,7 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 			}
 			cout << "\n";
 			cout << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
-			logLC << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";
+			logLC << "Size Candidate List Before: " << sizeLC << " After: " << idCandidateLC.size() << "\n";*/
 
 			// reset loop closure
 			foundLoopClosure = false;
@@ -645,7 +668,7 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 	
 }
 
-void Map::buildFromArchive()
+void Map::buildFromArchive(int minFrameID, int maxFrameID)
 {
 	TransformationVector resultingTransformations;
 	Transformation transfo;
@@ -655,21 +678,25 @@ void Map::buildFromArchive()
 	sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
 	std::ifstream fileTransfo(buf);
 	
-	// read sequence archive
-	while (! fileTransfo.eof())
+	if (fileTransfo.is_open())
 	{
-		// archive transfo
-		fileTransfo >> transfo._idOrig >> transfo._idDest;
-		//std::cout << "Restore Matrix "<< transfo._idOrig << "-" << transfo._idDest << ":\n";
-		for (int irow=0; irow<4; irow++)
-			for (int icol=0; icol<4; icol++)
-				fileTransfo >> transfo._matrix(irow,icol);
-		
-		//std::cout << transfo._matrix << std::endl;
-		resultingTransformations.push_back(transfo);
-		
-		fileTransfo.ignore(256, '\n');	// to reach end of line
-		fileTransfo.peek();				// to update the eof flag (if no empty line)
+		// read sequence archive
+		while (! fileTransfo.eof())
+		{
+			// archive transfo
+			fileTransfo >> transfo._idOrig >> transfo._idDest;
+			//std::cout << "Restore Matrix "<< transfo._idOrig << "-" << transfo._idDest << ":\n";
+			for (int irow=0; irow<4; irow++)
+				for (int icol=0; icol<4; icol++)
+					fileTransfo >> transfo._matrix(irow,icol);
+
+			//std::cout << transfo._matrix << std::endl;
+			if (transfo._idOrig >= minFrameID && (transfo._idDest <= maxFrameID || maxFrameID<0))
+				resultingTransformations.push_back(transfo);
+
+			fileTransfo.ignore(256, '\n');	// to reach end of line
+			fileTransfo.peek();				// to update the eof flag (if no empty line)
+		}
 	}
 	
 	if (resultingTransformations.size()>0)

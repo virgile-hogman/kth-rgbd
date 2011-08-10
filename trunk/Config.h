@@ -12,6 +12,11 @@ public:
 	static std::string		_GenDirectory;
 	static std::string		_ResultDirectory;
 
+	// feature
+	static int				_FeatureDepthMin;	// min depth in mm
+	static int				_FeatureDepthMax;	// max depth in mm
+
+	// matching
 	static int				_MatchingRatioFrame;
 	static bool				_MatchingAllowInvalid;
 	static bool				_MatchingSaveImageInitialPairs;
@@ -20,6 +25,7 @@ public:
 	static float			_MatchingMinRatioInlier;
 	static float			_MatchingMaxDistanceInlier;
 
+	// mapping
 	static float			_MapNodeDistance;
 	static float			_MapNodeAngle;
 
