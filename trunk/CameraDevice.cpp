@@ -282,6 +282,7 @@ int saveDepthImage(
 bool CameraDevice::generateFrame(int &frameID)
 {
     XnStatus nRetVal = XN_STATUS_OK;
+    static bool saveData = false;
 	
 	const XnDepthPixel* pDepthMap = NULL;
 	const XnRGB24Pixel* pImageMap = NULL;
@@ -311,7 +312,10 @@ bool CameraDevice::generateFrame(int &frameID)
 			printf("\n");
 			if (c == 27)	// ESC
 				break;
-
+			saveData = !saveData;	// start or pause each time keyboard is hit
+		}
+		if (nRetVal == XN_STATUS_OK && saveData)
+		{
 			saveRGBImage(pImageMap, g_imgRGB, frameID);
 			int kinectFrameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, frameID, false);	// no PCD file
 			//usleep(100000);
