@@ -630,7 +630,13 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 		return true;
 	}
 	else
+	{
+		// empty buffers - data has to be reloaded
+		_bufferFrameData1.releaseData();
+		_bufferFrameData2.releaseData();
+
 		return false;
+	}
 }
 
 // -----------------------------------------------------------------------------------------------------
