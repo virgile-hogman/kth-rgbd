@@ -10,21 +10,12 @@
 #include "CommonTypes.h"
 #include "Matching.h"
 #include "FrameData.h"
-#include "Graph.h"
 #include "Map.h"
 
 #include <iostream>
-#include <fstream>
-
-#include <vector>
 
 using namespace std;
 
-
-//---------------------------------------------------------------------------
-// Globals
-//---------------------------------------------------------------------------
-Graph g_graph;
 
 bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
 {
@@ -195,7 +186,7 @@ bool isKeyTransform(const Eigen::Matrix4f &transformMat)
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  loadPoses
+//  loadPoses (NOT TESTED!!!)
 // -----------------------------------------------------------------------------------------------------
 void loadPoses(PoseVector &poses, const char *filename)
 {
@@ -241,27 +232,30 @@ void savePoses(const PoseVector &poses, const char *filename)
 	}
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  regeneratePCD
+// -----------------------------------------------------------------------------------------------------
 void Map::regeneratePCD()
 {
 	PoseVector	cameraPoses;
 
 	// initia graph
-    g_graph.initialize();
+    _graphOptimizer.initialize();
 
-	g_graph.load("graph_initial.g2o");
+    _graphOptimizer.load("graph_initial.g2o");
 
 	// extract the updated camera positions from the optimized graph
-	g_graph.extractAllPoses(cameraPoses);
+    _graphOptimizer.extractAllPoses(cameraPoses);
 
 	// build initial point cloud
 	if (Config::_PcdGenerateInitial)
 		generateMapPCD(cameraPoses, "cloud_initial");
 
 	//  optimized graph
-	g_graph.load("graph_optimized.g2o");
+	_graphOptimizer.load("graph_optimized.g2o");
 
 	// extract the updated camera positions from the optimized graph
-	g_graph.extractAllPoses(cameraPoses);
+	_graphOptimizer.extractAllPoses(cameraPoses);
 
 	// generate optimized point cloud
 	if (Config::_PcdGenerateOptimized)
@@ -318,7 +312,7 @@ void loadPresetLC(map<int,int> &presetLC)
 	}
 }
 
-void detectLoopClosure(const PoseVector	&cameraPoses)
+void Map::detectLoopClosure(const PoseVector	&cameraPoses)
 {
 	Pose		currentPose;
 	FrameData *pFrameDataLC = NULL;
@@ -440,7 +434,7 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 			logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 
 			// add the edge = new constraint
-			g_graph.addEdge(bestTransformLC);
+			_graphOptimizer.addEdge(bestTransformLC);
 
 			// remove the candidates included in the ID range of the loop closure
 			// this supposes the ID are sorted
@@ -489,7 +483,7 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 		logLC << "Adding edge for Loop Closure";
 		logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 		// add new constraint
-		g_graph.addEdge(bestTransformLC);
+		_graphOptimizer.addEdge(bestTransformLC);
 	}
 
 	// free loop closure data
@@ -498,9 +492,9 @@ void detectLoopClosure(const PoseVector	&cameraPoses)
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  buildMap
+//  build
 // -----------------------------------------------------------------------------------------------------
-void buildMap(const TransformationVector &sequenceTransform)
+void Map::build()
 {
 	PoseVector	cameraPoses;
 	Pose		currentPose;
@@ -509,35 +503,35 @@ void buildMap(const TransformationVector &sequenceTransform)
 	double totalDistance = 0.0;
 
 	// initialize the graph
-    g_graph.initialize();
+    _graphOptimizer.initialize();
     
-    if (sequenceTransform.size()>0)
+    if (_sequenceTransform.size()>0)
     {
 		// -------------------------------------------------------------------------------------------
 		//  origin
 		// -------------------------------------------------------------------------------------------
     	currentPose._matrix = Eigen::Matrix4f::Identity();
-    	currentPose._id = sequenceTransform[0]._idOrig;
+    	currentPose._id = _sequenceTransform[0]._idOrig;
     	cameraPoses.push_back(currentPose);
 		// add vertex for the initial pose
-		g_graph.addVertex(currentPose);
+		_graphOptimizer.addVertex(currentPose);
 		keyTransform._matrix = Eigen::Matrix4f::Identity();
-		keyTransform._idOrig = sequenceTransform[0]._idOrig;
+		keyTransform._idOrig = _sequenceTransform[0]._idOrig;
 		
 		// -------------------------------------------------------------------------------------------
 		//  loop on the global sequence of transformations
 		// -------------------------------------------------------------------------------------------
-		for (int iTransform=0; iTransform<sequenceTransform.size(); iTransform++)
+		for (int iTransform=0; iTransform<_sequenceTransform.size(); iTransform++)
 		{
 			// compute new position of the camera, by cumulating the inverse transforms (right side)
-			currentPose._matrix = currentPose._matrix * sequenceTransform[iTransform]._matrix.inverse();
-			currentPose._id = sequenceTransform[iTransform]._idDest;
+			currentPose._matrix = currentPose._matrix * _sequenceTransform[iTransform]._matrix.inverse();
+			currentPose._id = _sequenceTransform[iTransform]._idDest;
 			
 			// update key transformation by cumulating the transforms (left side)
-			keyTransform._matrix = sequenceTransform[iTransform]._matrix * keyTransform._matrix;
-			cout << keyTransform._idOrig << "-" << sequenceTransform[iTransform]._idDest << "\r";
+			keyTransform._matrix = _sequenceTransform[iTransform]._matrix * keyTransform._matrix;
+			cout << keyTransform._idOrig << "-" << _sequenceTransform[iTransform]._idDest << "\r";
 			
-			if (isKeyTransform(keyTransform._matrix) || iTransform==sequenceTransform.size()-1)
+			if (isKeyTransform(keyTransform._matrix) || iTransform==_sequenceTransform.size()-1)
 			{
 				// -------------------------------------------------------------------------------------------
 				//  new keynode: define camera position in the graph
@@ -547,12 +541,12 @@ void buildMap(const TransformationVector &sequenceTransform)
 
 				// add a vertex = current camera pose
 				cameraPoses.push_back(currentPose);
-				g_graph.addVertex(currentPose);
+				_graphOptimizer.addVertex(currentPose);
 
 				// add an edge = new constraint relative to the key transform
 				keyTransform._idDest = currentPose._id;
 				sequenceKeyTransform.push_back(keyTransform);
-				g_graph.addEdge(keyTransform);
+				_graphOptimizer.addEdge(keyTransform);
 
 				// remap from this position (relative key transform)
 				keyTransform._matrix = Eigen::Matrix4f::Identity();
@@ -560,7 +554,7 @@ void buildMap(const TransformationVector &sequenceTransform)
 			}
 		}
 
-		g_graph.save("graph_initial.g2o");
+		_graphOptimizer.save("graph_initial.g2o");
 
 		// build initial point cloud
 		if (Config::_PcdGenerateInitial)
@@ -570,16 +564,16 @@ void buildMap(const TransformationVector &sequenceTransform)
 		//  loop closure
 		// -------------------------------------------------------------------------------------------
 		detectLoopClosure(cameraPoses);
-		g_graph.save("graph_initial.g2o");
+		_graphOptimizer.save("graph_initial.g2o");
 
 		// -------------------------------------------------------------------------------------------
 		//  optimize the graph
 		// -------------------------------------------------------------------------------------------
-		g_graph.optimize();
-		g_graph.save("graph_optimized.g2o");
+		_graphOptimizer.optimize();
+		_graphOptimizer.save("graph_optimized.g2o");
 
 		// extract the updated camera positions from the optimized graph
-		g_graph.extractAllPoses(cameraPoses);
+		_graphOptimizer.extractAllPoses(cameraPoses);
 
 		// generate optimized point cloud
 		if (Config::_PcdGenerateOptimized)
@@ -590,35 +584,73 @@ void buildMap(const TransformationVector &sequenceTransform)
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  buildFromSequence
+//  initSequence
 // -----------------------------------------------------------------------------------------------------
-void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
+void Map::initSequence()
+{
+	char buf[256];
+	sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
+	_fileTransformOut.open(buf);
+
+	_sequenceTransform.clear();
+}
+
+
+// -----------------------------------------------------------------------------------------------------
+//  addFrames
+// -----------------------------------------------------------------------------------------------------
+bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
+{
+	// match frame to frame (current with previous)
+	if (computeTransformation(
+			frameID1,
+			frameID2,
+			_bufferFrameData1,
+			_bufferFrameData2,
+			transform))
+	{
+		// valid transform
+		_sequenceTransform.push_back(transform);
+
+		// archive transform
+		if (_fileTransformOut.is_open())
+		{
+			_fileTransformOut << transform._idOrig << " " << transform._idDest << " ";
+			for (int irow=0; irow<4; irow++)
+				for (int icol=0; icol<4; icol++)
+					_fileTransformOut << transform._matrix(irow,icol) << " ";
+			_fileTransformOut << std::endl;
+		}
+
+		// free data
+		_bufferFrameData1.releaseData();
+		// reassign the last frame to avoid reloading all the data twice
+		_bufferFrameData1.assignData(_bufferFrameData2);
+
+		return true;
+	}
+	else
+		return false;
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  addSequence
+// -----------------------------------------------------------------------------------------------------
+void Map::addSequence(std::vector<int> &sequenceFramesID)
 {
 	if (sequenceFramesID.size()>=2)
 	{
-		FrameData frameData1, frameData2;
-		TransformationVector sequenceTransform;
 		Transformation transform;
-		bool validTransform;
 		int indexLastFrame;
 		int stepFrame = Config::_MatchingRatioFrame;
 
-		char buf[256];
-		sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
-		std::ofstream fileTransform(buf);
-		
 		indexLastFrame = 0;
 		for (int iFrame=stepFrame; iFrame<sequenceFramesID.size(); iFrame+=stepFrame)
 		{
-			// match frame to frame (current with previous)
-			validTransform = computeTransformation(
+			if (! addFrames(
 					sequenceFramesID[indexLastFrame],
 					sequenceFramesID[iFrame],
-					frameData1,
-					frameData2,
-					transform);
-			
-			if (!validTransform)
+					transform))
 			{
 				// no valid transform
 				std::cerr << transform._idOrig << "-" << transform._idDest << ": ";
@@ -642,42 +674,25 @@ void Map::buildFromSequence(std::vector<int> &sequenceFramesID)
 				}
 			}
 			
-			// valid transform
-			sequenceTransform.push_back(transform);
 			indexLastFrame = iFrame;
 			stepFrame = Config::_MatchingRatioFrame;
-
-			// archive transform
-			fileTransform << transform._idOrig << " " << transform._idDest << " ";
-			for (int irow=0; irow<4; irow++)
-				for (int icol=0; icol<4; icol++)
-					fileTransform << transform._matrix(irow,icol) << " ";
-			fileTransform << std::endl;
-			
-			// free data
-			frameData1.releaseData();
-			// reassign the last frame to avoid reloading all the data twice
-			frameData1.assignData(frameData2);
 		}
-	    
-		buildMap(sequenceTransform);
-		
-		frameData1.releaseData();
-		frameData2.releaseData();
 	}
 	
 }
 
-void Map::buildFromArchive(int minFrameID, int maxFrameID)
+// -----------------------------------------------------------------------------------------------------
+//  restoreSequence
+// -----------------------------------------------------------------------------------------------------
+void Map::restoreSequence(int minFrameID, int maxFrameID)
 {
-	TransformationVector resultingTransformations;
 	Transformation transfo;
-	int nRead, len;
-	
 	char buf[256];
 	sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
 	std::ifstream fileTransfo(buf);
 	
+	_sequenceTransform.clear();
+
 	if (fileTransfo.is_open())
 	{
 		// read sequence archive
@@ -692,13 +707,11 @@ void Map::buildFromArchive(int minFrameID, int maxFrameID)
 
 			//std::cout << transfo._matrix << std::endl;
 			if (transfo._idOrig >= minFrameID && (transfo._idDest <= maxFrameID || maxFrameID<0))
-				resultingTransformations.push_back(transfo);
+				_sequenceTransform.push_back(transfo);
 
 			fileTransfo.ignore(256, '\n');	// to reach end of line
 			fileTransfo.peek();				// to update the eof flag (if no empty line)
 		}
 	}
-	
-	if (resultingTransformations.size()>0)
-		buildMap(resultingTransformations);
 }
+

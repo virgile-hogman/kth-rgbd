@@ -11,6 +11,7 @@ public:
 	static std::string		_DataDirectory;
 	static std::string		_GenDirectory;
 	static std::string		_ResultDirectory;
+	static std::string		_PathKinectXmlFile;
 
 	// feature
 	static int				_FeatureDepthMin;	// min depth in mm

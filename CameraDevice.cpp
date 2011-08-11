@@ -14,8 +14,6 @@
 using namespace xn;
 using namespace std;
 
-#define OPENNI_CONFIG_XML_PATH "SamplesConfig.xml"
-
 #define MAX_DEPTH_HISTOGRAM 10000		// previously used for histogram only
 
 //---------------------------------------------------------------------------
@@ -62,7 +60,7 @@ bool CameraDevice::connect()
 	fflush(stdout);
 	XnStatus nRetVal = XN_STATUS_OK;
 	EnumerationErrors errors;
-	nRetVal = g_context.InitFromXmlFile(OPENNI_CONFIG_XML_PATH, &errors);
+	nRetVal = g_context.InitFromXmlFile(Config::_PathKinectXmlFile.c_str(), &errors);
 	if (nRetVal == XN_STATUS_NO_NODE_PRESENT)
 	{
 		XnChar strError[1024];
@@ -76,6 +74,11 @@ bool CameraDevice::connect()
 		return false;
 	}
 	printf("OK\n");
+
+	// allocate the point cloud buffer
+	g_cloudPointSave.width = 640;
+    g_cloudPointSave.height = 480;
+    g_cloudPointSave.points.resize(640*480);
 
 	nRetVal = g_context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_depth);
 	CHECK_RC(nRetVal, "Find depth generator");
@@ -95,7 +98,7 @@ bool CameraDevice::connect()
 	if (g_depth.GetIntProperty ("NoSampleValue", no_sample_value) != XN_STATUS_OK)
 		printf ("[OpenNIDriver] Could not read no sample value!");
 
-	return (nRetVal == XN_STATUS_OK);
+    return (nRetVal == XN_STATUS_OK);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -276,34 +279,25 @@ int saveDepthImage(
 // -----------------------------------------------------------------------------------------------------
 //  generateFrames
 // -----------------------------------------------------------------------------------------------------
-void CameraDevice::generateFrames(int nbRemainingFrames, std::vector<int> &framesID)
+bool CameraDevice::generateFrame(int &frameID)
 {
     XnStatus nRetVal = XN_STATUS_OK;
-    int frameID=0;
 	
-	framesID.clear();
+	const XnDepthPixel* pDepthMap = NULL;
+	const XnRGB24Pixel* pImageMap = NULL;
 	
-	// allocate the point cloud buffer
-	g_cloudPointSave.width = 640;
-    g_cloudPointSave.height = 480;
-    g_cloudPointSave.points.resize(640*480);
-	
-	
-	while (nbRemainingFrames > 0)
+	while(true)
 	{
-		const XnDepthPixel* pDepthMap = NULL;
-		const XnRGB24Pixel* pImageMap = NULL;
-		
 		xnFPSMarkFrame(&xnFPS);
 		nRetVal = g_context.WaitAndUpdateAll();
 		if (nRetVal == XN_STATUS_OK)
 		{
 			g_depth.GetMetaData(g_depthMD);
 			g_image.GetMetaData(g_imageMD);
-	
+
 			pDepthMap = g_depthMD.Data();
 			pImageMap = g_image.GetRGB24ImageMap();
-			
+
 			printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f\r",
 					g_depthMD.FrameID(),
 					g_depthMD.XRes(),
@@ -313,15 +307,17 @@ void CameraDevice::generateFrames(int nbRemainingFrames, std::vector<int> &frame
 		}
 		if (xnOSWasKeyboardHit())
 		{
-			char c = xnOSReadCharFromInput();	// to reset the keyboard hit
-			nbRemainingFrames--;
+			char c = xnOSReadCharFromInput();	// reset the keyboard hit
+			printf("\n");
+			if (c == 27)	// ESC
+				break;
 
 			saveRGBImage(pImageMap, g_imgRGB, frameID);
 			int kinectFrameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, frameID, false);	// no PCD file
 			//usleep(100000);
-			
-			printf("\nAdding frame %d in sequence, remaining: %d\n", kinectFrameID, nbRemainingFrames);
-			framesID.push_back(frameID++);
+			printf("Adding frame %d, saved as id=%d\n", kinectFrameID, frameID);
+			return true;
 		}
 	}
+	return false;
 }
