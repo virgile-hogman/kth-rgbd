@@ -4,6 +4,7 @@
 std::string Config::_DataDirectory = "data_in";
 std::string Config::_GenDirectory = "data_gen";
 std::string Config::_ResultDirectory = "data_out";
+std::string	Config::_PathKinectXmlFile = "SamplesConfig.xml";
 
 int			Config::_FeatureDepthMin = 0;
 int			Config::_FeatureDepthMax = 6000;
@@ -36,6 +37,7 @@ void Config::LoadConfig(std::string filename)
 	Config::_DataDirectory = config.read<string>("DirDataIn", "data_in");
 	Config::_GenDirectory = config.read<string>("DirDataGen", "data_gen");
 	Config::_ResultDirectory = config.read<string>("DirDataOut", "data_out");
+	Config::_PathKinectXmlFile = config.read<string>("PathKinectXmlFile", "SamplesConfig.xml");
 
 	Config::_FeatureDepthMin = config.read<int>("FeatureDepthMin", 0);
 	Config::_FeatureDepthMax = config.read<int>("FeatureDepthMax", 6000);

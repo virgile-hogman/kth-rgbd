@@ -54,18 +54,58 @@ void loadSequence(const char *dataDirectory, int min, int max, vector<int> &sequ
 	cout << "Frame ratio:" << Config::_MatchingRatioFrame << "\n";
 }
 
+void recordSequence(Map &map)
+{
+	CameraDevice cameraKinect;
+
+    if (cameraKinect.connect())
+    {
+    	int frameID = 0;
+    	Transformation transform;
+
+        boost::filesystem::create_directories(Config::_ResultDirectory);
+
+    	// generate 1st frame
+        if (cameraKinect.generateFrame(frameID))
+        {
+			frameID++;
+
+			map.initSequence();
+
+        	// generate new frame
+			while (cameraKinect.generateFrame(frameID))
+			{
+				// associate with previous
+				if (! map.addFrames(frameID-1, frameID, transform))
+				{
+					printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+					printf("!!! LOW QUALITY !!! LOST SYNCHRO !!!\n");
+					printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+					printf("Last Frame (%d) rejected, it will be overwritten.\n", frameID);
+				}
+				else
+					frameID++;
+			}
+
+	    	// build map
+	    	map.build();
+        }
+
+    	cameraKinect.disconnect();
+    }
+}
+
 // -----------------------------------------------------------------------------------------------------
 //  Main program
 // -----------------------------------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
 	vector<int> sequenceFramesID;
-	int nbFrames=2;	// by default
 	Map map;
     
 	if (argc<1)
 	{
-		printf("Usage: %s -record <nbFrames> | -match <from> <to> | -map | -pcd", argv[0]);
+		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd", argv[0]);
 		return -1;
 	}
 	
@@ -74,9 +114,44 @@ int main(int argc, char** argv)
     FrameData::_DataPath = Config::_DataDirectory;
 
     // ---------------------------------------------------------------------------------------------------
+    //  regenerate PCD files from archive
+    // ---------------------------------------------------------------------------------------------------
+    if (strcmp(argv[1], "-pcd") == 0)
+    {
+        printf("Regenerate PCD files from graph archive\n");
+
+    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
+    		return -1;
+    	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
+    		return -1;
+
+    	map.regeneratePCD();
+    }
+    // ---------------------------------------------------------------------------------------------------
+    //  map reconstruction from transformations archive
+    // ---------------------------------------------------------------------------------------------------
+    else if (strcmp(argv[1], "-map") == 0)
+    {
+        printf("Reconstruct map from transformations archive, with loop closure\n");
+
+    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
+    		return -1;
+    	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
+    		return -1;
+
+    	int min=-1, max=-1;
+    	if (argc>3)
+    		max = atoi(argv[3]);
+    	if (argc>2)
+    		min = atoi(argv[2]);
+
+    	map.restoreSequence(min, max);
+    	map.build();
+    }
+    // ---------------------------------------------------------------------------------------------------
     //  load sequence from RGB+D input datafiles
     // ---------------------------------------------------------------------------------------------------
-    if (strcmp(argv[1], "-match") == 0)
+    else if (strcmp(argv[1], "-match") == 0)
     {
         printf("Match and map a sequence of frames\n");
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
@@ -93,75 +168,24 @@ int main(int argc, char** argv)
         boost::filesystem::create_directories(Config::_ResultDirectory);       
 		
     	// build map 
-    	map.buildFromSequence(sequenceFramesID);
+    	map.addSequence(sequenceFramesID);
+    	map.build();
 	}
-    // ---------------------------------------------------------------------------------------------------
-    //  map reconstruction from transformations archive
-    // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-map") == 0)
-    {
-        printf("Reconstruct map from transformations archive, with loop closure\n");
-        
-    	// build map from existing transformation data
-    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
-    		return -1;
-    	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
-    		return -1;
-    	
-    	int min=-1, max=-1;
-    	if (argc>3)
-    		max = atoi(argv[3]);
-    	if (argc>2)
-    		min = atoi(argv[2]);
-
-    	map.buildFromArchive(min, max);
-    }
-    // ---------------------------------------------------------------------------------------------------
-    //  regenerate PCD files from archive
-    // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-pcd") == 0)
-    {
-        printf("Regenerate PCD files from graph archive\n");
-
-    	// build map from existing transformation data
-    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
-    		return -1;
-    	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
-    		return -1;
-
-    	map.regeneratePCD();
-    }
     // ---------------------------------------------------------------------------------------------------
     //  acquire data from camera and build map
     // ---------------------------------------------------------------------------------------------------
     else if (strcmp(argv[1], "-record") == 0)
     {
-    	CameraDevice cameraKinect;
         printf("Record sequence from camera\n");
         
         // use the same directory to generate and reload the data
         Config::_DataDirectory = Config::_GenDirectory;
         FrameData::_DataPath = Config::_GenDirectory;
     		
-    	if (nbFrames<2)
-    	{
-    		printf("At least 2 frames are required!\n");    		
-    		return -1;
-    	}
-        boost::filesystem::create_directories(Config::_DataDirectory);       
+        boost::filesystem::create_directories(Config::_DataDirectory);
+        boost::filesystem::create_directories(Config::_ResultDirectory);
 
-        if (cameraKinect.connect())
-        {
-            boost::filesystem::create_directories(Config::_ResultDirectory);
-            
-        	// generate n frames and get the sequence
-            cameraKinect.generateFrames(nbFrames, sequenceFramesID);
-        
-        	// build map 
-        	map.buildFromSequence(sequenceFramesID);
-        	
-        	cameraKinect.disconnect();
-        }
+        recordSequence(map);
     }
     else {
     	printf("Select a valid option");

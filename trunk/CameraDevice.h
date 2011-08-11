@@ -12,7 +12,7 @@ public:
 	bool connect();
 	void disconnect();
 
-	void generateFrames(int nbRemainingFrames, std::vector<int> &framesID);
+	bool generateFrame(int &frameID);
 };
 
 #endif // CAMERA_DEVICE_H
