@@ -5,16 +5,20 @@
 #include "pcl/point_types.h"
 #include "pcl/common/transform.h"
 
+#include "highgui.h"
+
 #include "Config.h"
-#include "CameraDevice.h"
 #include "CommonTypes.h"
 #include "Matching.h"
 #include "FrameData.h"
+#include "CameraDevice.h"
 #include "Map.h"
 
 #include <iostream>
 
 using namespace std;
+
+#define PI 3.14159265
 
 
 bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
@@ -22,26 +26,26 @@ bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 	FrameData frameData;
 	if (!frameData.loadImage(frameID))
 	{
-		pointCloud.points.clear();		
+		pointCloud.points.clear();
 		return false;
 	}
 	if (!frameData.loadDepthData())
 	{
-		pointCloud.points.clear();		
+		pointCloud.points.clear();
 		return false;
 	}
-	
+
 	// allocate the point cloud buffer
 	pointCloud.width = NBPIXELS_WIDTH;
 	pointCloud.height = NBPIXELS_HEIGHT;
 	pointCloud.points.clear();
 	pointCloud.points.reserve(NBPIXELS_WIDTH*NBPIXELS_HEIGHT);	// memory preallocation
 	//pointCloud.points.resize(NBPIXELS_WIDTH*NBPIXELS_HEIGHT);
-	
+
 	//printf("Generating point cloud frame %d\n", frameID);
-		
+
 	float constant = 0.001 / CameraDevice::_FocalLength;
-	unsigned int rgb; 
+	unsigned int rgb;
 	int depth_index = 0;
 	IplImage *img = frameData.getImage();
 	for (int ind_y =0; ind_y < NBPIXELS_HEIGHT; ind_y++)
@@ -50,10 +54,10 @@ bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 		{
 			//pcl::PointXYZRGB& pt = pointCloud(ind_x,ind_y);
 			TDepthPixel depth = frameData.getDepthData()[depth_index];
-			if (depth != 0 ) 
+			if (depth != 0 )
 			{
 				pcl::PointXYZRGB pt;
-				
+
 				// locate point in meters
 				pt.z = (ind_x - NBPIXELS_X_HALF) * depth * constant;
 				pt.y = (NBPIXELS_Y_HALF - ind_y) * depth * constant;
@@ -68,7 +72,7 @@ bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 			}
 		}
 	}
-	
+
 	return true;
 }
 
@@ -90,7 +94,7 @@ void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int rati
 	pointCloud = cloudTemp;
 	/*
 	const float voxel_grid_size = 0.005;
-	pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;  
+	pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;
 	vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
 	vox_grid.setInputCloud (pointCloud());
 	vox_grid.filter(pointCloud);*/
@@ -98,16 +102,16 @@ void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int rati
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  generateMapPCD
+//  generatePCD
 // -----------------------------------------------------------------------------------------------------
-void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
+void generatePCD(const PoseVector &cameraPoses, const char *filenamePCD)
 {
 	char buf_full[256];
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFull;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrame;
 	pcl::PointCloud<pcl::PointXYZRGB> cloudFrameTransformed;
 	int nbPCD=0;
-	
+
 	for (int iPose=0; iPose<cameraPoses.size(); iPose++)
 	{
 		if (iPose % Config::_PcdRatioFrame != 0)
@@ -121,18 +125,18 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 
 		// subsample frame
 		subsamplePointCloud(cloudFrame, Config::_PcdRatioKeepSubsample);
-		
+
 		// apply transformation to the point cloud
 		pcl::getTransformedPointCloud(
 				cloudFrame,
 				Eigen::Affine3f(cameraPoses[iPose]._matrix),
-				cloudFrameTransformed); 
-		
+				cloudFrameTransformed);
+
 		// apend transformed point cloud
 		cloudFull += cloudFrameTransformed;
 		cout << " Total Size: " << cloudFull.size() << " points (";
 		cout <<  cloudFull.size()*100/Config::_PcdMaxNbPoints << "% of PCD capacity)." << std::endl;
-		
+
 		if (cloudFull.size() > Config::_PcdMaxNbPoints)
 		{
 			// max size reached
@@ -151,7 +155,7 @@ void generateMapPCD(const PoseVector &cameraPoses, const char *filenamePCD)
 	{
 		// subsample final point cloud
 		//subsamplePointCloud(cloudFull, Config::_PcdRatioKeepSubsample);
-		
+
 		cout << "Saving global point cloud binary...\n";
 		if (nbPCD>0)
 			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_ResultDirectory.c_str(), filenamePCD, nbPCD);
@@ -172,7 +176,6 @@ double getDistanceTransform(const Eigen::Matrix4f &transformMat)
 	return translation.norm();
 }
 
-#define PI 3.14159265
 double getAngleTransform(const Eigen::Matrix4f &transformMat)
 {
 	// convert angle to degrees (should not be multiple of PI!)
@@ -249,7 +252,7 @@ void Map::regeneratePCD()
 
 	// build initial point cloud
 	if (Config::_PcdGenerateInitial)
-		generateMapPCD(cameraPoses, "cloud_initial");
+		generatePCD(cameraPoses, "cloud_initial");
 
 	//  optimized graph
 	_graphOptimizer.load("graph_optimized.g2o");
@@ -259,7 +262,7 @@ void Map::regeneratePCD()
 
 	// generate optimized point cloud
 	if (Config::_PcdGenerateOptimized)
-		generateMapPCD(cameraPoses, "cloud_optimized");
+		generatePCD(cameraPoses, "cloud_optimized");
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -558,7 +561,7 @@ void Map::build()
 
 		// build initial point cloud
 		if (Config::_PcdGenerateInitial)
-			generateMapPCD(cameraPoses, "cloud_initial");
+			generatePCD(cameraPoses, "cloud_initial");
 
 		// -------------------------------------------------------------------------------------------
 		//  loop closure
@@ -577,7 +580,7 @@ void Map::build()
 
 		// generate optimized point cloud
 		if (Config::_PcdGenerateOptimized)
-			generateMapPCD(cameraPoses, "cloud_optimized");
+			generatePCD(cameraPoses, "cloud_optimized");
 
 		savePoses(cameraPoses, "poses.dat");
     }
@@ -593,6 +596,10 @@ void Map::initSequence()
 	_fileTransformOut.open(buf);
 
 	_sequenceTransform.clear();
+
+	// reset stats log
+	sprintf(buf, "%s/stats.log", Config::_ResultDirectory.c_str());
+	std::ofstream fileStats(buf);
 }
 
 
@@ -601,6 +608,8 @@ void Map::initSequence()
 // -----------------------------------------------------------------------------------------------------
 bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 {
+	static bool display = false;
+
 	// match frame to frame (current with previous)
 	if (computeTransformation(
 			frameID1,
@@ -622,19 +631,52 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 			_fileTransformOut << std::endl;
 		}
 
+		// display quality
+		int c;
+		for (c=0; c<100*(transform._ratioInliers-Config::_MatchingMinRatioInlier)/(1-Config::_MatchingMinRatioInlier); c++)
+			cout << '+';
+		while (c<100){
+			cout << '-';
+			c++;
+		}
+		cout << "\n";
+
+		if (display) {
+			cvShowImage("Frame1", NULL);
+			cvShowImage("Frame2", NULL);
+			cvResizeWindow("Frame1", 1, 1);
+			cvResizeWindow("Frame2", 1, 1);
+			cvDestroyWindow("Frame1");
+			cvDestroyWindow("Frame2");
+			cvWaitKey(100);
+			display = false;
+		}
+		cvWaitKey(1);	// the opencv windows won't close until handled here
+
 		// free data
 		_bufferFrameData1.releaseData();
 		// reassign the last frame to avoid reloading all the data twice
 		_bufferFrameData1.assignData(_bufferFrameData2);
-
 		return true;
 	}
 	else
 	{
+		if (!display) {
+			// create windows
+			cvNamedWindow("Frame1", CV_WINDOW_AUTOSIZE);
+			cvNamedWindow("Frame2", CV_WINDOW_AUTOSIZE);
+			cvMoveWindow("Frame1", 0, 0); // offset from the UL corner of the screen
+			cvMoveWindow("Frame2", 0, 400); // offset from the UL corner of the screen
+			display = true;
+		}
+		cvShowImage("Frame1", _bufferFrameData1.getImage());
+		cvShowImage("Frame2", _bufferFrameData2.getImage());
+		cvWaitKey(100);
+
+		// invalid transformation
 		// empty buffers - data has to be reloaded
 		_bufferFrameData1.releaseData();
 		_bufferFrameData2.releaseData();
-
 		return false;
 	}
 }
