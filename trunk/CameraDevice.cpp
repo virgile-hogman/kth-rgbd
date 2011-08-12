@@ -1,4 +1,5 @@
 #include "CameraDevice.h"
+#include "FrameData.h"
 #include "Config.h"
 
 #include "pcl/io/pcd_io.h"
@@ -48,6 +49,11 @@ float bad_point = std::numeric_limits<float>::quiet_NaN ();
 {                                                                \
 	printf("%s failed: %s\n", what, xnGetStatusString(rc));        \
 	return rc;                                                    \
+}
+
+CameraDevice::CameraDevice()
+{
+	_abort = false;
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -279,7 +285,7 @@ int saveDepthImage(
 // -----------------------------------------------------------------------------------------------------
 //  generateFrames
 // -----------------------------------------------------------------------------------------------------
-bool CameraDevice::generateFrame(int &frameID)
+bool CameraDevice::generateFrame(int frameID)
 {
     XnStatus nRetVal = XN_STATUS_OK;
     static bool saveData = false;
@@ -291,7 +297,7 @@ bool CameraDevice::generateFrame(int &frameID)
 	{
 		xnFPSMarkFrame(&xnFPS);
 		nRetVal = g_context.WaitAndUpdateAll();
-		if (nRetVal == XN_STATUS_OK)
+		if (nRetVal==XN_STATUS_OK)
 		{
 			g_depth.GetMetaData(g_depthMD);
 			g_image.GetMetaData(g_imageMD);
@@ -299,27 +305,44 @@ bool CameraDevice::generateFrame(int &frameID)
 			pDepthMap = g_depthMD.Data();
 			pImageMap = g_image.GetRGB24ImageMap();
 
-			printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f\r",
+			printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f %s\r",
 					g_depthMD.FrameID(),
 					g_depthMD.XRes(),
 					g_depthMD.YRes(),
 					g_depthMD(g_depthMD.XRes()/2, g_depthMD.YRes()/2),
-					xnFPSCalc(&xnFPS));
+					xnFPSCalc(&xnFPS),
+					(saveData? "" : "* PRESS KEY *"));
 		}
 		if (xnOSWasKeyboardHit())
 		{
 			char c = xnOSReadCharFromInput();	// reset the keyboard hit
 			printf("\n");
-			if (c == 27)	// ESC
+			switch (c)
+			{
+			case 27:	// ESC
+				_abort = true;
+				return false;
 				break;
-			saveData = !saveData;	// start or pause each time keyboard is hit
+
+			case 13:	// CR
+			case 10:	// LF
+				if (saveData) {
+					_abort = false;
+					return false;
+				}
+				saveData = true;
+				break;
+
+			default:
+				saveData = !saveData;	// start or pause each time for any other key hit
+				break;
+			}
 		}
-		if (nRetVal == XN_STATUS_OK && saveData)
+		if (nRetVal==XN_STATUS_OK && saveData)
 		{
 			saveRGBImage(pImageMap, g_imgRGB, frameID);
 			int kinectFrameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, frameID, false);	// no PCD file
 			//usleep(100000);
-			printf("Adding frame %d, saved as id=%d\n", kinectFrameID, frameID);
 			return true;
 		}
 	}

@@ -300,7 +300,7 @@ bool findTransformRANSAC(
 		std::cout << "Best Transformation --->\t" << indexBestInliers.size() << "/" << nbValidMatches;
 		std::cout << " inliers (" << indexBestInliers.size()*100/nbValidMatches <<  "%)";
 		std::cout << "\terror="<< bestError << std::endl;
-		std::cout << bestTransformationMat << std::endl;
+		//std::cout << bestTransformationMat << std::endl;
 
 		char buf[256];
 		sprintf(buf, "%s/stats.log", Config::_ResultDirectory.c_str());

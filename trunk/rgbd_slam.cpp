@@ -81,14 +81,15 @@ void recordSequence(Map &map)
 					printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 					printf("!!! LOW QUALITY !!! LOST SYNCHRO !!!\n");
 					printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-					printf("Last Frame (%d) rejected, it will be overwritten.\n", frameID);
+					printf("Last Frame (%d) rejected\n", frameID);
 				}
 				else
 					frameID++;
 			}
 
 	    	// build map
-	    	map.build();
+			if (!cameraKinect.aborted())
+				map.build();
         }
 
     	cameraKinect.disconnect();
@@ -168,6 +169,7 @@ int main(int argc, char** argv)
         boost::filesystem::create_directories(Config::_ResultDirectory);       
 		
     	// build map 
+        map.initSequence();
     	map.addSequence(sequenceFramesID);
     	map.build();
 	}
