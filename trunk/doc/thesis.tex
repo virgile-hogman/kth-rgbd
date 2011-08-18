@@ -27,6 +27,7 @@
 \usepackage[latin1]{inputenc}
 \usepackage[swedish,english]{babel}
 \usepackage{nada-ex}
+\usepackage{graphicx}
 \title{Building a 3D map from RGB-D sensors}
 \author{Virgile H\"{o}gman}
 \date{September 2011}
@@ -38,11 +39,11 @@
 \input{kth-abs}
 \clearpage
 \selectlanguage{swedish}
-\begin{abstract}
-  Denna fil ger ett avhandlingsskelett.
-  Mer information om \LaTeX-mallen finns i
-  dokumentationen till paketet.
-\end{abstract}
+%\begin{abstract}
+%  Denna fil ger ett avhandlingsskelett.
+%  Mer information om \LaTeX-mallen finns i
+%  dokumentationen till paketet.
+%\end{abstract}
 \selectlanguage{english}
 \clearpage
 \tableofcontents
@@ -51,28 +52,60 @@
 
 Currently, most of robotic mapping is performed using sensors that offers only a 2D cross section of the environment around them. The reason for this is ways of acquiring high quality 3D data were either very expensive or had hard constraints on the robot movements. However, recently there has been a great interest in processing data acquired using depth measuring sensors due to the availability of cheap and high performance RGB-D cameras. 
 
-SLAM : Simultaneous Localisation and Mapping.
-Visual SLAM : processing done on the camera data.  
+\section{Context}
+
+SLAM (Simultaneous Localization and Mapping) adresses the dual problem of building a map and locate the robot at the same time. While this process is generally based on odometry data provided by different sensors, Visual SLAM focuses on the use of camera, for instance 3D. The process is then to estimate the poses of the camera in order to reconstruct the entire environment while the camera is moving.
+
+The main problem comes from the measurement errors that leads to deviations in the estimations of each camera poses with respect to the the real motion. Probablistic models are widely used to reduce these errors and provide satisfying estimations.
 
 \section{Goals}
 
+The goal of this work is to build a 3D map from RGB \& depth information provided by a camera. The hardware device used here is the Microsoft Kinect. While Visual SLAM is intended to be used in real time, some of the processing may be done without focusing on the performance issues. The main objective of this work is to have an overview of the different methods and techniques in order to build a consistent map, so the problems can better be identified and then be handled individually.
+
 \section{Thesis outline}
+The rest of the document is structured as follows:
+\begin{description}
+\item[Chapter 2] presents the Background and the underlying concepts.
+\item[Chapter 3] presents the Method.
+\item[Chapter 4] presents the Results obtained with different datasets.
+\item[Chapter 5] presents the Future Works.
+\end{description}
 
 \chapter{Background}
 
 \section{Microsoft Kinect}
 
+The hardware used in this work is the Microsoft Kinect, a device developed by PrimeSense, initially for the Microsoft Xbox 360 and released in November 2010. It is composed by an RGB camera, 3D depth sensors, a multi-array microphone and a motorized tilt. In this work, only the RGB and depth sensors are used to provide the input data.
+
+Kinect characteristics
+The RGB sensor is a regular camera that streams video with 8 bits for every color channel, giving a 24-bit depth. Its color filter array is a Bayer filter mosaic. The compound system has VGA resolution (640x480 pixels) and a maximal frame rate of 30 Hz. The field of view is 57\textdegree horizontal 43\textdegree vertical, with a tilt range of $\pm$ 27\textdegree.
+
+The depth sensing system is composed by an IR emitter and a standard CMOS Sensor. The IR light source projects structured light, which is then captured by the CMOS image sensor, and decoded to produce the depth image of the scene. It has an operation range between 0.7 and 6 meters, although best results are obtained in the range that goes from 1.2 to 3.5 meters. Its data output has 12-bit depth.
+
+The drivers used are those developed by OpenNI (Open Natural Interface). OpenNI is an organization composed by PrimeSense Willow Garage, Side-Kick, ASUS.
+
+
 \section{Features}
 
+An approach widely used in computer vision, especially in object recognition, is based on the detection of points of interests on object or surfaces. This is done through the extraction of features. In order to track these points of interests during a movement of the camera and/or the robot, a reliable feature detection has to be invariant to image location, scale and rotation. A few methods are briefly presented here:
+\begin{description}
+\item[SIFT] Scale Invariant Feature Transform
+\item[SURF] Speeded Up Robust Feature
+\item[NARF] Normal Aligned Radial Feature
+\end{description}
+
 \subsection{SIFT}
-Scale Invariant Feature Transform
+David Lowe.
+This is a method to detect distinctive, invariant image feature points, which easily can be matched between images to perform tasks such as object detection and recognition, or to compute geometrical transformations between images.
+
+Several libraries exist. For this work is used the library developed by Rob Hess.
 
 \subsection{SURF}
 Source Wiki.
 SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor, first presented by Herbert Bay et al. in 2006, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. SURF is based on sums of approximated 2D Haar wavelet responses and makes an efficient use of integral images.
 
 \subsection{NARF}
-Normal Aligned Radial Feature
+This method is presented in [ref] and is part of ROS Point Cloud Library.
 
 \section{Matching}
 
@@ -143,7 +176,22 @@ Different datasets were used.
 \section{CVAP (KTH)}
 
 \subsection{1 room}
+Map with 1 room and 1 loop closures.
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/room1}
+\caption{Map with 1 room}
+\end{figure}
+
+
 \subsection{2 rooms}
+Map with 2 rooms and n loop closures.
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/room2}
+\caption{Map with 1 room}
+\end{figure}
+
 \subsection{4 rooms}
 
 \section{other datasets}
@@ -175,6 +223,11 @@ In Proc. of the IEEE Intl. Conf. on Robotics and Automation (ICRA),
 Anchorage, AK, USA, 2010.
 
 David G. Lowe, "Distinctive image features from scale-invariant keypoints," International Journal of Computer Vision, 60, 2 (2004), pp. 91-110.
+
+SIFT Rob Hess
+http://blogs.oregonstate.edu/hess/code/sift/
+
+NARF
 
 \end{document}
 \endinput
