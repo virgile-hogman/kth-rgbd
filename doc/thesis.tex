@@ -28,11 +28,13 @@
 \usepackage[swedish,english]{babel}
 \usepackage{nada-ex}
 \usepackage{graphicx}
+
 \title{Building a 3D map from RGB-D sensors}
 \author{Virgile H\"{o}gman}
 \date{September 2011}
 \blurb{Master's Thesis at CVAP\\Supervisor: Alper Aydemir\\Examiner: Stefan Carlsson}
 \trita{TRITA xxx yyyy-nn}
+
 \begin{document}
 \frontmatter
 \maketitle
@@ -48,6 +50,7 @@
 \clearpage
 \tableofcontents
 \mainmatter
+
 \chapter{Introduction}
 
 Currently, most of robotic mapping is performed using sensors that offers only a 2D cross section of the environment around them. The reason for this is ways of acquiring high quality 3D data were either very expensive or had hard constraints on the robot movements. However, recently there has been a great interest in processing data acquired using depth measuring sensors due to the availability of cheap and high performance RGB-D cameras. 
@@ -117,33 +120,57 @@ For each iteration:
 Pickup k samples randomly and determine a model (hypothesis). Evaluate this model by computing the error for all the points of the dataset. If enough points are valid (number of inliers), then the hypothesis is valid. Keep the best hypothesis with respect to the the mean error (lowest is best).
 
 \subsection{ICP}
-Iterative Closest Point. As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as used in Intel Labs, is to run RANSAC before, to determine the first guess for the ICP procedure.
+Iterative Closest Point. As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Intel Labs~\cite{IntelRGBD2010}, is to run RANSAC before, to determine the first guess for the ICP procedure.
 
 \section{SLAM}
 
-\subsection{EKF}
+As described in the introduction, the SLAM problem can be defined as looking for the best estimation of the robot/camera poses, by reducing the uncertainty due to the noise affecting the measurements.
 
-\subsection{Graph optimization}
+\subsection{Filtering vs Smoothing}
 
-g2o, HOG-Man, GraphSLAM
+To solve the SLAM problem, the litterature presents different approaches can be classified either as filtering or smoothing. Filtering approaches model the problem as an on-line state estimation where the state of the system consists in the current robot position and the map. The estimate is augmented and refined by incorporating the new measurements as they become available.
+The most common techniques are the Kalman filters (EKF) and the particle filters. To highlight their incremental nature, the filtering approaches are usually referred to as on-line SLAM methods.
+The major drawback of these techniques is the computational cost. As the robot moves, the quantity of data to be handled becomes bigger.
 
-\section{Reconstruction and visualization of the map}
+Conversely, smoothing approaches estimate the full trajectory of the robot from the full set of measurements. These approaches address the so-called full SLAM problem, and they typically rely on least-square error minimization techniques.
 
-Point cloud. PCL.
+Recently, the performance of the graph optimization has been dramatically improved. In this work, we will therefore study the results that can be obtained from a graph-based approach.
+
+\subsection{Pose Graph}
+
+The SLAM problem can be defined as a least squares optimization of an error function described by a graph. Such a graph is called a pose graph. In a general way, the problem can be formulated by a graph where the nodes (or vertices) represent a state variable describing the poses of the cameras, and the edges would represent the related constraints between the observations connecting a pair of nodes. Not only the graph representation gives a quite intuitive representation of the problem, but the graph model is also the base for the mathematical optimization, which purpose is to find the most-likely configuration of the nodes.
+
+\begin{description}
+\item[HOG-Man] Hierarchical
+\item[g2o] General Framework for Graph Optimization
+\item[GraphSLAM] See ~\cite{Thrun2005}
+\end{description}
 
 \chapter{Method}
 
-The approach: SIFT extraction in 2D, kd-tree matching in 2D/3D, RANSAC in 3D, g2o.
+The approach chosen in this work can be described in the following steps:
+\begin{description}
+\item[Feature extraction] SIFT extraction in 2D
+\item[Feature matching] kd-tree in 2D/3D
+\item[Transformation] RANSAC in 3D
+\item[Graph optimization] Based on the g2o framework
+\item[Scene reconstruction] Concatenate the point clouds based on the estimations of the camera positions
+\end{description}
 
 \section{Features}
 \subsection{Features Extraction}
 
-SIFT with SIFT Library.
+The extraction of the SIFT features is done on the 2D RGB image. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance.
+
+Practically, there are many parameters to define how the SIFT features are extracted. Here the default parameters of the SIFT library are used.
 
 \subsection{Features Matching}
 
-KD-tree with SIFT Library.
-Computes the initial matches between a couple of frames. Use the depth information.
+Now that the features can be computed, it is possible to perform some feature matching between a couple of frames, to get the initial matches. This is done through a nearest neighbour search, using the euclidian distance of these features.  
+The SIFT Library proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features.
+After his, the depth information is used to keep the features that are close enough. A relative ratio is used.
+
+Example of frame matching: 
 
 \section{Transformation with RANSAC}
 
@@ -151,27 +178,36 @@ Done from the initial matches.
 How to define the quality of transformation? 
 Mean error, number of inliers, rate of inliers wrt initial matches.
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/bad_inliers1}
+\caption{Bad inliers}
+\end{figure}
+
 \section{Graph optimization}
 \subsection{Building the graph}
 
-Compute estimations of the poses.
+From each single transformations, an estimation of the poses of the camera can be computed. Each pose is then inserted into the graph by translating the camera matrix into a graph node. g2o provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion.
 
 \subsection{Solving the graph}
 
-Various methods proposed in g2o.
+Various methods are available in g2o, for the optimization process and the solving problem. The method used here is Levenberg-Marquardt with a linear Cholmod solver. The optimization is done with a predefined number of steps. Once the graph has been optimized, the vertices have been updated and give the new estimations of the camera poses. The inverse operation is done to convert the information from the graph vertices to 4x4 matrices.
 
 \subsection{Loop closures}
 
 Define the criterion for loop closure.
 
+\section{3D scene reconstruction}
 
-\section{Reconstruction}
+Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. One simple method is to concatenate the corresponding point clouds, each of them being transformed with the relative camera position. This can be done with standard functions provided by the PCL Library. For the visualization, the standard viewer is used.
 
-Point cloud with PCL. The positions of the cameras determine how each individual point cloud should be projected.
+For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. For this, each of the point clouds are first subsampled with a fixed ratio. Generally, only one output file is produced but this could still lead to a big file in case of a large map. A high rate of subsampling would give a map of low quality. By setting a threshold for the final point cloud, it is splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. This allows to keep a low subsampling rate, and to visualize a portion of the global scene with a better definition.
+
+Of course, this method is not optimal, as this leads to duplicate points, and does not take variances of illumination into account. Another solution would be to use some surfels \cite{IntelRGBD2010} but this would require some intensive processing and is out of the scope of this work.
 
 \chapter{Results}
 
-Different datasets were used.
+The maps obtained from different datasets are shown. The first section presents the results with data from KTH, at different scales (1, 2 and 4 rooms). The next section shows the results obtained with data from other universities.
 
 \section{CVAP (KTH)}
 
@@ -183,7 +219,6 @@ Map with 1 room and 1 loop closures.
 \caption{Map with 1 room}
 \end{figure}
 
-
 \subsection{2 rooms}
 Map with 2 rooms and n loop closures.
 \begin{figure}[h]
@@ -194,40 +229,31 @@ Map with 2 rooms and n loop closures.
 
 \subsection{4 rooms}
 
-\section{other datasets}
+\section{Other universities}
 
 \chapter{Future Works}
 
-Performance improvements: SURF, SIFT GPU.
+This work gave a good insight into the general problem SLAM and more specifically about Visual SLAM with feature extraction and matching. Seeing the big picture, it is now possible to imagine some improvements of the current work.
 
-Quality improvements: ICP, graph optimization, combine sensors, define new criterions for loop closures.
+\section{Performance improvements}
 
-Other approach:
+SURF: the SURF features would probably give a result close to the SIFT features, with a faster response. However this would imply to rewrite the matching code (the nearest neighbour based on the kd-tree was provided by the SIFT library).
+
+SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
+
+\section{Quality improvements}
+
+- ICP
+- graph optimization
+- combine sensors
+- define new criterions for loop closures.
+
+\section{Other approach}
+
 Microsoft Fusion: no feature with real-time performance. Based on ICP, directly run on the point clouds from the depth data. Details of the method not published yet (patents?).
 
-\chapter{Bibliography}
-
-Intel labs
-P. Henry, M. Krainin, E. Herbst, X. Ren, and D. Fox. RGB-D mapping:
-Using depth cameras for dense 3D modeling of indoor environments.
-In Proc. of the Intl. Symp. on Experimental Robotics (ISER), Delhi,
-India, 2010.
-
-g20
-Rainer Kuemmerle, Giorgio Grisetti, Hauke Strasdat, Kurt Konolige, and Wolfram Burgard: g2o: A General Framework for Graph Optimization, IEEE International Conference on Robotics and Automation (ICRA), 2011
-
-HOG-Man
-G. Grisetti, R. K\"ummerle, C. Stachniss, U. Frese, and C. Hertzberg.
-Hierarchical optimization on manifolds for online 2D and 3D mapping.
-In Proc. of the IEEE Intl. Conf. on Robotics and Automation (ICRA),
-Anchorage, AK, USA, 2010.
-
-David G. Lowe, "Distinctive image features from scale-invariant keypoints," International Journal of Computer Vision, 60, 2 (2004), pp. 91-110.
-
-SIFT Rob Hess
-http://blogs.oregonstate.edu/hess/code/sift/
-
-NARF
+\bibliographystyle{plainnat}  
+\bibliography{references}
 
 \end{document}
 \endinput
