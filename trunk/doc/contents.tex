@@ -35,7 +35,7 @@ As mentioned in the introduction, the hardware used in this work is the Microsof
 \caption{Microsoft Kinect}
 \end{figure}
 
-Kinect characteristics
+Kinect characteristics:
 \begin{itemize}
 \item The field of view is 57\textdegree horizontal 43\textdegree vertical, with a tilt range of $\pm$ 27\textdegree.
 \item The RGB sensor is a regular camera that streams video with 8 bits for every color channel, giving a 24-bit color depth. Its color filter array is a Bayer filter mosaic. The color resolution is 640x480 pixels and a maximal frame rate of 30 Hz.
@@ -161,7 +161,10 @@ Various methods are available in g2o, for the optimization process and the solvi
 \subsection{Loop closures}
 
 To detect a loop closure, it is necessary to compare recent frames with previous ones. The naive approach would be to compare the current frame with all the previous frames. Obviously, this is not realistic for reasons of performance, as the time necessary for the current frame would grow exponentially.
-Without making any assumption of the past frames, the first idea would then be to define a window with a fixed size of n frames in the past. The most naive way is to select these frames randomly without any criterion. Another approach would be to select the past frames that are more likely to match with the current frame. One solution could be to give a higher priority to the oldest frames. This could be done by defining a probability density function that would result in a higher probability for the oldest frames. Another approach would also involve a knowledge of the context of the frames, in terms of features, or in terms of estimated position.
+
+Without making any assumption of the past frames, the first idea would then be to define a window with a fixed size of n frames in the past. The most naive way is to select these frames randomly without any criterion.
+
+ Another approach would be to select the past frames that are more likely to match with the current frame. One solution could be to give a higher priority to the oldest frames. This could be done by defining a probability density function that would result in a higher probability for the oldest frames. Another approach would also involve a knowledge of the context of the frames, in terms of features, or in terms of estimated position.
 
 \subsection{Example of graph optimization}
 In g2o there is a tool (g2oviewer) allowing the visualization of the graph.
