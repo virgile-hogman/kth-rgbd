@@ -17,14 +17,15 @@ The Visual SLAM process can be described as estimating the poses of the camera i
 \section{Thesis outline}
 The rest of the document is structured as follows:
 \begin{description}
-\item[Chapter 2] presents the Background and the underlying concepts that are most commonly used in this area.
-\item[Chapter 3] presents the Feature Matching and describe how a single 3D transformation can be computed  from a couple of frames by tracking some features.
-\item[Chapter 4] presents the Graph Optimization and how the camera poses can be estimated through the use of a pose graph.
-\item[Chapter 5] presents the Scene Reconstruction with examples of maps obtained from different datasets.
-\item[Chapter 6] presents the Future Works and the possible improvements.
+\item[Chapter \ref{chap:background}] presents the Background and the underlying concepts that are most commonly used in this area.
+\item[Chapter \ref{chap:features}] presents the Feature Matching and describe how a single 3D transformation can be computed  from a couple of frames by tracking some features.
+\item[Chapter \ref{chap:graph}] presents the Graph Optimization and how the camera poses can be estimated through the use of a pose graph.
+\item[Chapter \ref{chap:reconstruction}] presents the Scene Reconstruction with examples of maps obtained from different datasets.
+\item[Chapter \ref{chap:conclusion}] presents the Conclusion and the Future Works with some suggestions of possible improvements.
 \end{description}
 
 \chapter{Background}
+\label{chap:background}
 
 \section{Microsoft Kinect}
 
@@ -61,15 +62,27 @@ This is a method to detect distinctive, invariant image feature points, which ea
 
 Several libraries exist. For this work is used the library developed by Rob Hess \cite{hesssift}.
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/sift_matches_robhess}
+\caption{SIFT features matched between the two images}
+\end{figure}
+
 \subsection{SURF}
 SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor \cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. SURF is based on sums of approximated 2D Haar wavelet responses and makes an efficient use of integral images. (Wiki)
 
 \subsection{NARF}
 This method is presented in \cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library.
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/narf1}
+\caption{Example of NARF keypoints}
+\end{figure}
+
 \section{Matching}
 
-Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames.
+Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then raffinated to eliminate the most obvious mismatches. The good matches are called the \emph{inliers}, while the matches that are shown to be errated are called the \emph{outliers}.
 
 \subsection{RANSAC}
 The RANdom SAmple Consensus is an iterative method, where the main idea is to randomly select a minimal number of samples to determine a candidate transformation, evaluate it, and iterate with new samples by keeping the best transformation found. After running this for a fixed number of steps, the algorithm converges to a transformation with a lower error, but it does not necessarily find the best one, as all the possibilities have not been tested.
@@ -117,8 +130,25 @@ Here we present different approaches:
 In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the loop closure. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
 
 \chapter{Feature Matching}
+\label{chap:features}
 
 \section{Feature extraction}
+
+The first question is the choice of the features. In the context of Visual SLAM, the goal is to track some keypoints very precisely in order to compute the motion of the camera from the keypoint coordinates. For this, in addition to the scale and rotation invariance, one important condition that can be easily verified is to be stable if the camera does not move. 
+
+Here we tested the SIFT features from Rob Hess Library \cite{hesssift} and the NARF descriptor \cite{steder10irosws}. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
+The NARF keypoints showed to be unstable, while the camera was not moving.
+
+\begin{figure}[h]
+\centering$
+\begin{array}{cc}
+\includegraphics[width=0.4\textwidth]{figures/narf1} &
+\includegraphics[width=0.4\textwidth]{figures/narf2}
+\end{array}$
+\caption{Example of NARF keypoints}
+\end{figure}
+
+This could be explained by the noise of the depth data. For this reason, we continued with the SIFT feature.
 
 The extraction of the SIFT features is done on the 2D RGB image. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance.
 
@@ -130,7 +160,11 @@ Now that the features can be computed, it is possible to perform some feature ma
 The SIFT Library proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features.
 After his, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
-Example of frame matching: TODO
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.4\textwidth]{figures/sift_matching_init}
+\caption{Initial matching of SIFT features}
+\end{figure}
 
 \section{Compute the 3D transformation}
 
@@ -146,8 +180,8 @@ From the depth value, it is possible to compute the points coordinates in 3D, fr
 \(
 \begin{array}{l}
 x = depth \\
-y = (480/2 - y_{screen}) * depth / focalLength \\
-z = (x_{screen} - 640/2) * depth / focalLength \\
+y = (480/2 - y_{screen}) * depth / focal_length \\
+z = (x_{screen} - 640/2) * depth / focal_length \\
 \end{array}
 \)
 
@@ -162,13 +196,22 @@ evaluate transformation -> set of inliers
 store transformation if it is the best
 pickup k samples from this set of inliers
 compute new transformation from inliers
-evaluate transformation
+evaluate transformation inliers
 store transformation if it is the best
 \end{verbatim}
 
-To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving a linear equation. Here, this is done through the class $pcl::TransformationFromCorrespondences$ from the PCL library.
+To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class $pcl::TransformationFromCorrespondences$ from the PCL library.
 
 To evaluate a transformation, each sample taken from the initial matches (source) is then projected according to this transformation. A 3D vector is computed from the difference between the projected point and the real point taken from the matching point (destination). The error is the norm of this vector.
+
+\begin{figure}[h]
+\centering$
+\begin{array}{cc}
+\includegraphics[width=0.4\textwidth]{figures/sift_matching_init} &
+\includegraphics[width=0.4\textwidth]{figures/sift_matching_ransac}
+\end{array}$
+\caption{Matching of SIFT features - initial matching \& after a RANSAC loop}
+\end{figure}
 
 How to define the quality of transformation? There are at least 3 parameters:
 \begin{itemize}
@@ -188,6 +231,8 @@ Example of bad inliers:
 \end{figure}
 
 \chapter{Pose graph}
+\label{chap:graph}
+
 \section{Building the graph}
 
 From each single transformations, an estimation of the poses of the camera can be computed. Each pose is then inserted into the graph by translating the camera matrix into a graph node. g2o provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion.
@@ -231,6 +276,7 @@ Graph updated after 10 iterations.
 \clearpage
 
 \chapter{Scene reconstruction}
+\label{chap:reconstruction}
 
 Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. One simple method is to concatenate the corresponding point clouds, each of them being transformed with the relative camera position. This can be done with standard functions provided by the PCL Library. For the visualization, the standard viewer is used.
 
@@ -304,7 +350,8 @@ Map with 4 rooms, optimized with 4 loop closures.
 \caption{Birmingham}
 \end{figure}
 
-\chapter{Future Works}
+\chapter{Conclusions and Future Works}
+\label{chap:conclusion}
 
 This work gave a good insight into the general problem SLAM, and more specifically about Visual SLAM with feature extraction and matching.
 
