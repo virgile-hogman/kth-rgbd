@@ -39,8 +39,8 @@ using namespace std;
 // -----------------------------------------------------------------------------------------------------
 void evaluateTransform(
 		const Eigen::Matrix4f& transformation,
-        const std::vector<Eigen::Vector3f> &matchesOrig,
-        const std::vector<Eigen::Vector3f> &matchesDest,
+        const std::vector<Eigen::Vector3f> &matchesSource,
+        const std::vector<Eigen::Vector3f> &matchesTarget,
         double maxError,        
         std::vector<int> &inliers,
         double &meanError,
@@ -51,14 +51,14 @@ void evaluateTransform(
 	ratio = 0.0;
 
 	// for every matching point
-	for (unsigned int id = 0; id < matchesOrig.size(); id++)
+	for (unsigned int id = 0; id < matchesSource.size(); id++)
 	{
 		// vectors with homogeneous coordinates
-		Eigen::Vector4f orig(matchesOrig[id][0], matchesOrig[id][1], matchesOrig[id][2], 1.0);
-		Eigen::Vector4f dest(matchesDest[id][0], matchesDest[id][1], matchesDest[id][2], 1.0);
+		Eigen::Vector4f source(matchesSource[id][0], matchesSource[id][1], matchesSource[id][2], 1.0);
+		Eigen::Vector4f target(matchesTarget[id][0], matchesTarget[id][1], matchesTarget[id][2], 1.0);
 
 		// project the original point and compute the difference vector wrt the match
-		Eigen::Vector4f vectorDiff = (transformation * orig) - dest;
+		Eigen::Vector4f vectorDiff = (transformation * source) - target;
 
 		// compute the error
 		double error = vectorDiff.squaredNorm();
@@ -77,7 +77,7 @@ void evaluateTransform(
 	else
 		meanError = -1.0;
 
-	ratio = (float)inliers.size()/matchesOrig.size();
+	ratio = (float)inliers.size()/matchesSource.size();
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -168,8 +168,8 @@ bool findTransformRANSAC(
 		FrameData &frameData1,
 		FrameData &frameData2,
 		vector<int> &indexMatches,
-		vector<Eigen::Vector3f>	&matchesOrig,
-		vector<Eigen::Vector3f>	&matchesDest,
+		vector<Eigen::Vector3f>	&matchesSource,
+		vector<Eigen::Vector3f>	&matchesTarget,
 		Transformation &resultTransform,
 		bool forLoopClosure)
 {
@@ -194,7 +194,7 @@ bool findTransformRANSAC(
 		for (int i=0; i<3; i++)
 		{
 			int id_match = rand() % nbValidMatches;
-			tfc.add(matchesOrig[id_match], matchesDest[id_match]);
+			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
 		}
 
 		/* alternative method for choosing the 3 initial pairs
@@ -208,15 +208,15 @@ bool findTransformRANSAC(
 			}
 			// select 1 random point from area1
 			id_match = indexArea1[rand() % indexArea1.size()];
-			tfc.add(matchesOrig[id_match], matchesDest[id_match]);
+			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
 			initialPairs.push_back(indexMatches[id_match]);
 			// select 1 random point from area2
 			id_match = indexArea2[rand() % indexArea2.size()];
-			tfc.add(matchesOrig[id_match], matchesDest[id_match]);
+			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
 			initialPairs.push_back(indexMatches[id_match]);
 			// select 1 random point from area3
 			id_match = indexArea3[rand() % indexArea3.size()];
-			tfc.add(matchesOrig[id_match], matchesDest[id_match]);
+			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
 			initialPairs.push_back(indexMatches[id_match]);
 		}*/
 
@@ -230,8 +230,8 @@ bool findTransformRANSAC(
 		float ratio;
 
 		evaluateTransform(transformation,
-			matchesOrig,
-			matchesDest,
+			matchesSource,
+			matchesTarget,
 			maxInlierDistance * maxInlierDistance,
 			indexInliers,
 			meanError,
@@ -263,14 +263,14 @@ bool findTransformRANSAC(
 		tfc.reset();
 		for (int idInlier = 0; idInlier < indexInliers.size(); idInlier++) {
 			int idMatch  = indexInliers[idInlier];
-			tfc.add(matchesOrig[idMatch], matchesDest[idMatch]);
+			tfc.add(matchesSource[idMatch], matchesTarget[idMatch]);
 		}
 		// compute transformation from inliers
 		transformation = tfc.getTransformation().matrix();
 
 		evaluateTransform(transformation,
-				matchesOrig,
-				matchesDest,
+				matchesSource,
+				matchesTarget,
 				maxInlierDistance * maxInlierDistance,
 				indexInliers,
 				meanError,
@@ -302,12 +302,39 @@ bool findTransformRANSAC(
 		std::cout << "\terror="<< bestError << std::endl;
 		//std::cout << bestTransformationMat << std::endl;
 
+		// compute mean vector
+		Eigen::Vector3f meanVector(0,0,0);
+		for (int i=0; i<indexBestInliers.size(); i++)
+		{
+			int id = indexBestInliers[i];
+			meanVector[0]+=matchesTarget[id][0];
+			meanVector[1]+=matchesTarget[id][1];
+			meanVector[2]+=matchesTarget[id][2];
+		}
+		meanVector[0]/=indexBestInliers.size();
+		meanVector[1]/=indexBestInliers.size();
+		meanVector[2]/=indexBestInliers.size();
+		// compute variances
+		float variance3d=0;
+		float variance2d=0;
+		for (int i=0; i<indexBestInliers.size(); i++)
+		{
+			int id = indexBestInliers[i];
+			Eigen::Vector3f diff = meanVector - Eigen::Vector3f(matchesTarget[id][0],matchesTarget[id][1],matchesTarget[id][2]);
+			variance3d += diff.squaredNorm();
+			// set z diff to zero
+			diff[0] = 0;
+			variance2d += diff.squaredNorm();
+		}
+
+		// stats
 		char buf[256];
 		sprintf(buf, "%s/stats.log", Config::_ResultDirectory.c_str());
 		std::ofstream fileStats(buf, ios_base::app);
 		fileStats << frameData1.getFrameID() << "-" << frameData2.getFrameID();
 		fileStats << "\t" << indexBestInliers.size() << "\t" << nbValidMatches;
-		fileStats << "\t" << indexBestInliers.size()*100/nbValidMatches << "\n";
+		fileStats << "\t" << indexBestInliers.size()*100/nbValidMatches;
+		fileStats << "\t" << variance2d << "\t" << variance3d << "\n"  ;
 
 		validTransformation = true;
 		resultTransform._matrix = bestTransformationMat;
@@ -333,8 +360,8 @@ void kdSearchFeatureMatches(
 		FrameData &frameData1,
 		FrameData &frameData2,
 		vector<int> &indexMatches,
-		vector<Eigen::Vector3f>	&matchesOrig,
-		vector<Eigen::Vector3f>	&matchesDest,
+		vector<Eigen::Vector3f>	&matchesSource,
+		vector<Eigen::Vector3f>	&matchesTarget,
 		bool forLoopClosure)
 {
 	Timer tm;
@@ -358,8 +385,8 @@ void kdSearchFeatureMatches(
 	//vector<int>	indexArea1, indexArea2, indexArea3;
 
 	indexMatches.clear();
-	matchesOrig.clear();
-	matchesDest.clear();
+	matchesSource.clear();
+	matchesTarget.clear();
 
 	if (Config::_MatchingSaveImageInitialPairs)
 	{
@@ -428,8 +455,8 @@ void kdSearchFeatureMatches(
 					Eigen::Vector3f orig(x1,y1,z1);
 					Eigen::Vector3f dest(x2,y2,z2);
 					
-					matchesOrig.push_back(orig);
-					matchesDest.push_back(dest);
+					matchesSource.push_back(orig);
+					matchesTarget.push_back(dest);
 					
 					/* alternative method
 					if (feat1->x < 210)
@@ -503,8 +530,8 @@ bool computeTransformation(
 	Timer tm;
 
 	vector<int> indexMatches;
-	vector<Eigen::Vector3f>	matchesOrig;
-	vector<Eigen::Vector3f>	matchesDest;
+	vector<Eigen::Vector3f>	matchesSource;
+	vector<Eigen::Vector3f>	matchesTarget;
 	bool validTransform = false;
 
 	int nbValidMatches = indexMatches.size();
@@ -562,8 +589,8 @@ bool computeTransformation(
 		frameData1,
 		frameData2,
 		indexMatches,
-		matchesOrig,
-		matchesDest,
+		matchesSource,
+		matchesTarget,
 		forLoopClosure);
 
 	// ---------------------------------------------------------------------------
@@ -575,8 +602,8 @@ bool computeTransformation(
 				frameData1,
 				frameData2,
 				indexMatches,
-				matchesOrig,
-				matchesDest,
+				matchesSource,
+				matchesTarget,
 				resultingTransform,
 				forLoopClosure);
 	}
