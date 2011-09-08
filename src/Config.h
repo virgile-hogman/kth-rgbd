@@ -25,6 +25,7 @@ public:
 	static int				_MatchingMinNbInlier;
 	static float			_MatchingMinRatioInlier;
 	static float			_MatchingMaxDistanceInlier;
+	static bool				_MatchingRunICP;
 
 	// mapping
 	static float			_MapNodeDistance;

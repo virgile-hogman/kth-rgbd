@@ -16,6 +16,7 @@ int			Config::_MatchingNbIterations = 20;
 int			Config::_MatchingMinNbInlier = 10;
 float		Config::_MatchingMinRatioInlier = 0.3;
 float		Config::_MatchingMaxDistanceInlier = 0.05;
+bool		Config::_MatchingRunICP = false;
 
 float		Config::_MapNodeDistance = 0.1;
 float		Config::_MapNodeAngle = 5.0;
@@ -49,6 +50,7 @@ void Config::LoadConfig(std::string filename)
 	Config::_MatchingMinNbInlier = config.read<int>("MatchingMinNbInlier", 10);
 	Config::_MatchingMinRatioInlier = config.read<float>("MatchingMinRatioInlier", 0.3);
 	Config::_MatchingMaxDistanceInlier = config.read<float>("MatchingMaxDistanceInlier", 0.05);
+	Config::_MatchingRunICP = config.read<bool>("MatchingRunICP",false);
 
 	Config::_MapNodeDistance = config.read<float>("MapNodeDistance", 0.1);
 	Config::_MapNodeAngle = config.read<float>("MapNodeAngle", 5.0);

@@ -1,5 +1,5 @@
-#ifndef TIMER_H
-#define TIMER_H
+#ifndef TIME_TRACKER_H
+#define TIME_TRACKER_H
 
 // -----------------------------------------------------------------------------------------------------
 //  TimeTracker for performance tracker
@@ -7,13 +7,12 @@
 #include <cstdlib>
 #include <sys/time.h>
 
-class Timer
+class TimeTracker
 {
 private:
 	timeval timer[2];
 
 public:
-
 	timeval start()
 	{
 		gettimeofday(&this->timer[0], NULL);

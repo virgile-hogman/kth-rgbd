@@ -3,7 +3,7 @@
 
 #include "CommonTypes.h"
 
-#include "cv.h"
+#include "opencv/cv.h"
 
 extern "C" {
 #include "sift.h"
@@ -26,11 +26,11 @@ public:
 	~FrameData();
 	
 	// basic public accessors
-	int getFrameID()									{ return _frameID; }
+	int getFrameID() const								{ return _frameID; }
 	IplImage* getImage()								{ return _pImage; }
 	TDepthPixel* getDepthData()							{ return _depthData; }
 	struct feature* getFeatures()						{ return _pFeatures; }
-	int getNbFeatures()									{ return _nbFeatures; }
+	int getNbFeatures()	const							{ return _nbFeatures; }
 	
 	// get feature
 	const struct feature* getFeature(int i)				{ return &_pFeatures[i]; }
@@ -59,7 +59,7 @@ public:
 	
 	bool loadImage(int frameID);
 	
-	bool isLoaded(int frameID);
+	bool isLoaded(int frameID) const;
 
 	bool loadDepthData();
 

@@ -1,9 +1,11 @@
 #include <Eigen/Geometry>
+
+// PCL includes
 #include "pcl/common/transformation_from_correspondences.h"
 
 // Open CV
-#include "cv.h"
-#include "highgui.h"
+#include "opencv/cv.h"
+#include "opencv/highgui.h"
 
 extern "C" {
 #include "sift.h"
@@ -18,7 +20,8 @@ extern "C" {
 #include "CommonTypes.h"
 #include "FrameData.h"
 #include "Matching.h"
-#include "Timer.h"
+#include "TimeTracker.h"
+#include "PointCloud.h"
 
 #include <iostream>
 #include <vector>
@@ -32,7 +35,6 @@ using namespace std;
 #define NN_SQ_DIST_RATIO_THR		0.49
 // relative difference of depth for a valid match (higher -> more tolerant)
 #define MATCH_RELATIVE_DEPTH		0.1
-
 
 // -----------------------------------------------------------------------------------------------------
 //  evaluateTransform
@@ -322,10 +324,12 @@ bool findTransformRANSAC(
 			int id = indexBestInliers[i];
 			Eigen::Vector3f diff = meanVector - Eigen::Vector3f(matchesTarget[id][0],matchesTarget[id][1],matchesTarget[id][2]);
 			variance3d += diff.squaredNorm();
-			// set z diff to zero
+			// set x diff to zero to ignore depth
 			diff[0] = 0;
 			variance2d += diff.squaredNorm();
 		}
+		variance3d/=indexBestInliers.size();
+		variance2d/=indexBestInliers.size();
 
 		// stats
 		char buf[256];
@@ -364,7 +368,7 @@ void kdSearchFeatureMatches(
 		vector<Eigen::Vector3f>	&matchesTarget,
 		bool forLoopClosure)
 {
-	Timer tm;
+	TimeTracker tm;
 	struct feature** neighbourFeatures = NULL;	// SIFT feature
 	struct feature* feat;
 	struct kd_node* kdRoot;
@@ -527,7 +531,7 @@ bool computeTransformation(
 		Transformation &resultingTransform,
 		bool forLoopClosure)
 {
-	Timer tm;
+	TimeTracker tm;
 
 	vector<int> indexMatches;
 	vector<Eigen::Vector3f>	matchesSource;
@@ -593,11 +597,10 @@ bool computeTransformation(
 		matchesTarget,
 		forLoopClosure);
 
-	// ---------------------------------------------------------------------------
-	//  find transformation through RANSAC iterations 
-	// ---------------------------------------------------------------------------
-	if (indexMatches.size()>3)
-	{
+	if (indexMatches.size()>3) {
+		// ---------------------------------------------------------------------------
+		//  find transformation with RANSAC iterations
+		// ---------------------------------------------------------------------------
 		validTransform = findTransformRANSAC(
 				frameData1,
 				frameData2,
@@ -606,6 +609,21 @@ bool computeTransformation(
 				matchesTarget,
 				resultingTransform,
 				forLoopClosure);
+
+		// ---------------------------------------------------------------------------
+		//  refine transformation with ICP
+		// ---------------------------------------------------------------------------
+		if (validTransform && Config::_MatchingRunICP) {
+			Eigen::Matrix4f icpTransform;
+			// initial guess
+			icpTransform = resultingTransform._matrix;
+			// before ICP
+			cout << resultingTransform._matrix << "\n";
+			if (PointCloud::getTransformICP(frameData1, frameData2, icpTransform)) 	{
+				// update the transformation
+				resultingTransform._matrix= icpTransform;
+			}
+		}
 	}
 
 	return validTransform;

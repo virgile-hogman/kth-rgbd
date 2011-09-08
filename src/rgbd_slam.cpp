@@ -4,6 +4,7 @@
 #include "CameraDevice.h"
 #include "FrameData.h"
 #include "Map.h"
+#include "TimeTracker.h"
 
 // standard
 #include <iostream>
@@ -57,6 +58,7 @@ void loadSequence(const char *dataDirectory, int min, int max, vector<int> &sequ
 void recordSequence(Map &map)
 {
 	CameraDevice cameraKinect;
+	TimeTracker tm;
 
     if (cameraKinect.connect())
     {
@@ -64,6 +66,8 @@ void recordSequence(Map &map)
     	Transformation transform;
 
         boost::filesystem::create_directories(Config::_ResultDirectory);
+
+        tm.start();
 
     	// generate 1st frame
         if (cameraKinect.generateFrame(frameID))
@@ -87,6 +91,9 @@ void recordSequence(Map &map)
 					frameID++;
 			}
 
+			tm.stop();
+			printf("Acquisition and matching duration time: %d(ms)\n", tm.duration());
+
 	    	// build map
 			if (!cameraKinect.aborted())
 				map.build();
@@ -105,6 +112,7 @@ int main(int argc, char** argv)
 {
 	vector<int> sequenceFramesID;
 	Map map;
+	TimeTracker tm;
     
 	if (argc<1)
 	{
@@ -172,7 +180,10 @@ int main(int argc, char** argv)
 		
     	// build map 
         map.initSequence();
+        tm.start();
     	map.addSequence(sequenceFramesID);
+    	tm.stop();
+		printf("Matching duration time: %d(ms)\n", tm.duration());
     	map.build();
 	}
     // ---------------------------------------------------------------------------------------------------
