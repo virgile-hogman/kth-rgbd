@@ -15,6 +15,7 @@ The goal of this work is to build a 3D map from RGB \& depth information provide
 The Visual SLAM process can be described as estimating the poses of the camera in order to reconstruct the entire environment while the camera is moving. As the sensor noise lead to deviations in the estimations of each camera poses with respect to the the real motion, the goal is to build a 3D map which is close to the real environment as much as possible.
 
 \section{Thesis outline}
+
 The rest of the document is structured as follows:
 \begin{description}
 \item[Chapter \ref{chap:background}] presents the Background and the underlying concepts that are most commonly used in this area.
@@ -41,10 +42,12 @@ Kinect characteristics:
 \begin{itemize}
 \item The field of view is 57\textdegree horizontal 43\textdegree vertical, with a tilt range of $\pm$ 27\textdegree.
 \item The RGB sensor is a regular camera that streams video with 8 bits for every color channel, giving a 24-bit color depth. Its color filter array is a Bayer filter mosaic. The color resolution is 640x480 pixels and a maximal frame rate of 30 Hz.
-\item The depth sensing system is composed by an IR emitter and a standard CMOS Sensor. The IR light source projects structured light, which is then captured by the CMOS image sensor, and decoded to produce the depth image of the scene. It has an operation range between 0.7 and 6 meters, although best results are obtained in the range that goes from 1.2 to 3.5 meters. Its data output has 12-bit depth. The depth sensor resolution is 320x240 pixels with a rate of 30Hz.
+\item The depth sensing system is composed by an IR emitter projecting structured light, which is captured by the CMOS image sensor, and decoded to produce the depth image of the scene. It has an operation range between 0.7 and 6 meters, although best results are obtained in the range that goes from 1.2 to 3.5 meters. Its data output has 12-bit depth. The depth sensor resolution is 320x240 pixels with a rate of 30Hz.
 \end{itemize}
 
 The drivers used are those developed by OpenNI (Open Natural Interface). OpenNI is an organization composed by PrimeSense Willow Garage, Side-Kick, ASUS.
+
+The main convenience with these drivers is that the calibration of the RGB sensor with respect to the IR sensor is ensured so the resulting RGB and depth data are correctly mapped with respect to a unique viewpoint.
 
 
 \section{Features}
@@ -57,10 +60,11 @@ An approach widely used in computer vision, especially in object recognition, is
 \end{description}
 
 \subsection{SIFT}
-The method presented by David Lowe \cite{lowe_2004_sift} is probably the most common in robotics and computer vision.
+
+The method presented by David Lowe~\cite{lowe_2004_sift} is probably the most common in robotics and computer vision.
 This is a method to detect distinctive, invariant image feature points, which easily can be matched between images to perform tasks such as object detection and recognition, or to compute geometrical transformations between images.
 
-Several libraries exist. For this work is used the library developed by Rob Hess \cite{hess_sift}.
+Several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}.
 
 \begin{figure}[h]
 \centering
@@ -69,10 +73,12 @@ Several libraries exist. For this work is used the library developed by Rob Hess
 \end{figure}
 
 \subsection{SURF}
-SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor \cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. SURF is based on sums of approximated 2D Haar wavelet responses and makes an efficient use of integral images. (Wiki)
+
+SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. SURF is based on sums of approximated 2D Haar wavelet responses and makes an efficient use of integral images. (Wiki)
 
 \subsection{NARF}
-This method is presented in \cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library \cite{Rusu_ICRA2011_PCL}.
+
+This method is presented in~\cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}.
 
 \begin{figure}[h]
 \centering
@@ -85,6 +91,7 @@ This method is presented in \cite{steder10irosws}. The NARF descriptors are part
 Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then raffinated to eliminate the most obvious mismatches. The good matches are called the \emph{inliers}, while the matches that are shown to be errated are called the \emph{outliers}.
 
 \subsection{RANSAC}
+
 The RANdom SAmple Consensus is an iterative method, where the main idea is to randomly select a minimal number of samples to determine a candidate transformation, evaluate it, and iterate with new samples by keeping the best transformation found. After running this for a fixed number of steps, the algorithm converges to a transformation with a lower error, but it does not necessarily find the best one, as all the possibilities have not been tested.
 
 \begin{verbatim}
@@ -97,22 +104,23 @@ Keep the best hypothesis with respect to the the mean error (lowest is best).
 \end{verbatim}
 
 \subsection{ICP}
-Iterative Closest Point.
+
+The Iterative Closest Point is an algorithm presented by Zhang~\cite{zhang_92_icp}.
 It iteratively revises the transformation (translation, rotation) needed to minimize the distance between the points of two raw scans.
 
 Finds the rigid transformation minimizing the squared distance between each neighboring pairs $(p_{i}, p'_{i})$.
 
-$min \sum_{i}{||(Rp_{i}+t)-p'_{i}||}^2$
+\[min \sum_{i}{||(Rp_{i}+t)-p'_{i}||}^2\]
 
-As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Intel Labs~\cite{Intel_RGBD_2010}, is to run RANSAC before, to determine the first guess for the ICP procedure.
+As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Intel Labs~\cite{Intel_RGBD_2010}, is to run RANSAC first to determine a good approximation of the rigid transformation, and use it as the first guess for the ICP procedure.
 
 \section{SLAM}
 
-As described in the introduction, the SLAM problem can be defined as looking for the best estimation of the robot/camera poses, by reducing the uncertainty due to the noise affecting the measurements. This leads to use the probabilistic approach widely described in the litterature such as \cite{Thrun_2005}.
+As described in the introduction, the SLAM problem can be defined as looking for the best estimation of the robot/camera poses, by reducing the uncertainty due to the noise affecting the measurements. This leads to use the probabilistic approach widely described in the litterature such as~\cite{Thrun_2005}.
 
 By denoting $x_t$ the state, $u_t$ a measurement, and $z_t$ the state at time t, the belief over the state variable $x_t$ is given by:
 
-$bel(x_t) = p(x_t | z_{1:t}, u_{1:t})$
+\[bel(x_t) = p(x_t | z_{1:t}, u_{1:t})\]
 
 \subsection{Filtering vs Smoothing}
 
@@ -132,11 +140,12 @@ Here we present different approaches:
 \begin{description}
 \item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background.
 \item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error.
-\item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps.
-\item[g2o] General Framework for Graph Optimization \cite{g2o_2011}, by the same authors of HOG-Man\cite{hogman_2010}. g2o is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D SLAM or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in g2o. This is the method chosen to solve the graph problem in this work.
+\item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping~\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps.
+\item[g2o] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. g2o is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D SLAM or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in g2o. This is the method chosen to solve the graph problem in this work.
 \end{description}
 
 \subsection{Loop closure}
+
 In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure}. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
 
 \chapter{Feature Matching}
@@ -146,7 +155,7 @@ In order to minimize the error, the graph optimization relies on constraints bet
 
 The first question is the choice of the features. In the context of Visual SLAM, the goal is to track some keypoints precisely in order to compute the motion of the camera from the keypoint coordinates. For this, in addition to the scale and rotation invariance, one important condition that can be easily verified is to be stable if the camera does not move. 
 
-Here we tested the SIFT features from Rob Hess Library \cite{hess_sift} and the NARF descriptor \cite{steder10irosws}. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
+Here we tested the SIFT features from Rob Hess Library~\cite{hess_sift} and the NARF descriptor~\cite{steder10irosws}. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
 The NARF keypoints showed to be unstable, while the camera was not moving.
 
 \begin{figure}[h]
@@ -162,12 +171,12 @@ This could be explained by the noise of the depth data. For this reason, we cont
 
 The extraction of the SIFT features is done on the 2D RGB image. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 6 meters is used.
 
-Practically, there are many parameters to define how the SIFT features are extracted. Here, the default parameters of the SIFT library \cite{hess_sift} are used.
+Practically, there are many parameters to define how the SIFT features are extracted. Here, the default parameters of the SIFT library~\cite{hess_sift} are used.
 
 \section{Initial Matching}
 
 Now that the features can be computed, it is possible to perform some feature matching between a couple of frames, to get the initial matches. This is done through a nearest neighbour search, using the euclidian distance of these features.  
-The SIFT Library \cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features.
+The SIFT Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features.
 After his, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
 \begin{figure}[h]
@@ -214,20 +223,20 @@ evaluate transformation inliers
 store transformation if it is the best
 \end{verbatim}
 
-To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class $pcl::TransformationFromCorrespondences$ from the PCL library \cite{Rusu_ICRA2011_PCL}.
+To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class \emph{pcl::TransformationFromCorrespondences} from the PCL library~\cite{Rusu_ICRA2011_PCL}.
 
 To evaluate a transformation, each sample taken from the initial matches (source) is then projected according to this transformation. A 3D vector is computed from the difference between the projected point and the real point taken from the matching point (destination). The error is the norm of this vector.
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering$
 \begin{array}{cc}
 \includegraphics[width=0.4\textwidth]{figures/sift_matching_init} &
 \includegraphics[width=0.4\textwidth]{figures/sift_matching_ransac}
 \end{array}$
-\caption{Matching of SIFT features - initial matching \& after a RANSAC loop}
+\caption{Matching of SIFT features - initial matching \& after a RANSAC loop. Note how the initial matches drawn in diagonal in the left figure are excluded and become outliers after the RANSAC loop.}
 \end{figure}
 
-How to define the quality of transformation? There are at least 3 parameters:
+How to characterize a transformation? There are at least 3 parameters:
 \begin{itemize}
 \item Mean error: the norm of the error vector. Lower is better.
 \item Number of inliers: the absolute number of inliers. Higher is better.
@@ -236,13 +245,48 @@ How to define the quality of transformation? There are at least 3 parameters:
 
 The main difficulty here is to find the best balance among these 3 values, by putting some thresholds. Setting to high constraints would lead to the impossibility to find a transformation satisfying all the criterions. This can be a problem when there are not enough features available. Setting too low constraints helps to find a transformation even when there are less features or the measurements are noisy, but the resulting transformation will be less precise. The main risk here is to put so loose constraints that the inliers can be wrong.
 
-Example of bad inliers:
+If the criterions are too permissive, this could result in an incorrect assocations.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.6\textwidth]{figures/bad_inliers1}
-\caption{Bad inliers}
+\caption{Example of bad inliers - the matching are totally incorrect}
 \end{figure}
+
+\clearpage
+
+How to measure the quality of a transformation?
+
+A good transformation could be the one who is valid for most of the given points. But this definition is not enough, as considering only the number of inliers is not necessarily the best choice. Another criterion could be the spread of the inliers. If the inliers are all group together, they don't give much added value with respect to the global transformation of the scene. Many outliers are excluded but a better transformation may be found englobing more distant points. This could be measured by computing the mean of the inliers and from this the standard deviation, or more simply the variance of the inliers.
+
+Let N be the number of inliers and $p_i$ be the i-th inlier vector. We can then compute the mean vector $\mu$ and the variance $\sigma^2$ with their standard definitions:
+\[
+\mu = \frac{1}{N} \sum_{i=1}^N{p_i}
+\]
+\[
+\sigma^2 = \frac{1}{N} \sum_{i=1}^N{(p_i - \mu)^2}
+\]
+
+\begin{figure}[h]
+\centering$
+\begin{array}{cccc}
+\includegraphics[width=0.3\textwidth]{figures/bad_transform1} &
+\includegraphics[width=0.3\textwidth]{figures/bad_transform2} &
+\includegraphics[width=0.3\textwidth]{figures/bad_transform3}
+\end{array}$
+\caption{Sequence showing different distributions of the inliers. Note how the inliers are grouped in the picture 2.}
+\end{figure}
+
+The corresponding values can be used to measure and detect this kind of situations.
+
+\begin{tabular}{ccll}
+inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
+\hline
+93/114 &	81\% &	0.345409 &	1.2232\\
+34/119 &	28\% &	0.0203726 &	0.0519737\\
+91/135 &	67\% &	0.476902 &	1.42809\\
+%90/140 &	64\% &	0.682466 &	1.56629\\
+\end{tabular}
 
 \chapter{Pose graph}
 \label{chap:graph}
@@ -294,11 +338,11 @@ In g2o there is a tool (g2oviewer) allowing the visualization of the graph.
 \chapter{Scene reconstruction}
 \label{chap:reconstruction}
 
-Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. One simple method is to concatenate the corresponding point clouds, each of them being transformed with the relative camera position. This can be done with standard functions provided by the PCL Library \cite{Rusu_ICRA2011_PCL}. For the visualization, the standard viewer is used.
+Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. One simple method is to concatenate the corresponding point clouds, each of them being transformed with the relative camera position. This can be done with standard functions provided by the PCL Library~\cite{Rusu_ICRA2011_PCL}. For the visualization, the standard viewer is used.
 
 For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. For this, each of the point clouds are first subsampled with a fixed ratio. Generally, only one output file is produced but this could still lead to a big file in case of a large map. A high rate of subsampling would give a map of low quality. By setting a threshold for the final point cloud, it is splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. This allows to keep a low subsampling rate, and to visualize a portion of the global scene with a better definition.
 
-Of course, this method is not optimal, as this leads to duplicate points, and does not take variances of illumination into account. Another solution would be to use some surfels \cite{Intel_RGBD_2010} but this would require some intensive processing and is out of the scope of this work.
+Of course, this method is not optimal, as this leads to duplicate points, and does not take variances of illumination into account. Another solution would be to use some surfels~\cite{Intel_RGBD_2010} but this would require some intensive processing and is out of the scope of this work.
 
 The maps obtained from different datasets are shown. The first section presents the results with data from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The next section shows the results obtained with data from other universities.
 
@@ -381,7 +425,7 @@ Given the big picture, it is now possible to imagine some improvements of the cu
 
 Currently, most of the time is passed on the feature extraction. Remaining very close to the given method, the overall performance would significantly be improved by lowering the time spent for this step. This could be done through the use of new features:
 \begin{itemize}
-\item SURF: these features would probably give a result close to the SIFT features, with a lower computational time, such as done in the RGBD-6D-SLAM project \cite{engelhard11euron-workshop}. However, this would imply to rewrite the matching code (the nearest neighbour based on the kd-tree was provided by the SIFT library \cite{hess_sift}).
+\item SURF: these features would probably give a result close to the SIFT features, with a lower computational time, such as done in the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop}. However, this would imply to rewrite the matching code (the nearest neighbour based on the kd-tree was provided by the SIFT library~\cite{hess_sift}).
 \item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
 \end{itemize}
 
@@ -417,9 +461,9 @@ Here are the main dependencies:
 \begin{itemize}
 \item OpenNI: to acquire the Kinect data
 \item Eigen3: for the geometric support with transformations and matrices
-\item SIFT Library by Rob Hess \cite{hess_sift}: for the SIFT extraction and initial matching
+\item SIFT Library by Rob Hess~\cite{hess_sift}: for the SIFT extraction and initial matching
 \item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching)
-\item Point Cloud Libary \cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to Point Cloud Datafiles (*.pcd)
+\item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to Point Cloud Datafiles (*.pcd)
 \item Boost: support library especially for the filesystem access
 \item ConfigFile: open source class to easily define configuration files
 \end{itemize}
