@@ -3,7 +3,7 @@
 #include "Config.h"
 
 // Open CV
-#include "highgui.h"
+#include "opencv/highgui.h"
 
 // standard
 #include <vector>
@@ -83,7 +83,7 @@ bool FrameData::loadImage(int frameID)
 	return (_pImage != NULL);
 }
 
-bool FrameData::isLoaded(int frameID)
+bool FrameData::isLoaded(int frameID) const
 {
 	// check only if RGB data is available here
 	return (_frameID == frameID && _pImage != NULL);
