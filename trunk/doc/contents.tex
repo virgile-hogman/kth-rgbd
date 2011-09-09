@@ -61,10 +61,19 @@ An approach widely used in computer vision, especially in object recognition, is
 
 \subsection{SIFT}
 
-The method presented by David Lowe~\cite{lowe_2004_sift} is probably the most common in robotics and computer vision.
+The method presented by David Lowe~\cite{lowe_2004_sift} which is widely used in robotics and computer vision.
 This is a method to detect distinctive, invariant image feature points, which easily can be matched between images to perform tasks such as object detection and recognition, or to compute geometrical transformations between images.
 
-Several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}.
+The main idea of the SIFT method is to define a cascade of operations following an increasing complexity, so that the most expensive operations are only performed to the most probable candidates.
+\begin{enumerate}
+\item The first step relies on a pyramid of difference-of-Gaussian in order to be invariant to scale and orientation.
+\item From this, keypoints are determined with a more detailed model.
+\item The image gradient directions is then used to assign one or more orientations to the keypoints.
+\item The local image gradients are then transformed to be stable against distortion and changes in illumination.
+\end{enumerate}
+One of the main interest is to be able to perform fast searches on the features in order to identify candidate matching. Refer to the method described in~\cite{lowe_2004_sift} for further details.
+
+Concerning the implementation, several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a kd-tree search function to perform the initial matching. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
 
 \begin{figure}[h]
 \centering
@@ -88,9 +97,10 @@ This method is presented in~\cite{steder10irosws}. The NARF descriptors are part
 
 \section{Matching}
 
-Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then raffinated to eliminate the most obvious mismatches. The good matches are called the \emph{inliers}, while the matches that are shown to be errated are called the \emph{outliers}.
+Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then refined to eliminate the most obvious mismatches. The good matches are called the \emph{inliers}, while the matches that are shown to be errated are called the \emph{outliers}.
 
 \subsection{RANSAC}
+\label{sub:ransac}
 
 The RANdom SAmple Consensus is an iterative method, where the main idea is to randomly select a minimal number of samples to determine a candidate transformation, evaluate it, and iterate with new samples by keeping the best transformation found. After running this for a fixed number of steps, the algorithm converges to a transformation with a lower error, but it does not necessarily find the best one, as all the possibilities have not been tested.
 
@@ -130,7 +140,7 @@ The major drawback of these techniques is the computational cost. As the robot m
 
 Conversely, smoothing approaches estimate the full trajectory of the robot from the full set of measurements. These approaches address the so-called full SLAM problem, and they typically rely on least-square error minimization techniques.
 
-Recently, the performance of the graph optimization has been dramatically improved. In this work, we will therefore study the results that can be obtained from a graph-based approach.
+Recently, the performance of the graph optimization has been dramatically improved. In this work, we will therefore study the results that can be obtained from a graph-based approach. But, in opposition to the online techniques, the pose graph is said to be offline or a "lazy" technique as the optimization processing triggered by specific constraints.
 
 \subsection{Pose Graph}
 
@@ -147,6 +157,12 @@ Here we present different approaches:
 \subsection{Loop closure}
 
 In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure}. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
+
+\section{Summary}
+
+This chapter gives an overview of some of the main concepts used for SLAM and more specifically Visual SLAM, defining the main lines of a possible approach to solve the problem. The features allow to track some points of interest and can be used to evaluate a unitary move from a couple of frames. By combining them together an estimation of the camera could be estimated. With the use of a pose graph, and after detecting loop closures, the graph could be optimized in order to reduce the global drift error. From the corrected camera poses, a map can then be built. 
+
+While the performance is not the main issue of this work, it is still possible to make a distinction between the operations that can be performed \emph{online} (while the robot is moving) and the operations done \emph{offline} (after a given sequence of moves). While the SLAM adresses both Localization and Mapping, it seems clear that as long as the solution based on the graph implies the detection of loop closures to give a correct result, the dual problem of building the map and localizating the robot at the same time is realistically meant to be done \emph{offline}. This is one of the main constraint resulting of this approach. However, once the map is built, the single operation of localization could be done on the basis of the relevant features that have been used during the initial SLAM operation. So we can foresee that this kind of approach should allow the robot to build a map as a first step, only for this purpose. Once the map is built, the localization and further operations could be done but this mainly depends on the tasks the robot has to fulfill.
 
 \chapter{Feature Matching}
 \label{chap:features}
@@ -291,15 +307,45 @@ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
 \chapter{Pose graph}
 \label{chap:graph}
 
+In the previous chapter, we saw how to determine a rigid transformation between a couple of frames. From each single transformation, an estimation of the poses of the camera can be computed. Now we can combine them to follow a sequence of frames. Each pose is then inserted into the graph by translating the camera matrix into a graph node. From the loop closures, new constraints can be inserted in the graph. The graph can then be optimized to globally reduce the error, and the poses updated according to the new vertices given by the graph after optimization.
+
 FIGURE WITH A GENERAL OVERVIEW: 
 pose estimations + transformations -> nodes + constraints
 loop closure -> constraints
 optimize
 extract updated poses
 
+\section{Estimating the poses}
+
+Knowing the initial pose, the first step is to determine an estimation of any pose after a succession of transformations.
+
+Considering a finite sequence of frames $[frame_0 ; frame_N]$, let~$P_k$ be the pose at rank $k \in [0;N]$, defined by a 4x4 matrix with homogeneous coordinates. For~$i>0$, we have the transformation~$T_{i_{-1},i}$ that binds the position~$P_{i-1}$ to the position~$P_i$. If~$P_0$ determines the initial position, we can then compute the position~$P_i$  by combining all the transformations like:
+
+\begin{equation}
+P_k = \prod_{i=k}^1{T_{i_{-1},i}} \: P_0
+\label{eqn:pose_estimation}
+\end{equation}
+
+Note that, as the matrix product is not commutative, it is essential to follow the correct order when multiplying the matrices. For example, for the pose~$P_3$ we would have:
+
+\[
+P_3 = T_{2,3} \: T_{1,2} \: T_{0,1} \: P_0
+\]
+
+As an arbitrary choice, we can define the initial position to be at the origin of the coordinate system, ie the identity matrix~$I_4$.
+
+\[
+P_0 = I_4 = \left[ \begin{array}{cccc}
+1 & 0 & 0 & 0 \\
+0 & 1 & 0 & 0 \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1 \end{array} \right] 
+\]
+
 \section{Building the graph}
 
-From each single transformations, an estimation of the poses of the camera can be computed. Each pose is then inserted into the graph by translating the camera matrix into a graph node. g2o provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion.
+The equation \ref{eqn:pose_estimation} gives an estimation of the pose that can be inserted into the g2o graph.
+g2o provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion.
 
 \section{Solving the graph}
 
@@ -348,27 +394,28 @@ The maps obtained from different datasets are shown. The first section presents 
 
 \section{Map CVAP (KTH)}
 
-\subsection{1 room initial}
-Map with 1 room without loop closure (no graph optimization). Note how the chair and a portion of the table appear to be doubled.
+\subsection{Map with 1 room, without graph optimization}
+
+This map is built from a sequence containing 1 room without loop closure (no graph optimization). 
 
 \begin{figure}[h!]
 \centering
 \includegraphics[width=0.8\textwidth]{figures/room1_initial}
-\caption{Map with 1 room (initial)}
+\caption{Map with 1 room, without optimization (initial). Note how the corner of the table and the chair appears to be doubled.}
 \end{figure}
 
-\subsection{1 room optimized}
-Map with 1 room and 1 loop closures.
+\subsection{Map with 1 room, graph optimized with 1 loop closure}
+This map is built from a sequence containing 1 room with 1 loop closure, which is triggered after having gone through the room and back to a position close to the initial position. 
 
 \begin{figure}[h!]
 \centering
 \includegraphics[width=0.8\textwidth]{figures/room1_1}
-\caption{Map with 1 room}
+\caption{Map with 1 room, optimized with 1 loop closure. Note how the corner of the table and the chair are now correctly "merged" compared to the previous figure.}
 \end{figure}
 
 \clearpage
 
-\subsection{2 rooms with corridor}
+\subsection{Map with 2 rooms and corridor}
 Map with 2 rooms, optimized with 2 loop closures.
 
 \begin{figure}[h!]
@@ -382,7 +429,7 @@ Map with 2 rooms, optimized with 2 loop closures.
 
 \clearpage
 
-\subsection{4 rooms with corridor}
+\subsection{Map with 4 rooms and corridor}
 Map with 4 rooms, optimized with 4 loop closures.
 
 \begin{figure}[h]
@@ -391,7 +438,7 @@ Map with 4 rooms, optimized with 4 loop closures.
 \includegraphics[width=0.8\textwidth]{figures/room4_1}\\
 \includegraphics[width=0.8\textwidth]{figures/room4_2}
 \end{array}$
-\caption{Map with 4 rooms}
+\caption{Map with 4 rooms and corridor}
 \end{figure}
 
 \clearpage
