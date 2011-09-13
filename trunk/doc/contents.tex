@@ -32,9 +32,9 @@ The rest of the document is structured as follows:
 
 As mentioned in the introduction, the hardware used in this work is the Microsoft Kinect, a device developed by PrimeSense, initially for the Microsoft Xbox 360 and released in November 2010. It is composed by an RGB camera, 3D depth sensors, a multi-array microphone and a motorized tilt. In this work, only the RGB and depth sensors are used to provide the input data.
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering
-\includegraphics[width=0.5\textwidth]{figures/kinect_sensor}
+\includegraphics[width=0.5\textwidth]{pictures/kinect_sensor}
 \caption{Microsoft Kinect}
 \end{figure}
 
@@ -75,9 +75,9 @@ One of the main interest is to be able to perform fast searches on the features 
 
 Concerning the implementation, several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a kd-tree search function to perform the initial matching. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering
-\includegraphics[width=0.8\textwidth]{figures/sift_matches_robhess}
+\includegraphics[width=0.8\textwidth]{pictures/sift_matches_robhess}
 \caption{SIFT features matched between the two images}
 \end{figure}
 
@@ -89,9 +89,9 @@ SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{
 
 This method is presented in~\cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}.
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering
-\includegraphics[width=0.8\textwidth]{figures/narf1}
+\includegraphics[width=0.6\textwidth]{pictures/narf1}
 \caption{Example of NARF keypoints}
 \end{figure}
 
@@ -174,13 +174,13 @@ The first question is the choice of the features. In the context of Visual SLAM,
 Here we tested the SIFT features from Rob Hess Library~\cite{hess_sift} and the NARF descriptor~\cite{steder10irosws}. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
 The NARF keypoints showed to be unstable, while the camera was not moving.
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering$
 \begin{array}{cc}
-\includegraphics[width=0.4\textwidth]{figures/narf1} &
-\includegraphics[width=0.4\textwidth]{figures/narf2}
+\includegraphics[width=0.5\textwidth]{pictures/narf1} &
+\includegraphics[width=0.5\textwidth]{pictures/narf2}
 \end{array}$
-\caption{Example of NARF keypoints}
+\caption{Example of NARF keypoints computed from two consecutive frames}
 \end{figure}
 
 This could be explained by the noise of the depth data. For this reason, we continued with the SIFT feature.
@@ -195,9 +195,9 @@ Now that the features can be computed, it is possible to perform some feature ma
 The SIFT Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features.
 After his, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering
-\includegraphics[width=0.4\textwidth]{figures/sift_matching_init}
+\includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}
 \caption{Initial matching of SIFT features}
 \end{figure}
 
@@ -246,8 +246,8 @@ To evaluate a transformation, each sample taken from the initial matches (source
 \begin{figure}[h!]
 \centering$
 \begin{array}{cc}
-\includegraphics[width=0.4\textwidth]{figures/sift_matching_init} &
-\includegraphics[width=0.4\textwidth]{figures/sift_matching_ransac}
+\includegraphics[width=0.4\textwidth]{pictures/sift_matching_init} &
+\includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}
 \end{array}$
 \caption{Matching of SIFT features - initial matching \& after a RANSAC loop. Note how the initial matches drawn in diagonal in the left figure are excluded and become outliers after the RANSAC loop.}
 \end{figure}
@@ -263,9 +263,9 @@ The main difficulty here is to find the best balance among these 3 values, by pu
 
 If the criterions are too permissive, this could result in an incorrect assocations.
 
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.6\textwidth]{figures/bad_inliers1}
+\begin{figure}[h!]
+\centering$
+\includegraphics[width=0.4\textwidth]{pictures/bad_inliers1}$
 \caption{Example of bad inliers - the matching are totally incorrect}
 \end{figure}
 
@@ -283,12 +283,12 @@ Let N be the number of inliers and $p_i$ be the i-th inlier vector. We can then 
 \sigma^2 = \frac{1}{N} \sum_{i=1}^N{(p_i - \mu)^2}
 \]
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering$
 \begin{array}{cccc}
-\includegraphics[width=0.3\textwidth]{figures/bad_transform1} &
-\includegraphics[width=0.3\textwidth]{figures/bad_transform2} &
-\includegraphics[width=0.3\textwidth]{figures/bad_transform3}
+\includegraphics[width=0.3\textwidth]{pictures/bad_transform1} &
+\includegraphics[width=0.3\textwidth]{pictures/bad_transform2} &
+\includegraphics[width=0.3\textwidth]{pictures/bad_transform3}
 \end{array}$
 \caption{Sequence showing different distributions of the inliers. Note how the inliers are grouped in the picture 2.}
 \end{figure}
@@ -309,11 +309,11 @@ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
 
 In the previous chapter, we saw how to determine a rigid transformation between a couple of frames. From each single transformation, an estimation of the poses of the camera can be computed. Now we can combine them to follow a sequence of frames. Each pose is then inserted into the graph by translating the camera matrix into a graph node. From the loop closures, new constraints can be inserted in the graph. The graph can then be optimized to globally reduce the error, and the poses updated according to the new vertices given by the graph after optimization.
 
-FIGURE WITH A GENERAL OVERVIEW: 
-pose estimations + transformations -> nodes + constraints
-loop closure -> constraints
-optimize
-extract updated poses
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.5\textwidth]{figures/graph1}
+\caption{Overview of the graph optimization procedure}
+\end{figure}
 
 \section{Estimating the poses}
 
@@ -362,19 +362,19 @@ Another approach would be to select the past frames that are more likely to matc
 \section{Example of graph optimization}
 In g2o there is a tool (g2oviewer) allowing the visualization of the graph.
 
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering$
 \begin{array}{cc}
-\includegraphics[width=0.4\textwidth]{figures/graph4_base} &
-\includegraphics[width=0.4\textwidth]{figures/graph4_initial_guess}
+\includegraphics[width=0.4\textwidth]{pictures/graph4_base} &
+\includegraphics[width=0.4\textwidth]{pictures/graph4_initial_guess}
 \end{array}$
 \caption{Graph with 4 rooms: non optimized - initial guess}
 \end{figure}
 \begin{figure}[h]
 \centering$
 \begin{array}{cc}
-\includegraphics[width=0.4\textwidth]{figures/graph4_initial_guess} &
-\includegraphics[width=0.4\textwidth]{figures/graph4_optimized}
+\includegraphics[width=0.4\textwidth]{pictures/graph4_initial_guess} &
+\includegraphics[width=0.4\textwidth]{pictures/graph4_optimized}
 \end{array}$
 \caption{Graph with 4 rooms: initial guess - after 10 iterations}
 \end{figure}
@@ -384,13 +384,15 @@ In g2o there is a tool (g2oviewer) allowing the visualization of the graph.
 \chapter{Scene reconstruction}
 \label{chap:reconstruction}
 
-Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. One simple method is to concatenate the corresponding point clouds, each of them being transformed with the relative camera position. This can be done with standard functions provided by the PCL Library~\cite{Rusu_ICRA2011_PCL}. For the visualization, the standard viewer is used.
+Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. This process is called the point cloud \emph{registration}. Once the relative camera positions are known, one simple method is to transform each point cloud by reprojecting all its points according to the corresponding camera position, and concatenate together all the transformed point clouds. This transformation can be done with standard functions provided by the PCL Library~\cite{Rusu_ICRA2011_PCL}. For the visualization, the standard viewer is used.
 
-For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. For this, each of the point clouds are first subsampled with a fixed ratio. Generally, only one output file is produced but this could still lead to a big file in case of a large map. A high rate of subsampling would give a map of low quality. By setting a threshold for the final point cloud, it is splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. This allows to keep a low subsampling rate, and to visualize a portion of the global scene with a better definition.
+For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. Theorically, each point cloud can be composed of 640*480 = 307.200 points. In reality, this is less, as the depth information is not available for each point. A standard point cloud is still composed of about 200.000 points. Therefore, a colored cloud point occupies around 1.5MB in memory (24 bits for the positions x,y,z + 24 bits for the colors R,G,B + PADDING?! TOCHECK). For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled very basically by removing randomly points with a given probability (according to a fixed ratio).
 
-Of course, this method is not optimal, as this leads to duplicate points, and does not take variances of illumination into account. Another solution would be to use some surfels~\cite{Intel_RGBD_2010} but this would require some intensive processing and is out of the scope of this work.
+Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition.
 
-The maps obtained from different datasets are shown. The first section presents the results with data from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The next section shows the results obtained with data from other universities.
+This method remains simple, but the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done at Intel~Labs~\cite{Intel_RGBD_2010}, but this would require some intensive processing and is out of the scope of this work.
+
+The next sections present the maps obtained from different datasets. The first section presents the results with data from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The next section shows the results obtained with data from other universities.
 
 \section{Map CVAP (KTH)}
 
@@ -400,7 +402,7 @@ This map is built from a sequence containing 1 room without loop closure (no gra
 
 \begin{figure}[h!]
 \centering
-\includegraphics[width=0.8\textwidth]{figures/room1_initial}
+\includegraphics[width=0.8\textwidth]{pictures/room1_initial}
 \caption{Map with 1 room, without optimization (initial). Note how the corner of the table and the chair appears to be doubled.}
 \end{figure}
 
@@ -409,7 +411,7 @@ This map is built from a sequence containing 1 room with 1 loop closure, which i
 
 \begin{figure}[h!]
 \centering
-\includegraphics[width=0.8\textwidth]{figures/room1_1}
+\includegraphics[width=0.8\textwidth]{pictures/room1_1}
 \caption{Map with 1 room, optimized with 1 loop closure. Note how the corner of the table and the chair are now correctly "merged" compared to the previous figure.}
 \end{figure}
 
@@ -421,8 +423,8 @@ Map with 2 rooms, optimized with 2 loop closures.
 \begin{figure}[h!]
 \centering$
 \begin{array}{c}
-\includegraphics[width=0.8\textwidth]{figures/room2_1}\\
-\includegraphics[width=0.8\textwidth]{figures/room2_2}
+\includegraphics[width=0.8\textwidth]{pictures/room2_1}\\
+\includegraphics[width=0.8\textwidth]{pictures/room2_2}
 \end{array}$
 \caption{Map with 2 rooms}
 \end{figure}
@@ -435,8 +437,8 @@ Map with 4 rooms, optimized with 4 loop closures.
 \begin{figure}[h]
 \centering$
 \begin{array}{c}
-\includegraphics[width=0.8\textwidth]{figures/room4_1}\\
-\includegraphics[width=0.8\textwidth]{figures/room4_2}
+\includegraphics[width=0.8\textwidth]{pictures/room4_1}\\
+\includegraphics[width=0.8\textwidth]{pictures/room4_2}
 \end{array}$
 \caption{Map with 4 rooms and corridor}
 \end{figure}
@@ -447,7 +449,7 @@ Map with 4 rooms, optimized with 4 loop closures.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.8\textwidth]{figures/bham}
+\includegraphics[width=0.8\textwidth]{pictures/bham}
 \caption{Birmingham}
 \end{figure}
 
