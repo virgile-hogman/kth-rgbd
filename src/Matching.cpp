@@ -199,29 +199,6 @@ bool findTransformRANSAC(
 			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
 		}
 
-		/* alternative method for choosing the 3 initial pairs
-		{
-			int id_match;
-			initialPairs.clear();
-			if (indexArea1.size()==0 || indexArea2.size()==0 || indexArea3.size()==0)
-			{
-				printf("Data not dispatched. %d %d %d", indexArea1.size(), indexArea2.size(), indexArea3.size());
-				break;
-			}
-			// select 1 random point from area1
-			id_match = indexArea1[rand() % indexArea1.size()];
-			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
-			initialPairs.push_back(indexMatches[id_match]);
-			// select 1 random point from area2
-			id_match = indexArea2[rand() % indexArea2.size()];
-			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
-			initialPairs.push_back(indexMatches[id_match]);
-			// select 1 random point from area3
-			id_match = indexArea3[rand() % indexArea3.size()];
-			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
-			initialPairs.push_back(indexMatches[id_match]);
-		}*/
-
 		// compute transformation from matches
 		Eigen::Matrix4f transformation = tfc.getTransformation().matrix();
 

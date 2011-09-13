@@ -8,6 +8,7 @@ std::string	Config::_PathKinectXmlFile = "SamplesConfig.xml";
 
 int			Config::_FeatureDepthMin = 0;
 int			Config::_FeatureDepthMax = 6000;
+bool		Config::_FeatureDisplay = false;
 
 int			Config::_MatchingRatioFrame = 0;
 bool		Config::_MatchingAllowInvalid = false;
@@ -42,6 +43,7 @@ void Config::LoadConfig(std::string filename)
 
 	Config::_FeatureDepthMin = config.read<int>("FeatureDepthMin", 0);
 	Config::_FeatureDepthMax = config.read<int>("FeatureDepthMax", 6000);
+	Config::_FeatureDisplay = config.read<bool>("FeatureDisplay", false);
 
 	Config::_MatchingRatioFrame = config.read<int>("MatchingRatioFrame", 0);
 	Config::_MatchingAllowInvalid = config.read<bool>("MatchingAllowInvalid", false);

@@ -3,7 +3,7 @@
 
 #include "FrameData.h"
 #include "Graph.h"
-
+#include "Display.h"
 
 #include <vector>
 #include <fstream>
@@ -45,6 +45,9 @@ private:
 	// buffers
 	FrameData				_bufferFrameData1;
 	FrameData				_bufferFrameData2;
+
+	// display windows
+	Display					_display;
 };
 
 #endif // MAP_H

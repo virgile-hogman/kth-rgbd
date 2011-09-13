@@ -456,16 +456,17 @@ void Map::initSequence()
 // -----------------------------------------------------------------------------------------------------
 bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 {
-	static bool display = false;
+	bool match = false;
 
 	// match frame to frame (current with previous)
-	if (computeTransformation(
+	match = computeTransformation(
 			frameID1,
 			frameID2,
 			_bufferFrameData1,
 			_bufferFrameData2,
-			transform))
-	{
+			transform);
+
+	if (match)	{
 		// valid transform
 		_sequenceTransform.push_back(transform);
 
@@ -479,7 +480,7 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 			_fileTransformOut << std::endl;
 		}
 
-		// display quality
+		// text display of quality
 		int c;
 		for (c=0; c<100*(transform._ratioInliers-Config::_MatchingMinRatioInlier)/(1-Config::_MatchingMinRatioInlier); c++)
 			cout << '+';
@@ -489,44 +490,23 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 		}
 		cout << "\n";
 
-		if (display) {
-			cvShowImage("Frame1", NULL);
-			cvShowImage("Frame2", NULL);
-			cvResizeWindow("Frame1", 1, 1);
-			cvResizeWindow("Frame2", 1, 1);
-			cvDestroyWindow("Frame1");
-			cvDestroyWindow("Frame2");
-			cvWaitKey(100);
-			display = false;
-		}
-		cvWaitKey(1);	// the opencv windows won't close until handled here
+		_display.showFeatures(_bufferFrameData1, _bufferFrameData2, transform._ratioInliers);
 
 		// free data
 		_bufferFrameData1.releaseData();
 		// reassign the last frame to avoid reloading all the data twice
 		_bufferFrameData1.assignData(_bufferFrameData2);
-		return true;
 	}
-	else
-	{
-		if (!display) {
-			// create windows
-			cvNamedWindow("Frame1", CV_WINDOW_AUTOSIZE);
-			cvNamedWindow("Frame2", CV_WINDOW_AUTOSIZE);
-			cvMoveWindow("Frame1", 0, 0); // offset from the UL corner of the screen
-			cvMoveWindow("Frame2", 0, 400); // offset from the UL corner of the screen
-			display = true;
-		}
-		cvShowImage("Frame1", _bufferFrameData1.getImage());
-		cvShowImage("Frame2", _bufferFrameData2.getImage());
-		cvWaitKey(100);
+	else { // out of sync !
+		_display.showOutOfSync(_bufferFrameData1, _bufferFrameData2);
 
 		// invalid transformation
 		// empty buffers - data has to be reloaded
 		_bufferFrameData1.releaseData();
 		_bufferFrameData2.releaseData();
-		return false;
 	}
+
+	return match;
 }
 
 // -----------------------------------------------------------------------------------------------------
