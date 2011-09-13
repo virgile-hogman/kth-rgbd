@@ -11,7 +11,7 @@ public:
 	Display();
 	~Display();
 
-	void showFeatures(FrameData &frameData1, FrameData &frameData2, float ratio);
+	void showFeatures(FrameData &frameData1, FrameData &frameData2, float score);
 	void showOutOfSync(FrameData &frameData1, FrameData &frameData2);
 
 private:
@@ -19,6 +19,7 @@ private:
 	bool	_displayingFeatures;
 
 	IplImage *_pImgInfo;
+	IplImage *_pImgFeatures;
 
 };
 

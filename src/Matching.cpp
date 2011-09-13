@@ -331,6 +331,10 @@ bool findTransformRANSAC(
 		resultTransform._ratioInliers = bestRatio;
 	}
 
+	// compute score for evaluation of quality, relatively to minimum ratio of inliers required
+	resultTransform._qualityScore = (resultTransform._ratioInliers-Config::_MatchingMinRatioInlier)
+			/(1-Config::_MatchingMinRatioInlier);
+
 	return validTransformation;
 }
 
