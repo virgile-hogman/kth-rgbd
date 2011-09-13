@@ -482,7 +482,7 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 
 		// text display of quality
 		int c;
-		for (c=0; c<100*(transform._ratioInliers-Config::_MatchingMinRatioInlier)/(1-Config::_MatchingMinRatioInlier); c++)
+		for (c=0; c<transform._qualityScore; c++)
 			cout << '+';
 		while (c<100){
 			cout << '-';
@@ -490,7 +490,7 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 		}
 		cout << "\n";
 
-		_display.showFeatures(_bufferFrameData1, _bufferFrameData2, transform._ratioInliers);
+		_display.showFeatures(_bufferFrameData1, _bufferFrameData2, transform._qualityScore);
 
 		// free data
 		_bufferFrameData1.releaseData();

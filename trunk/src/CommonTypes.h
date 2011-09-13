@@ -29,6 +29,7 @@ public:
 	int				_idOrig;
 	int				_idDest;
 	float			_ratioInliers;
+	float			_qualityScore;
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 // for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html
