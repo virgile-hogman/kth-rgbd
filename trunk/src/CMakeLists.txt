@@ -29,6 +29,6 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 #set the default path for built libraries to the "lib" directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp Graph.cpp Map.cpp Config.cpp ConfigFile.cpp CameraDevice.cpp Matching.cpp PointCloud.cpp)
+add_executable(rgbd_slam rgbd_slam.cpp FrameData.cpp Graph.cpp Map.cpp Config.cpp ConfigFile.cpp CameraDevice.cpp Matching.cpp PointCloud.cpp Display.cpp)
 target_link_libraries(rgbd_slam feat OpenNI cv highgui boost_filesystem g2o_core g2o_math_groups g2o_solver_cholmod g2o_types_slam3d ${PCL_LIBRARIES}) 
 

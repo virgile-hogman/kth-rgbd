@@ -16,6 +16,7 @@ public:
 	// feature
 	static int				_FeatureDepthMin;	// min depth in mm
 	static int				_FeatureDepthMax;	// max depth in mm
+	static bool				_FeatureDisplay;	// display windows
 
 	// matching
 	static int				_MatchingRatioFrame;
