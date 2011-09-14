@@ -97,12 +97,12 @@ This method is presented in~\cite{steder10irosws}. The NARF descriptors are part
 
 \section{Matching}
 
-Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then refined to eliminate the most obvious mismatches. The good matches are called the \emph{inliers}, while the matches that are shown to be errated are called the \emph{outliers}.
+Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then refined to eliminate the most obvious mismatches. The good matches that fit to the model are called the \emph{inliers}, while the remaining matches errated are called the \emph{outliers}.
 
 \subsection{RANSAC}
 \label{sub:ransac}
 
-The RANdom SAmple Consensus is an iterative method, where the main idea is to randomly select a minimal number of samples to determine a candidate transformation, evaluate it, and iterate with new samples by keeping the best transformation found. After running this for a fixed number of steps, the algorithm converges to a transformation with a lower error, but it does not necessarily find the best one, as all the possibilities have not been tested.
+The RANdom SAmple Consensus is an iterative method to estimate the parameters of a transformation. The main idea is to randomly select for each iteration a very small number of samples to determine a candidate transformation. This model is then evaluated for the whole set. This is repeated several times by choosing new samples for iteration and keeping the best transformation found. After running this for a fixed number of steps, the algorithm is guaranteed to converge to a better transformation (with a lower error), but it does not necessarily find the best one, as all the possibilities have not been tested. 
 
 \begin{verbatim}
 Define the number of iterations.
@@ -112,6 +112,19 @@ Evaluate this model by computing the error for all the points of the dataset.
 If enough points are valid (number of inliers), then the hypothesis is valid.
 Keep the best hypothesis with respect to the the mean error (lowest is best).
 \end{verbatim}
+
+\begin{figure}[h!]
+\centering$
+\begin{array}{ccc}
+\includegraphics[width=0.3\textwidth]{figures/ransac1} &
+\includegraphics[width=0.3\textwidth]{figures/ransac2} &
+\includegraphics[width=0.3\textwidth]{figures/ransac3}
+\end{array}$
+\caption{Illustration of a RANSAC iteration. First, 3 items are chosen randomly among the set. From these points, a model is defined. The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
+\end{figure}
+
+The main difficulty with the RANSAC algorithm is to define the thresholds and the number of iterations. For the threshold, it depends of the problem and the application, this is done empirically in the general case. For the number of iterations, it is possible to define the ideal value according to a desired probability.
+
 
 \subsection{ICP}
 
@@ -147,6 +160,7 @@ Recently, the performance of the graph optimization has been dramatically improv
 The SLAM problem can be defined as a least squares optimization of an error function described by a graph. Such a graph is called a pose graph. In a general way, the problem can be formulated by a graph where the nodes (or vertices) represent a state variable describing the poses of the cameras, and the edges would represent the related constraints between the observations connecting a pair of nodes. Not only the graph representation gives a quite intuitive representation of the problem, but the graph model is also the base for the mathematical optimization, which purpose is to find the most-likely configuration of the nodes.
 
 Here we present different approaches:
+
 \begin{description}
 \item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background.
 \item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error.
@@ -157,6 +171,12 @@ Here we present different approaches:
 \subsection{Loop closure}
 
 In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure}. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.5\textwidth]{figures/graph1}
+\caption{Overview of the graph optimization procedure}
+\end{figure}
 
 \section{Summary}
 
@@ -261,12 +281,12 @@ How to characterize a transformation? There are at least 3 parameters:
 
 The main difficulty here is to find the best balance among these 3 values, by putting some thresholds. Setting to high constraints would lead to the impossibility to find a transformation satisfying all the criterions. This can be a problem when there are not enough features available. Setting too low constraints helps to find a transformation even when there are less features or the measurements are noisy, but the resulting transformation will be less precise. The main risk here is to put so loose constraints that the inliers can be wrong.
 
-If the criterions are too permissive, this could result in an incorrect assocations.
+If the criterions are too permissive, this could result in an invalid model, leading to errated assocations. 
 
 \begin{figure}[h!]
 \centering$
 \includegraphics[width=0.4\textwidth]{pictures/bad_inliers1}$
-\caption{Example of bad inliers - the matching are totally incorrect}
+\caption{Example of bad model (during a check for loop closure) - the matches are totally incorrect}
 \end{figure}
 
 \clearpage
@@ -304,16 +324,14 @@ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
 %90/140 &	64\% &	0.682466 &	1.56629\\
 \end{tabular}
 
+\section{Summary}
+
+This chapter presented a method to define a rigid transformation from a couple of frames given their RGB+D data. First, the SIFT features are first extracted in 2D from each RGB frame. Then, by integrating the depth information, an initial matching is performed in 3D with the use of a kd-tree. From this set of pairs (of features), a transformation is computed by running a RANSAC algorithm.
+
 \chapter{Pose graph}
 \label{chap:graph}
 
 In the previous chapter, we saw how to determine a rigid transformation between a couple of frames. From each single transformation, an estimation of the poses of the camera can be computed. Now we can combine them to follow a sequence of frames. Each pose is then inserted into the graph by translating the camera matrix into a graph node. From the loop closures, new constraints can be inserted in the graph. The graph can then be optimized to globally reduce the error, and the poses updated according to the new vertices given by the graph after optimization.
-
-\begin{figure}[h!]
-\centering
-\includegraphics[width=0.5\textwidth]{figures/graph1}
-\caption{Overview of the graph optimization procedure}
-\end{figure}
 
 \section{Estimating the poses}
 
@@ -378,6 +396,10 @@ In g2o there is a tool (g2oviewer) allowing the visualization of the graph.
 \end{array}$
 \caption{Graph with 4 rooms: initial guess - after 10 iterations}
 \end{figure}
+
+\section{Summary}
+
+TBD...
 
 \clearpage
 
