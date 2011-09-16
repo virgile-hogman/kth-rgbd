@@ -185,15 +185,18 @@ bool findTransformRANSAC(
 	double bestError = 1E10;	// large value
 	float bestRatio = 0;
 
-	if (nbValidMatches < 3)
+	int k = 3;	// minimum number of points in a sample
+	// int k = nbValidMatches/10;	// minimum number of points in a sample
+
+	if (nbValidMatches < k)
 		return false;
 
 	for (int iteration=0; iteration<Config::_MatchingNbIterations; iteration++)
 	{
 		//printf("\nIteration %d ... \t", iteration+1);
 		tfc.reset();
-		// pickup 3 points from matches
-		for (int i=0; i<3; i++)
+		// pickup k points from matches
+		for (int i=0; i<k; i++)
 		{
 			int id_match = rand() % nbValidMatches;
 			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
@@ -229,15 +232,16 @@ bool findTransformRANSAC(
 			if (indexInliers.size()<Config::_MatchingMinNbInlier || ratio<Config::_MatchingMinRatioInlier)
 				continue;	// not enough inliers found
 
-			//printf("\t => Best candidate transformation! ", indexInliers.size(), meanError);
+/* NEVER STORE THIS FIRST TRANSFORM - for k=3 it is most probable that it is a bad transform!
+ 			//printf("\t => Best candidate transformation! ", indexInliers.size(), meanError);
 			bestTransformationMat = transformation;
 			bestError = meanError;
-			indexBestInliers = indexInliers;
+			indexBestInliers = indexInliers;*/
 		}
 
-		// ----------------------------------------------------
-		// recompute a new transformation with all the inliers
-		// ----------------------------------------------------
+		// ------------------------------------------------
+		// recompute a new transformation from the inliers
+		// ------------------------------------------------
 		//printf("\nRecomputing transfo... \t");
 		tfc.reset();
 		for (int idInlier = 0; idInlier < indexInliers.size(); idInlier++) {
@@ -281,6 +285,21 @@ bool findTransformRANSAC(
 		std::cout << "\terror="<< bestError << std::endl;
 		//std::cout << bestTransformationMat << std::endl;
 
+		// ------------------------------------------------
+		// recompute (yes, again!) the final transformation from all the best inliers
+		// ------------------------------------------------
+		tfc.reset();
+		for (int i=0; i<indexBestInliers.size(); i++)
+		{
+			int id_match = indexBestInliers[i];
+			tfc.add(matchesSource[id_match], matchesTarget[id_match]);
+		}
+		// extract transformation
+		Eigen::Matrix4f transformation = tfc.getTransformation().matrix();
+
+		// ------------------------------------------------
+		// some stats
+		// ------------------------------------------------
 		// compute mean vector
 		Eigen::Vector3f meanVector(0,0,0);
 		for (int i=0; i<indexBestInliers.size(); i++)
