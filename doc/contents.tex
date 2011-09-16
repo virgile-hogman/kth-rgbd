@@ -83,11 +83,11 @@ Concerning the implementation, several libraries exist. For this work is used th
 
 \subsection{SURF}
 
-SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. SURF is based on sums of approximated 2D Haar wavelet responses and makes an efficient use of integral images. (Source Wikipedia) TODO COMPLETE DESCRIPTION.
+SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. SURF is based on sums of approximated 2D Haar wavelet responses and makes an efficient use of integral images. (Source Wikipedia) [TODO complete description].
 
 \subsection{NARF}
 
-This method is presented in~\cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}. TODO COMPLETE DESCRIPTION.
+This method is presented in~\cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}. [TODO complete description].
 
 \begin{figure}[h!]
 \centering
@@ -95,22 +95,29 @@ This method is presented in~\cite{steder10irosws}. The NARF descriptors are part
 \caption{Example of NARF keypoints}
 \end{figure}
 
+\subsection{others}
+
+Harris corners, BRIEF, [TODO ... should i mention them (even briefly)?]
+
+
 \section{Matching}
 
-Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then refined to eliminate the most obvious mismatches. The good matches that fit to the model are called the \emph{inliers}, while the remaining matches errated are called the \emph{outliers}.
+Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then refined to eliminate the most obvious mismatches. The matches that fit to the model are called the \emph{inliers}, while the remaining matches errated are called the \emph{outliers}.
 
 \subsection{RANSAC}
 \label{sub:ransac}
 
-The RANdom SAmple Consensus is an iterative method to estimate the parameters of a transformation. The main idea is to randomly select for each iteration a very small number of samples to determine a candidate transformation. This model is then evaluated for the whole set. This is repeated several times by choosing new samples for iteration and keeping the best transformation found. After running this for a fixed number of steps, the algorithm is guaranteed to converge to a better transformation (with a lower error), but it does not necessarily find the best one, as all the possibilities have not been tested. 
+The RANdom SAmple Consensus is an iterative method, widely known in the computer vision ,to estimate the parameters of a transformation. It was published in 1981 \cite{FischlerB81}.
+
+The main idea is to \emph{randomly} select for each iteration a very small number of samples to determine a model representing an hypothesis. This model is then evaluated for the whole set. This is repeated several times by choosing new samples for iteration and keeping the best transformation found. After running this for a fixed number of steps, the algorithm is guaranteed to converge to a better transformation (with a lower error), but it does not necessarily find the best one, as all the possibilities have not been tested. 
 
 \begin{verbatim}
-Define the number of iterations.
+Define the number of iterations N.
 For each iteration:
-Pickup k samples randomly and determine a model (hypothesis).
-Evaluate this model by computing the error for all the points of the dataset.
-If enough points are valid (number of inliers), then the hypothesis is valid.
-Keep the best hypothesis with respect to the the mean error (lowest is best).
+  Pickup k samples randomly and determine a model (hypothesis).
+  Evaluate this model by computing the error for all the points of the dataset.
+  If enough points are valid (number of inliers), then the hypothesis is valid.
+  Keep the best hypothesis with respect to the the mean error (lowest is best).
 \end{verbatim}
 
 \begin{figure}[h!]
@@ -123,7 +130,20 @@ Keep the best hypothesis with respect to the the mean error (lowest is best).
 \caption{Illustration of a RANSAC iteration. First, 3 items are chosen randomly among the set. From these points, a model is defined. The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
 \end{figure}
 
-The main difficulty with the RANSAC algorithm is to define the thresholds and the number of iterations. For the threshold, it depends of the problem and the application, this is done empirically in the general case. For the number of iterations, it is possible to define the ideal value according to a desired probability.
+The main difficulty with the RANSAC algorithm is to define the number of iterations and the thresholds.
+For the number of iterations, it is possible to define the ideal value according to a desired probability. Considering a sample of $k$ points, if $p$ denotes the probability (generally set to 0.99) that at least one of the sample set does not include an outlier, $u$ the probability of observing an inlier, we have then:
+
+\[
+1-p = (1-u^k)^N
+\]
+
+It can be more convenient to define $v=1-u$ as the probability of observing an outlier. From this, we can obtain the required number of iterations:
+
+\[
+N = \frac{log(1-p)}{log(1-(1-v)^k)}
+\]
+
+For the threshold, it depends of the problem and the application, generally this is done empirically with the standard method. But there are actually many variants of the RANSAC that try to overcome this problem, such as the MLESAC method \cite{TorrZ00} using M-estimators in order to find the good parameters in a robust way.
 
 
 \subsection{ICP}
@@ -135,6 +155,8 @@ Finds the rigid transformation minimizing the squared distance between each neig
 
 \[min \sum_{i}{||(Rp_{i}+t)-p'_{i}||}^2\]
 
+[TODO precisions]
+
 As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Intel Labs~\cite{Intel_RGBD_2010}, is to run RANSAC first to determine a good approximation of the rigid transformation, and use it as the first guess for the ICP procedure.
 
 \section{SLAM}
@@ -144,6 +166,11 @@ As described in the introduction, the SLAM problem can be defined as looking for
 By denoting $x_t$ the state, $u_t$ a measurement, and $z_t$ the state at time t, the belief over the state variable $x_t$ is given by:
 
 \[bel(x_t) = p(x_t | z_{1:t}, u_{1:t})\]
+
+[TODO precisions]
+
+In the case of Visual SLAM, we consider the video sequence as a collection of frames, defined by a flow of RGB \& Depth data coming from the Kinect. Here we use exclusively the video, and therefore each measurement $u_t$ is a couple of RGB \& Depth frame at time $t$ . The number of frames then depends on the length of the sequence and the effective frame rate, which is bounded by the maximum rate of the Kinect which is 30Hz.
+
 
 \subsection{Filtering vs Smoothing}
 
@@ -162,7 +189,7 @@ The SLAM problem can be defined as a least squares optimization of an error func
 Here we present different approaches:
 
 \begin{description}
-\item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background.
+\item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background. [TODO complete...]
 \item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error.
 \item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping~\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps.
 \item[$g^2o$] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. $g^2o$ is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D SLAM or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in $g^2o$. This is the method chosen to solve the graph problem in this work.
@@ -223,54 +250,73 @@ After this, the depth information is used to keep the features that are close en
 
 \section{Compute the 3D transformation}
 
-From the matching pairs, it is possible to find a rigid transformation binding the two sets of points, ie the operation that transforms each feature point of a source frame to the corresponding point in the target frame. In our case, this transformation is a perspective projection composed by a rotation matrix and a translation vector in 3 dimensions. This transformation can be written by using a 4x4  matrix and homogeneous coordinates. We can then project a point P where $P = (x,y,z,1)^T$ by applying this transformation matrix:
+From the matching pairs, it is possible to find a rigid transformation binding the two sets of points, ie the operation that transforms each feature point of a source frame to the corresponding point in the target frame. In our case, this transformation is a perspective projection for 6 degrees of freedom, composed by a rotation matrix and a translation vector in 3 dimensions. This transformation can be written by using a 4x4  matrix and homogeneous coordinates. We can then project a point P where $P = (x,y,z,1)^T$ simply by applying this transformation matrix to the point:
 
-\(
+\[
 P' = T_{transformation} \: P
-\)
+\]
 
-\paragraph{}
 The points defined by the initial matching pairs need to be converted in 3 dimensions. For this, we need to define a proper coordinate system. To make the next steps easier (graph optimization and scence reconstruction) and avoid further conversions, we keep the same coordinate system for all the work, defined as follows:
 
-[TODO schema]
-\(
-\begin{array}{l}
-x: depth, positive forward\\
-y: height, positive upwards\\
-z: width, positive to the right\\
+\[
+\left\{\begin{array}{l}
+x: depth,\:positive\:forward\\
+y: height,\:positive\:upwards\\
+z: width,\:positive\:to\:the\:right\\
 \end{array}
-\)
+\right.
+\]
 
-\paragraph{}
-From the depth value and the x and y screen coordinates (RGB), it is possible to compute the points coordinates in 3D :
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/coordinates}
+\caption{The two different coordinate systems, from the "screen" (as seen by the sensors RGB+D) to the 3D scene in the real world.}
+\end{figure}
 
-\(
+From the depth value (given in mm by OpenNI) and the x and y screen coordinates (with RGB color and a resolution of 640x480 pixels), it is possible to compute the points coordinates in 3D :
+
+\[
+P(x,y,z)\left\{
 \begin{array}{l}
 x = depth \\
 y = (480/2 - y_{screen}) * depth / focal\_length \\
 z = (x_{screen} - 640/2) * depth / focal\_length \\
 \end{array}
-\)
+\right.
+\]
 
 \paragraph{}
-Considering the initial matches, the next step is then to find a transformation matrix that fits best to these points. Ideally we could simply compute a transformation by a least square method for all these points, each matching pair defining an equation. The minimum number of pairs required for this would be three, and the more points, the better defined the system would be. However, due to the uncertainty like the noise coming from the sensors, a single point which location is uncorrectly estimated could lead to a big error in the final transformation. Therefore, a better transformation can be found iteravely with the RANSAC method, as presented in the background. In this context, we need to precise the algorithm, and there are two steps for each iteration.
+Considering the initial matches, the next step is then to find a transformation matrix that fits best to these points. Ideally we could simply compute a transformation by a least square method for all these points, each matching pair defining an equation. The minimum number of pairs required for this would be three, and the more points, the better defined the system would be. However, due to the uncertainty like the noise coming from the sensors, a single point which location is uncorrectly estimated could lead to a big error in the final transformation. Therefore, a better transformation can be found iteravely with the RANSAC method, as presented in the background. In this context, we keep a very low, we need to precise the algorithm:
 
 \begin{verbatim}
-Define a number of iterations.
+Define a number of iterations N.
 For each iteration:
-  pickup k samples from the initial matches (step 1-i)
+  pickup k samples from the initial matches 
   compute transformation
   evaluate transformation -> set of inliers
-  store transformation if it is the best
-  pickup k samples from this set of inliers (step 2-i)
-  compute new transformation from inliers
+  recompute a new transformation with all the inliers (*)
   evaluate transformation inliers
   store transformation if it is the best
 end loop
-Recompute the optimal transformation with all the best inliers (final step).
+Recompute transformation again with all the best inliers (final step *)
+
+(*) slight variation compared to standard RANSAC.
 \end{verbatim}
 
+As presented in the background, it is possible to estimate the optimal value of N to fulfill a target probability of having a desired number/ratio of inliers (or outliers). In this work we use a fixed value given by parameter of N=20. A deeper study of the RANSAC step could lead to tune more accurately this parameter.
+
+In the nominal case, the quantity of features is quite important and the probability of having an outlier is generally very low, as most of the mismatches are excluded by the initial SIFT matching round.
+
+
+%If we define that the mean number of features is 500 with 10 outliers (after different experiments) then we have:
+%\[
+%v=10/500=1/50
+%N = \frac{log(1-p)}{log(1-(1-v)^k)} = \frac{log(1-0.99)}{log(1-(1-\frac{1}{50})^3)} = 
+%\]
+
 To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class \emph{pcl::TransformationFromCorrespondences} from the PCL library~\cite{Rusu_ICRA2011_PCL} and we use the minimal number of points necessary to solve this equation, hence k=3.
+
+[TODO - for around 800 features this k=3 may be far too low! consider the 3 points are very close (probable for large nb of features), the initial model will not be precise enough. As most of the "basic" hypothesis are not good, only the ones recomputed from the inliers are kept. The first one should be discarded most of the time... this is a bit more complex than standard RANSAC. An interesting test would be to run a standard RANSAC with a higher k but the N has to be reavaluted accordingly (they both depend on the nb of initial matches)].
 
 To evaluate a transformation, each sample taken from the initial matches (source) is then projected according to this transformation. A 3D vector is computed from the difference between the projected point and the real point taken from the matching point (destination). The error is the norm of this vector.
 
@@ -335,7 +381,9 @@ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
 %90/140 &	64\% &	0.682466 &	1.56629\\
 \end{tabular}
 
-Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used.
+[NOTE: not really a very good example here are the number of inliers is much too low :-/]
+
+Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. [TODO precise how and possibly test]
 
 \section{Summary}
 
@@ -345,6 +393,8 @@ This chapter presented a method to define a rigid transformation from a couple o
 \item By integrating the depth information, an initial matching is performed in 3D with the use of a kd-tree.
 \item From this set of pairs (of features), a transformation is computed by running a RANSAC algorithm.
 \end{enumerate}
+
+This transformation evaluates how the camera has moved between two consecutive frames, for the 6 degrees of freedom.
 
 \chapter{Pose graph}
 \label{chap:graph}
@@ -395,7 +445,7 @@ Another way could be to compare the points between the frames and trigger the cr
 
 Various methods are available in $g^2o$, for the optimization process and the solving problem. The method used here is Levenberg-Marquardt with a linear Cholmod solver. The optimization is done with a predefined number of steps. Once the graph has been optimized, the vertices have been updated and give the new estimations of the camera poses. The inverse operation is done to convert the information from the graph vertices to 4x4 matrices.
 
-TODO - COMPLETE DESCRIPTION
+[TODO - COMPLETE DESCRIPTION]
 
 \section{Loop closures}
 
@@ -405,7 +455,8 @@ Without making any assumption of the past frames, the first idea would then be t
 
 Another approach would be to select the past frames that are more likely to match with the current frame. One solution could be to give a higher priority to the oldest frames. This could be done by defining a probability density function that would result in a higher probability for the oldest frames. Another approach would also involve a knowledge of the context of the frames, in terms of features, or in terms of estimated position.
 
-TODO - FIGURES
+[TODO - for example, curves representing the probability to check a loop closure. Case linear, quadratic, threshold... ]
+[TODO - explain sliding window ]
 
 \section{Example of graph optimization}
 In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
@@ -418,7 +469,7 @@ In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 \end{array}$
 \caption{Graph with 4 rooms: non optimized - initial guess}
 \end{figure}
-\begin{figure}[h]
+\begin{figure}[h!]
 \centering$
 \begin{array}{cc}
 \includegraphics[width=0.4\textwidth]{pictures/graph4_initial_guess} &
@@ -429,7 +480,7 @@ In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 
 \section{Summary}
 
-TBD...
+[TODO conclusions about g2o]
 
 \clearpage
 
@@ -497,6 +548,30 @@ Map with 4 rooms, optimized with 4 loop closures.
 
 \clearpage
 
+Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputing final transfo with best inliers.
+
+\begin{figure}[h]
+\centering$
+\begin{array}{c}
+\includegraphics[width=0.8\textwidth]{pictures/room4_new_init1}\\
+\includegraphics[width=0.8\textwidth]{pictures/room4_new_init2}
+\end{array}$
+\caption{Map with 4 rooms and corridor, not optimized (alternative RANSAC). Almost better than optimized version with previous RANSAC! Main problem in the living room, double chair.}
+\end{figure}
+
+\clearpage
+
+\begin{figure}[h]
+\centering$
+\begin{array}{c}
+\includegraphics[width=0.8\textwidth]{pictures/room4_new_optim1}\\
+\includegraphics[width=0.8\textwidth]{pictures/room4_new_optim2}
+\end{array}$
+\caption{Map with 4 rooms and corridor, optimized (alternative RANSAC). However the optimized graph with loop closure looks a bit worse than the initial one!. Double chair corrected in the living room but corridor and room alignments are worse.}
+\end{figure}
+
+\clearpage
+
 \section{Other universities}
 
 \begin{figure}[h]
@@ -513,6 +588,8 @@ Map with 4 rooms, optimized with 4 loop closures.
 \includegraphics[width=0.8\textwidth]{pictures/bham}
 \caption{Birmingham office}
 \end{figure}
+
+[TODO show example Birmingham where features were not enough]
 
 \chapter{Conclusions and Future Works}
 \label{chap:conclusion}
@@ -544,8 +621,8 @@ Currently, most of the time is passed on the feature extraction. Remaining very 
 The quality can be improved at different levels:
 \begin{itemize}
 \item Additional sensors: In this work, the only sensor used was the Kinect providing RGB+D data. One possibility would be to use others sensors and combine them to get a better result. This is particularly true when the transformations computed by the method presented in this work are less reliable. For example, when the quality of the transformations is not good, the odometry could be used assuming this is done for a short period of time.
-\item ICP: the RANSAC method gives a transformation that is not necessarily the best. The ICP method could give a better result. The output of the RANSAC loop could be used as an initial guess for ICP.
-\item Graph optimization: by changing the method used in $g^2o$, deriving new classes and defining error function, working with different scales (hierarchical levels for bigger maps).
+\item Matching: the RANSAC method gives a transformation that is not necessarily the best. The ICP \cite{zhang_92_icp} method could give a better result. The output of the RANSAC loop could be used as an initial guess for ICP. Other solutions could be still based on RANSAC with a finer tuning of the parameters or variants such as MLESAC \cite{TorrZ00}.
+\item Graph optimization: by defining properly the optimization problem and studying the most appropriate method, possibly with $g^2o$, deriving new classes and defining error function, working with different scales (hierarchical levels for bigger maps).
 \item Loop closures: define new criterions for loop closures, by introducing some knowledge about the past frames (features or estimated position more likely to give a loop closure with the current frame).
 \end{itemize}
 
