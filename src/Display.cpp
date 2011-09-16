@@ -10,8 +10,19 @@
 #define SCORE_WIDTH 280
 #define SCORE_HEIGHT 10
 
-#define INFO_WIDTH 300
+#define INFO_WIDTH 350
 #define INFO_HEIGHT 80
+
+CvScalar getColorScore(float score)
+{
+	// display score bar
+	if (score>0.66)
+		return cvScalar(50,255,50);		// dark green
+	else if (score>0.33)
+		return cvScalar (0,165,255);	// orange
+	else
+		return cvScalar (0,0,255);		// red
+}
 
 Display::Display()
 {
@@ -20,6 +31,9 @@ Display::Display()
 	_pImgInfo = cvCreateImage(cvSize(INFO_WIDTH,INFO_HEIGHT),IPL_DEPTH_8U,3);
 	_pImgFeatures = cvCreateImage(cvSize(NBPIXELS_WIDTH,NBPIXELS_HEIGHT*2),IPL_DEPTH_8U,3);
 
+	_totalScore = 0;
+	_totalCount = 0;
+	_minScore = 1;
 }
 
 Display::~Display()
@@ -33,37 +47,10 @@ Display::~Display()
 
 void Display::showFeatures(FrameData &frameData1, FrameData &frameData2, float score)
 {
-	CvFont font;
-	double hScale=2;
-	double vScale=2;
-	int    lineWidth=2;
-
-	// update info display
-	if (_pImgInfo != NULL) {
-		// reset background
-		cvRectangle(_pImgInfo, cvPoint(0,0), cvPoint(INFO_WIDTH,INFO_HEIGHT), cvScalar(0,0,0), CV_FILLED);
-
-		// display score value
-		char buf[64];
-		sprintf(buf, "%d%%", (int)(100*score));
-		cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
-		cvPutText(_pImgInfo, buf, cvPoint(20, 60), &font, cvScalar(255,255,0));
-
-		// display score bar
-		CvScalar colorScore;
-		if (score>0.66)
-			colorScore = cvScalar(50,255,50);	// dark green
-		else if (score>0.33)
-			colorScore = cvScalar (0,165,255);	// orange
-		else
-			colorScore = cvScalar (0,0,255);	// red
-
-		cvRectangle(_pImgInfo,
-				cvPoint(SCORE_OFFSET_X,SCORE_OFFSET_Y),
-				cvPoint(SCORE_OFFSET_X+(score*SCORE_WIDTH), SCORE_OFFSET_Y+SCORE_HEIGHT),
-				colorScore,
-				CV_FILLED);
-	}
+	if (score < _minScore)
+		_minScore = score;
+	_totalScore += score;
+	_totalCount++;
 
 	if (Config::_FeatureDisplay) {
 		// create windows if not already done
@@ -78,6 +65,8 @@ void Display::showFeatures(FrameData &frameData1, FrameData &frameData2, float s
 		}
 	}
 
+	updateScore(score);
+
 	if (_displayingFeatures) {
 		// update display
 		IplImage* img1=frameData1.getImage();
@@ -86,11 +75,10 @@ void Display::showFeatures(FrameData &frameData1, FrameData &frameData2, float s
 		memcpy(_pImgFeatures->imageData, img1->imageData, img1->imageSize);
 		memcpy(_pImgFeatures->imageData+img1->imageSize, img2->imageData, img2->imageSize);
 		cvShowImage("Features", _pImgFeatures);
+		cvShowImage("Quality", _pImgInfo);
 		cvWaitKey(100);
 
 		if (! Config::_FeatureDisplay) {
-			// update info as the destroy window is not immediate
-			cvShowImage("Quality", _pImgInfo);
 			// destroy windows - asynchronous, it will be handled in event loop (cvWaitKey)
 			cvShowImage("Features", NULL);
 			cvShowImage("Quality", NULL);
@@ -116,9 +104,7 @@ void Display::showOutOfSync(FrameData &frameData1, FrameData &frameData2)
 
 	if (Config::_FeatureDisplay && _pImgInfo != NULL) {
 		// score is not valid
-		cvRectangle(_pImgInfo, cvPoint(0,0), cvPoint(INFO_WIDTH,INFO_HEIGHT), cvScalar(0,0,0), CV_FILLED);
-		cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
-		cvPutText(_pImgInfo, "too low", cvPoint(20, 60), &font, cvScalar(0,0,255));
+		updateScore(-1);
 		cvShowImage("Quality", _pImgInfo);
 	}
 
@@ -139,4 +125,46 @@ void Display::showOutOfSync(FrameData &frameData1, FrameData &frameData2)
 	cvPutText(_pImgFeatures, "SYNC LOST", cvPoint(40, NBPIXELS_HEIGHT+200), &font, cvScalar(0,0,255));
 	cvShowImage("Features", _pImgFeatures);
 	cvWaitKey(100);
+}
+
+void Display::updateScore(float score)
+{
+	CvFont font;
+	double hScale=2;
+	double vScale=2;
+	int    lineWidth=2;
+	char buf[64];
+
+	// update info display
+	if (_pImgInfo != NULL) {
+		// reset background
+		cvRectangle(_pImgInfo, cvPoint(0,0), cvPoint(INFO_WIDTH,INFO_HEIGHT), cvScalar(0,0,0), CV_FILLED);
+
+		cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
+		if (score>=0) {
+			// display score value
+			sprintf(buf, "%d%%", (int)(100*score));
+			cvPutText(_pImgInfo, buf, cvPoint(20, 60), &font, cvScalar(255,255,0));
+		}
+		else {
+			// out of sync
+			cvPutText(_pImgInfo, "---", cvPoint(20, 60), &font, cvScalar(0,0,255));
+		}
+
+		// display score bar
+		sprintf(buf, "min:%d%%", (int)(100*_minScore));
+		cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, 0.8, 0.8, 0, 1);
+		cvPutText(_pImgInfo, buf, cvPoint(200, 30), &font, getColorScore(_minScore));
+		if (_totalCount>0) {
+			sprintf(buf, "mean:%d%%", (int)(100*_totalScore/_totalCount));
+			cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, 0.8, 0.8, 0, 1);
+			cvPutText(_pImgInfo, buf, cvPoint(200, 60), &font, getColorScore(_totalScore/_totalCount));
+		}
+
+		cvRectangle(_pImgInfo,
+				cvPoint(SCORE_OFFSET_X,SCORE_OFFSET_Y),
+				cvPoint(SCORE_OFFSET_X+(score*SCORE_WIDTH), SCORE_OFFSET_Y+SCORE_HEIGHT),
+				getColorScore(score),
+				CV_FILLED);
+	}
 }
