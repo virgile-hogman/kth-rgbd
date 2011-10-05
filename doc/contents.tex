@@ -121,14 +121,15 @@ For each iteration:
 \end{verbatim}
 
 \begin{figure}[h!]
-\centering$
-\begin{array}{ccc}
-\includegraphics[width=0.3\textwidth]{figures/ransac1} &
-\includegraphics[width=0.3\textwidth]{figures/ransac2} &
-\includegraphics[width=0.3\textwidth]{figures/ransac3}
-\end{array}$
-\caption{Illustration of a RANSAC iteration. First, 3 items are chosen randomly among the set. From these points, a model is defined. The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
+\centering%$
+%\begin{array}{ccc}
+\subfloat[]{\label{fig:exransac1} \includegraphics[width=0.3\textwidth]{figures/ransac1}} 
+\subfloat[]{\label{fig:exransac2} \includegraphics[width=0.3\textwidth]{figures/ransac2}} 
+\subfloat[]{\label{fig:exransac3} \includegraphics[width=0.3\textwidth]{figures/ransac3}}
+%\end{array}$
+\caption{Illustration of a RANSAC iteration. \subref{fig:exransac1}First, k items are chosen randomly among the set (here k=3). \subref{fig:exransac2}From these points, a model is defined. \subref{fig:exransac3}The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
 \end{figure}
+
 
 The main difficulty with the RANSAC algorithm is to define the number of iterations and the thresholds.
 For the number of iterations, it is possible to define the ideal value according to a desired probability. Considering a sample of $k$ points, if $p$ denotes the probability (generally set to 0.99) that at least one of the sample set does not include an outlier, $u$ the probability of observing an inlier, we have then:
@@ -323,10 +324,10 @@ To evaluate a transformation, each sample taken from the initial matches (source
 \begin{figure}[h!]
 \centering$
 \begin{array}{cc}
-\includegraphics[width=0.4\textwidth]{pictures/sift_matching_init} &
-\includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}
+\subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}} &
+\subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}}
 \end{array}$
-\caption{Matching of SIFT features - initial matching \& after a RANSAC loop. Note how the initial matches drawn in diagonal in the left figure are excluded and become outliers after the RANSAC loop.}
+\caption{Matching of SIFT features - \subref{fig:sift_match_1} Initial matching \subref{fig:sift_match_2} After a RANSAC loop. Note how the initial matches drawn in diagonal (green) in the left figure are excluded and become outliers (red) after the RANSAC loop.}
 \end{figure}
 
 How to characterize a transformation? There are at least 3 parameters:
@@ -589,7 +590,11 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 \caption{Birmingham office}
 \end{figure}
 
-[TODO show example Birmingham where features were not enough]
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{pictures/ljub}
+\caption{Ljubljana office}
+\end{figure}
 
 \chapter{Conclusions and Future Works}
 \label{chap:conclusion}
