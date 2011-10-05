@@ -127,7 +127,9 @@ bool PointCloud::getTransformICP(const FrameData &frameData1, const FrameData &f
 	pcl::PointCloud<pcl::PointXYZ> cloudFinal;
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
 
-	// load the point clouds (TODO: optimize memory management by keeping at least the last frame)
+	// load the point clouds
+	// TODO: optimize method, very low performance as the RGB+D data is reloaded (just for ICP test)
+	// TODO: optimize memory management by keeping at least the last frame
 	// we want to align the frame2 (source) on the frame1 (target)
 	getFramePointCloud(frameData1.getFrameID(), *cloudTarget);
 	getFramePointCloud(frameData2.getFrameID(), *cloudSource);
@@ -231,6 +233,10 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_ResultDirectory.c_str(), filenamePCD, nbPCD++);
 			cout << "File: " << buf_full << "\n";
 			pcl::io::savePCDFile(buf_full, cloudFull, true);
+			// bug in PCL - the binary file is not created with the good rights!
+			char bufsys[256];
+			sprintf(bufsys, "chmod a+rw %s", buf_full);
+			system(bufsys);
 			cloudFull.points.clear();
 		}
 	}
@@ -246,5 +252,9 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 			sprintf(buf_full, "%s/%s.pcd", Config::_ResultDirectory.c_str(), filenamePCD);
 		cout << "File: " << buf_full << "\n";
 		pcl::io::savePCDFile(buf_full, cloudFull, true);
+		// bug in PCL - the binary file is not created with the good rights!
+		char bufsys[256];
+		sprintf(bufsys, "chmod a+rw %s", buf_full);
+		system(bufsys);
 	}
 }
