@@ -83,22 +83,23 @@ Concerning the implementation, several libraries exist. For this work is used th
 
 \subsection{SURF}
 
-SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. SURF is based on sums of approximated 2D Haar wavelet responses and makes an efficient use of integral images. (Source Wikipedia) [TODO complete description].
+SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor, both are using local gradient histograms. The main difference concerns the performance, lowering the computational time through an efficient use of integral images and sums of approximated 2D Haar wavelet responses. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. 
 
 \subsection{NARF}
 
 This method is presented in~\cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}. [TODO complete description].
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.6\textwidth]{pictures/narf1}
+\includegraphics[width=0.5\textwidth]{pictures/narf1}
 \caption{Example of NARF keypoints}
 \end{figure}
 
 \subsection{others}
 
-Harris corners, BRIEF, [TODO ... should i mention them (even briefly)?]
+Harris corners... [TODO]
 
+BRIEF Features\cite{Calonder10-brief}: Binary Robust Independent Elementary Features present an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a BRIEF descriptor supposes the keypoints are already known, which can be done with a detector such as SIFT or SURF.
 
 \section{Matching}
 
@@ -220,20 +221,18 @@ While the performance is not the main issue of this work, it is still possible t
 The first question is the choice of the features. In the context of Visual SLAM, the goal is to track some keypoints precisely in order to compute the motion of the camera from the keypoint coordinates. For this, in addition to the scale and rotation invariance, one important condition that can be easily verified is to be stable if the camera does not move. 
 
 Here we tested the SIFT features from Rob Hess Library~\cite{hess_sift} and the NARF descriptor~\cite{steder10irosws}. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
-The NARF keypoints showed to be unstable, while the camera was not moving.
+The NARF keypoints showed to be unstable, as shown below while the camera was not moving.
 
 \begin{figure}[h!]
 \centering$
 \begin{array}{cc}
-\includegraphics[width=0.5\textwidth]{pictures/narf1} &
-\includegraphics[width=0.5\textwidth]{pictures/narf2}
+\includegraphics[width=0.5\textwidth]{pictures/narf1_a} &
+\includegraphics[width=0.5\textwidth]{pictures/narf2_a}
 \end{array}$
-\caption{Example of NARF keypoints computed from two consecutive frames}
+\caption{Example of NARF keypoints computed from two consecutive frames without moving the camera. The marks show some keypoints that differs (new or moved).}
 \end{figure}
 
-This could be explained by the noise of the depth data. For this reason, we continued with the SIFT feature.
-
-The extraction of the SIFT features is done on the 2D RGB image. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 6 meters is used.
+This could be explained by the noise of the depth data. For this reason, we got back to the 2D image, using SIFT feature which has the advantage to be highly discriminant. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 6 meters is used.
 
 Practically, there are many parameters to define how the SIFT features are extracted. Here, the default parameters of the SIFT library~\cite{hess_sift} are used.
 
@@ -384,7 +383,7 @@ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
 
 [NOTE: not really a very good example here are the number of inliers is much too low :-/]
 
-Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. [TODO precise how and possibly test]
+Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. For example, the initial elements would have above a minimal distance from the mean, set by a threshold.
 
 \section{Summary}
 
@@ -591,9 +590,19 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 \end{figure}
 
 \begin{figure}[h]
+\centering$
+\begin{array}{cc}
+\subfloat[]{\label{fig:ljub1_1} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1}} &
+\subfloat[]{\label{fig:ljub1_2} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1_feature}}
+\end{array}$
+\caption{Ljubljana office1 - \subref{fig:ljub1_1} Map without closure loop. \subref{fig:ljub1_2} Not enough features could be extracted at this point.}
+\end{figure}
+
+
+\begin{figure}[h]
 \centering
-\includegraphics[width=0.8\textwidth]{pictures/ljub}
-\caption{Ljubljana office}
+\includegraphics[width=0.8\textwidth]{pictures/ljub_office2and3}
+\caption{Ljubljana office2 - map without closure loop}
 \end{figure}
 
 \chapter{Conclusions and Future Works}
@@ -619,6 +628,7 @@ Currently, most of the time is passed on the feature extraction. Remaining very 
 \begin{itemize}
 \item SURF: these features would probably give a result close to the SIFT features, with a lower computational time, such as done in the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop}. However, this would imply to rewrite the matching code (the nearest neighbour based on the kd-tree was provided by the SIFT library~\cite{hess_sift}).
 \item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
+\item BRIEF: based on the mentioned features such as SURF or SIFT, the BRIEF descriptors\cite{Calonder10-brief} should be more efficient than the standard ones.
 \end{itemize}
 
 \section{Quality improvements}
