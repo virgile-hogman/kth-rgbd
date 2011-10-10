@@ -52,34 +52,94 @@ The main convenience with these drivers is that the calibration of the RGB senso
 
 \section{Features}
 
-An approach widely used in computer vision, especially in object recognition, is based on the detection of points of interests on object or surfaces. This is done through the extraction of features. In order to track these points of interests during a movement of the camera and/or the robot, a reliable feature detection has to be invariant to image location, scale and rotation. A few methods are briefly presented here:
+An approach widely used in computer vision, especially in object recognition, is based on the detection of points of interests on object or surfaces. This is done through the extraction of features. In order to track these points of interests during a movement of the camera and/or the robot, a reliable feature has to be invariant to image location, scale and rotation. A few methods are briefly presented here:
+
 \begin{description}
-\item[SIFT] Scale Invariant Feature Transform
-\item[SURF] Speeded Up Robust Feature
-\item[NARF] Normal Aligned Radial Feature
+\item[Harris Corner] A corner detector, by Harris and Stephens~\cite{Harris88alvey}
+\item[SIFT] Scale Invariant Feature Transform, by David Lowe~\cite{lowe_2004_sift} 
+\item[SURF] Speeded Up Robust Feature~\cite{surf}
+\item[NARF] Normal Aligned Radial Feature~\cite{steder10irosws}
+\item[BRIEF] Binary Robust Independent Elementary Features~\cite{Calonder10-brief}
 \end{description}
+
+Feature is quite a generic term for which two aspects should be distinguised: the detection of a keypoint which allows to identify an area of interest, and the descriptor of the item from which a matching can be performed in order to correctly associate pairs of keypoints in different frames. If we summarize, the list of features can be characterized as follows :
+
+\begin{center}
+\begin{tabular}{|c|cc|}
+\hline
+Feature & Detector & Descriptor \\
+\hline
+Harris Corner & X & - \\
+SIFT & X & X \\
+SURF & X & X \\
+NARF & X & X \\
+BRIEF & - & X \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Harris Corner}
+
+Known as the Harris corner operator, this is one of the earliest detector, as it has been proposed by Harris and Stephens in 1988~\cite{Harris88alvey}. By corner, it should be understood in a wide sense as it allows to detect corners, edges and more generally, keypoints. It is ae important reference to mention as it has been used as the basis for further works and improvements leading to more recent methods. One of the main limitation with the Harris operator concerns the scale invariance.
 
 \subsection{SIFT}
 
-The method presented by David Lowe~\cite{lowe_2004_sift} which is widely used in robotics and computer vision.
+The method presented by David Lowe~\cite{lowe_2004_sift} is now widely used in robotics and computer vision.
 This is a method to detect distinctive, invariant image feature points, which easily can be matched between images to perform tasks such as object detection and recognition, or to compute geometrical transformations between images.
 
 The main idea of the SIFT method is to define a cascade of operations following an increasing complexity, so that the most expensive operations are only performed to the most probable candidates.
 \begin{enumerate}
 \item The first step relies on a pyramid of difference-of-Gaussian in order to be invariant to scale and orientation.
-\item From this, keypoints are determined with a more detailed model.
+\item From this, stable  keypoints are determined with a more accurate model.
 \item The image gradient directions is then used to assign one or more orientations to the keypoints.
 \item The local image gradients are then transformed to be stable against distortion and changes in illumination.
 \end{enumerate}
-One of the main interest is to be able to perform fast searches on the features in order to identify candidate matching. Refer to the method described in~\cite{lowe_2004_sift} for further details.
 
-Concerning the implementation, several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a kd-tree search function to perform the initial matching. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
+\emph{Difference-of-Gaussian}
 
-\begin{figure}[h!]
+First off, the scale space is defined as the convolution of an image $I$ with a Gaussian $G$ with variance $\sigma$.
+
+\[ L(x,y,\sigma) = G(x,y,\sigma) * I(x,y) \]
+
+The difference of Gaussian (DoG) is the difference between two layers in scale space along the $\sigma$ axis:
+
+\[
+\begin{array}{rcl}
+D(x,y,\sigma) & = & (G(x,y, k\sigma) - G(x,y,\sigma)) * I(x,y) \\
+ & = & L(x,y,k\sigma) - L(x,y,\sigma)
+\end{array}
+\] 
+
+This provides a close approximation to the scale-normalized laplacian of Gaussian:
+
+\[ \sigma\nabla^2G = \frac{\partial G}{\partial \sigma} \approx \frac{G(x,y,k\sigma)-G(x,y,\sigma)}{k\sigma - \sigma} \]
+
+and therefore:
+
+\[ G(x,y,k\sigma) - G(x,y,\sigma) \approx (k-1)\sigma^2\nabla^2G \]
+
+Then the localization of the keypoints is done by finding the extrema in the differences of Gaussian. 
+
+
+\emph{Descriptor}
+
+In order to provide a good basis for the matching, the descriptor has to be highly distinctive and invariant to remaining variations such as change in illumination or 3D viewpoint. 
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{pictures/sift_descriptor}
+\caption{SIFT descriptor - illustration of how the gradient directions are accumulated into orientation histograms around the center of the region defined by the keypoint. The gradients are first weighted by a Gaussian window represented by the circle. From the 8x8 sample, a 2x2 descriptor is computed this way.}
+\end{figure}
+
+Once the keypoints are found and the descriptors computed, the next step is to be able to perform fast searches on the features in order to identify candidate matching. Refer to the method described in~\cite{lowe_2004_sift} for further details.
+
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/sift_matches_robhess}
 \caption{SIFT features matched between the two images}
 \end{figure}
+
+Concerning the implementation, several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a kd-tree search function to perform the initial matching. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
 
 \subsection{SURF}
 
@@ -95,20 +155,18 @@ This method is presented in~\cite{steder10irosws}. The NARF descriptors are part
 \caption{Example of NARF keypoints}
 \end{figure}
 
-\subsection{others}
-
-Harris corners... [TODO]
+\subsection{BRIEF}
 
 BRIEF Features\cite{Calonder10-brief}: Binary Robust Independent Elementary Features present an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a BRIEF descriptor supposes the keypoints are already known, which can be done with a detector such as SIFT or SURF.
 
-\section{Matching}
+\section{Transformation}
 
 Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then refined to eliminate the most obvious mismatches. The matches that fit to the model are called the \emph{inliers}, while the remaining matches errated are called the \emph{outliers}.
 
 \subsection{RANSAC}
 \label{sub:ransac}
 
-The RANdom SAmple Consensus is an iterative method, widely known in the computer vision ,to estimate the parameters of a transformation. It was published in 1981 \cite{FischlerB81}.
+The RANdom SAmple Consensus is an iterative method, widely known in the computer vision, to estimate the parameters of a transformation. It was published in 1981 \cite{FischlerB81}.
 
 The main idea is to \emph{randomly} select for each iteration a very small number of samples to determine a model representing an hypothesis. This model is then evaluated for the whole set. This is repeated several times by choosing new samples for iteration and keeping the best transformation found. After running this for a fixed number of steps, the algorithm is guaranteed to converge to a better transformation (with a lower error), but it does not necessarily find the best one, as all the possibilities have not been tested. 
 
@@ -201,7 +259,7 @@ Here we present different approaches:
 
 In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure}. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{figures/graph1}
 \caption{Overview of the graph optimization procedure}
@@ -239,7 +297,7 @@ Practically, there are many parameters to define how the SIFT features are extra
 \section{Initial Matching}
 
 Now that the features can be computed, it is possible to perform some feature matching between a couple of frames, to get the initial matches. This is done through a nearest neighbour search, using the euclidian distance of these features.  
-The SIFT Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features.
+The SIFT Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. 
 After this, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
 \begin{figure}[h!]
@@ -628,7 +686,7 @@ Currently, most of the time is passed on the feature extraction. Remaining very 
 \begin{itemize}
 \item SURF: these features would probably give a result close to the SIFT features, with a lower computational time, such as done in the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop}. However, this would imply to rewrite the matching code (the nearest neighbour based on the kd-tree was provided by the SIFT library~\cite{hess_sift}).
 \item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
-\item BRIEF: based on the mentioned features such as SURF or SIFT, the BRIEF descriptors\cite{Calonder10-brief} should be more efficient than the standard ones.
+\item BRIEF: combined with a keypoint detector such as SURF or SIFT, the BRIEF descriptors\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute.
 \end{itemize}
 
 \section{Quality improvements}
@@ -643,7 +701,7 @@ The quality can be improved at different levels:
 
 \section{Other approach}
 
-Microsoft Fusion: no feature (!) with real-time performance. Based on ICP, directly run on the point clouds from the depth data. However, the details of the method are not published yet (patents?). But the shown results seem to be very promising for the future.
+Microsoft Fusion~\cite{MSFusion}: a solution without any feature though it achieves real-time performance. Based on ICP, directly run on the point clouds from the depth data. However, the details of the method are not published yet. But the shown results seem to be very promising for the future.
 
 \begin{appendices}
 \chapter{Annex - Software implementation}
