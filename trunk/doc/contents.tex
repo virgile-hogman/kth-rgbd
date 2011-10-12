@@ -21,7 +21,7 @@ The rest of the document is structured as follows:
 \item[Chapter \ref{chap:background}] presents the Background and the underlying concepts that are most commonly used in this area.
 \item[Chapter \ref{chap:features}] presents the Feature Matching and describe how a single 3D transformation can be computed  from a couple of frames by tracking some features.
 \item[Chapter \ref{chap:graph}] presents the Graph Optimization and how the camera poses can be estimated through the use of a pose graph.
-\item[Chapter \ref{chap:reconstruction}] presents the Scene Reconstruction with examples of maps obtained from different datasets.
+\item[Chapter \ref{chap:experiments}] presents the Experimentations with examples of maps obtained from different datasets.
 \item[Chapter \ref{chap:conclusion}] presents the Conclusion and the Future Works with some suggestions of possible improvements.
 \end{description}
 
@@ -30,24 +30,24 @@ The rest of the document is structured as follows:
 
 \section{Microsoft Kinect}
 
-As mentioned in the introduction, the hardware used in this work is the Microsoft Kinect, a device developed by PrimeSense, initially for the Microsoft Xbox 360 and released in November 2010. It is composed by an RGB camera, 3D depth sensors, a multi-array microphone and a motorized tilt. In this work, only the RGB and depth sensors are used to provide the input data.
+As mentioned in the introduction, the hardware used in this work is the Kinect, a device developed by PrimeSense, initially for the Microsoft Xbox 360 and released in November 2010. It is composed by an RGB camera, 3D depth sensors, a multi-array microphone and a motorized tilt. In this work, only the RGB and depth sensors are used to provide the input data.
 
 \begin{figure}[h!]
 \centering
 \includegraphics[width=0.5\textwidth]{pictures/kinect_sensor}
-\caption{Microsoft Kinect}
+\caption{the Kinect sensor device (courtesy of Microsoft)}
 \end{figure}
 
 Kinect characteristics:
 \begin{itemize}
-\item The field of view is 57\textdegree horizontal 43\textdegree vertical, with a tilt range of $\pm$ 27\textdegree.
 \item The RGB sensor is a regular camera that streams video with 8 bits for every color channel, giving a 24-bit color depth. Its color filter array is a Bayer filter mosaic. The color resolution is 640x480 pixels and a maximal frame rate of 30 Hz.
 \item The depth sensing system is composed by an IR emitter projecting structured light, which is captured by the CMOS image sensor, and decoded to produce the depth image of the scene. It has an operation range between 0.7 and 6 meters, although best results are obtained in the range that goes from 1.2 to 3.5 meters. Its data output has 12-bit depth. The depth sensor resolution is 320x240 pixels with a rate of 30Hz.
+\item The field of view is 57\textdegree horizontal 43\textdegree vertical, with a tilt range of $\pm$ 27\textdegree.
 \end{itemize}
 
-The drivers used are those developed by OpenNI (Open Natural Interface). OpenNI is an organization composed by PrimeSense Willow Garage, Side-Kick, ASUS.
+The drivers used are those developed by OpenNI\footnote{\url{http://www.openni.org/}} (Open Natural Interface). OpenNI is an organization established in November 2010, composed in October 2011 by PrimeSense, Willow Garage, Side-Kick, ASUS, AppSide.
 
-The main convenience with these drivers is that the calibration of the RGB sensor with respect to the IR sensor is ensured so the resulting RGB and depth data are correctly mapped with respect to a unique viewpoint.
+The OpenNI framework offers high level functions which are mainly oriented for the gaming experience, such as gesture recognition and motion tracking. It is an abstraction layer that provides a generic interface to the hardware devices. In the case of the Kinect, one of the main advantages is that the calibration of the RGB sensor with respect to the IR sensor is ensured, so the resulting RGB and depth data are correctly mapped with respect to a unique viewpoint.
 
 
 \section{Features}
@@ -62,7 +62,7 @@ An approach widely used in computer vision, especially in object recognition, is
 \item[BRIEF] Binary Robust Independent Elementary Features~\cite{Calonder10-brief}
 \end{description}
 
-Feature is quite a generic term for which two aspects should be distinguised: the detection of a keypoint which allows to identify an area of interest, and the descriptor of the item from which a matching can be performed in order to correctly associate pairs of keypoints in different frames. If we summarize, the list of features can be characterized as follows :
+Feature is quite a generic term for which two aspects should be distinguised: the detection of a \emph{keypoint} which allows to localize an area of interest, and the \emph{descriptor} of this item, allows to characterize this region. Typically, the detector identifies a region which is delimitated by edges, and its center is designed as a keypoint. The descriptor is generally computed by measuring the main orientations of the surrounding points, leading to a multidimensional \emph{feature vector} which identifies the given keypoint. Given a set of features, a matching can then be performed in order to associate pairs of keypoints, inside an image or between different frames. If we summarize, the mentioned features can be listed as follows :
 
 \begin{center}
 \begin{tabular}{|c|cc|}
@@ -80,16 +80,16 @@ BRIEF & - & X \\
 
 \subsection{Harris Corner}
 
-Known as the Harris corner operator, this is one of the earliest detector, as it has been proposed by Harris and Stephens in 1988~\cite{Harris88alvey}. By corner, it should be understood in a wide sense as it allows to detect corners, edges and more generally, keypoints. It is ae important reference to mention as it has been used as the basis for further works and improvements leading to more recent methods. One of the main limitation with the Harris operator concerns the scale invariance.
+Known as the Harris corner operator, this is one of the earliest detector, as it has been proposed by Harris and Stephens in 1988~\cite{Harris88alvey}. By corner, it should be understood in a wide sense as it allows to detect corners, edges and more generally, keypoints. It is done by computing the second moment matrix. It is an important reference to mention as it has been used as the basis for further works and improvements leading to more recent methods. One of the main limitation with the Harris operator concerns the scale invariance.
 
-\subsection{SIFT}
+\subsection{SIFT feature}
 
 The method presented by David Lowe~\cite{lowe_2004_sift} is now widely used in robotics and computer vision.
 This is a method to detect distinctive, invariant image feature points, which easily can be matched between images to perform tasks such as object detection and recognition, or to compute geometrical transformations between images.
 
 The main idea of the SIFT method is to define a cascade of operations following an increasing complexity, so that the most expensive operations are only performed to the most probable candidates.
 \begin{enumerate}
-\item The first step relies on a pyramid of difference-of-Gaussian in order to be invariant to scale and orientation.
+\item The first step relies on a pyramid of Difference-of-Gaussian (DoG) in order to be invariant to scale and orientation.
 \item From this, stable  keypoints are determined with a more accurate model.
 \item The image gradient directions is then used to assign one or more orientations to the keypoints.
 \item The local image gradients are then transformed to be stable against distortion and changes in illumination.
@@ -97,7 +97,7 @@ The main idea of the SIFT method is to define a cascade of operations following 
 
 \emph{Difference-of-Gaussian}
 
-First off, the scale space is defined as the convolution of an image $I$ with a Gaussian $G$ with variance $\sigma$.
+Most of these concepts are based on the works of Lindeberg~\cite{Lindeberg_1994}. First off, the scale space is defined as the convolution of an image $I$ with a Gaussian $G$ with variance $\sigma$.
 
 \[ L(x,y,\sigma) = G(x,y,\sigma) * I(x,y) \]
 
@@ -123,12 +123,12 @@ Then the localization of the keypoints is done by finding the extrema in the dif
 
 \emph{Descriptor}
 
-In order to provide a good basis for the matching, the descriptor has to be highly distinctive and invariant to remaining variations such as change in illumination or 3D viewpoint. 
+In order to provide a good basis for the matching, the descriptor has to be highly distinctive and invariant to remaining variations such as change in illumination or 3D viewpoint. The SIFT descriptor is based on a histogram of local oriented gradients (HoG) around the keypoint. It is stored as a 128 dimensional feature vector (with 8 orientation bins for each of 4x4 subregion).
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.6\textwidth]{pictures/sift_descriptor}
-\caption{SIFT descriptor - illustration of how the gradient directions are accumulated into orientation histograms around the center of the region defined by the keypoint. The gradients are first weighted by a Gaussian window represented by the circle. From the 8x8 sample, a 2x2 descriptor is computed this way.}
+\includegraphics[width=0.6\textwidth]{figures/sift_descriptor}
+\caption{SIFT descriptor (courtesy of David Lowe) - illustration of how the gradient directions are accumulated into orientation histograms around the center of the region defined by the keypoint. The gradients are first weighted by a Gaussian window represented by the circle. From the 8x8 sample, a 2x2 descriptor is computed this way.}
 \end{figure}
 
 Once the keypoints are found and the descriptors computed, the next step is to be able to perform fast searches on the features in order to identify candidate matching. Refer to the method described in~\cite{lowe_2004_sift} for further details.
@@ -141,25 +141,55 @@ Once the keypoints are found and the descriptors computed, the next step is to b
 
 Concerning the implementation, several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a kd-tree search function to perform the initial matching. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
 
-\subsection{SURF}
+\subsection{SURF feature}
 
-SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor, both are using local gradient histograms. The main difference concerns the performance, lowering the computational time through an efficient use of integral images and sums of approximated 2D Haar wavelet responses. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. 
+SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor, both are using local gradient histograms. The main difference concerns the performance, lowering the computational time through an efficient use of integral images for the image convolutions, hessian matrix-based detector (optimized through approximations of the second order Gaussian partial derivatives), and sums of approximated 2D Haar wavelet responses for the descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. 
 
-\subsection{NARF}
+\begin{figure}[H]
+\centering
+\begin{tabular}{cc}
+\includegraphics[width=0.4\textwidth]{figures/surf_lyy} &
+\includegraphics[width=0.4\textwidth]{figures/surf_lxy}
+\end{tabular}
+\caption{SURF detector relies on approximation of the Gaussian second order derivatives}
+\end{figure}
 
-This method is presented in~\cite{steder10irosws}. The NARF descriptors are part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}. [TODO complete description].
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.4\textwidth]{figures/surf_scale}
+\caption{SURF scale space is built by changing the filter size}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tabular}{cc}
+\includegraphics[width=0.4\textwidth]{figures/surf_orientation} &
+\includegraphics[width=0.4\textwidth]{figures/surf_descriptor}
+\end{tabular}
+\caption{SURF keypoint orientation is found by summing up the response of Haar wavelets with a sliding window of 60 degrees. The descriptor is finally computed by splitting the region around the keypoint into 4x4 subregions and computing Haar wavelet responses weighted with a Gaussian kernel}
+\end{figure}
+
+\subsection{NARF feature}
+
+The NARF feature is presented by Bastian Steder in~\cite{steder10irosws}. It is meant to be used on single range scan obtained with 3D laser range finders or stereo camera. This work is part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}. Its detector looks for stable areas with significant change in vicinity, that can identified from different viewpoint. The descriptor characterize the area around the keypoint by calculating a normal aligned range value patch and finding the dominant orientation of the neighbouring pixels.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/narf_descriptor_visualization}
+\caption{NARF feature (courtesy of PCL) - from the range image a descriptor is computed in the given keypoint localized by the position of the green cross. The right figure shows the surface patch containing the corner of the armchair and the dominant orientation pointed by the red arrow. Each cell of the descriptor corresponds to one of the green beams. The bottom left picture shows the distance to the descriptor in the scene. The darkest areas are the closest, identifying the areas which are the most similar to the left corner of the armchair.}
+\end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{pictures/narf1}
-\caption{Example of NARF keypoints}
+\caption{Example of NARF keypoints computed on a desk}
 \end{figure}
 
-\subsection{BRIEF}
+\subsection{BRIEF descriptor}
 
 BRIEF Features\cite{Calonder10-brief}: Binary Robust Independent Elementary Features present an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a BRIEF descriptor supposes the keypoints are already known, which can be done with a detector such as SIFT or SURF.
 
-\section{Transformation}
+\section{Computing a transformation}
 
 Once the features have been computed, the question is to be able to track them during the movement of the camera. This is done by associating them between different frames. Here we only consider the matching for a couple of frames, the process can then be repeated on the whole sequence of frames. Associating several pairs of features is done with a given belief. Most of the algorithms work with different steps, first from a scarse level where the hypothesis is wide, which is then refined to eliminate the most obvious mismatches. The matches that fit to the model are called the \emph{inliers}, while the remaining matches errated are called the \emph{outliers}.
 
@@ -203,7 +233,7 @@ It can be more convenient to define $v=1-u$ as the probability of observing an o
 N = \frac{log(1-p)}{log(1-(1-v)^k)}
 \]
 
-For the threshold, it depends of the problem and the application, generally this is done empirically with the standard method. But there are actually many variants of the RANSAC that try to overcome this problem, such as the MLESAC method \cite{TorrZ00} using M-estimators in order to find the good parameters in a robust way.
+For the threshold, it depends of the problem and the application, generally this is done empirically with the standard method. There are many variants of the RANSAC that try to overcome this problem, such as the MLESAC method \cite{TorrZ00} using M-estimators in order to find the good parameters in a robust way.
 
 
 \subsection{ICP}
@@ -217,7 +247,7 @@ Finds the rigid transformation minimizing the squared distance between each neig
 
 [TODO precisions]
 
-As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Intel Labs~\cite{Intel_RGBD_2010}, is to run RANSAC first to determine a good approximation of the rigid transformation, and use it as the first guess for the ICP procedure.
+As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Peter~Henry~\cite{Intel_RGBD_2010}, is to run RANSAC first to determine a good approximation of the rigid transformation, and use it as the first guess for the ICP procedure.
 
 \section{SLAM}
 
@@ -250,7 +280,7 @@ Here we present different approaches:
 
 \begin{description}
 \item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background. [TODO complete...]
-\item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error.
+\item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error, by taking steps proportional to the negative of the gradient (or its approximation).
 \item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping~\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps.
 \item[$g^2o$] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. $g^2o$ is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D SLAM or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in $g^2o$. This is the method chosen to solve the graph problem in this work.
 \end{description}
@@ -278,7 +308,7 @@ While the performance is not the main issue of this work, it is still possible t
 
 The first question is the choice of the features. In the context of Visual SLAM, the goal is to track some keypoints precisely in order to compute the motion of the camera from the keypoint coordinates. For this, in addition to the scale and rotation invariance, one important condition that can be easily verified is to be stable if the camera does not move. 
 
-Here we tested the SIFT features from Rob Hess Library~\cite{hess_sift} and the NARF descriptor~\cite{steder10irosws}. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
+Here we tested the SIFT features~\cite{lowe_2004_sift} with the library developed by Rob Hess~\cite{hess_sift}, and the NARF descriptor~\cite{steder10irosws} provided by the PCL. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
 The NARF keypoints showed to be unstable, as shown below while the camera was not moving.
 
 \begin{figure}[h!]
@@ -290,9 +320,9 @@ The NARF keypoints showed to be unstable, as shown below while the camera was no
 \caption{Example of NARF keypoints computed from two consecutive frames without moving the camera. The marks show some keypoints that differs (new or moved).}
 \end{figure}
 
-This could be explained by the noise of the depth data. For this reason, we got back to the 2D image, using SIFT feature which has the advantage to be highly discriminant. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 6 meters is used.
+These variations could be explained by the noise of the depth data of the Kinect, affecting the NARF detector. It is possible that some tuning would help to get more stable results, but the NARF was mainly designed for range scans such as laser range finders or stereo cameras which are generally more accurate and probably less sensible to noise than the Kinect sensor. For this reason, we prefered to work with the 2D image, using SIFT feature~\cite{lowe_2004_sift} which is widely used in the community and is known to be highly discriminant. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 5 meters is used.
 
-Practically, there are many parameters to define how the SIFT features are extracted. Here, the default parameters of the SIFT library~\cite{hess_sift} are used.
+Practically, there are many parameters to define how the SIFT features are extracted. This will mainly affect the number of features and the computational time. In particular, it concerns how many scales ($k$) are computed for each octave and the variance ($\sigma$) of the Gaussian. Here, the default values of the SIFT library~\cite{hess_sift} are used, refering themselves to the standard values recommanded by David Lowe ($k=3$, $\sigma=1.6$). Refer to the method~\cite{lowe_2004_sift} for the description of these parameters.
 
 \section{Initial Matching}
 
@@ -489,9 +519,6 @@ P_0 = I_4 = \left[ \begin{array}{cccc}
 \section{Building the graph}
 
 The equation \ref{eqn:pose_estimation} gives an estimation of the pose that can be inserted into the $g^2o$ graph.
-$g^2o$ provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion.
-
-Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
 
 The video sequence can lead to an important number of poses, especially if the robot slows down, or even stops. Inserting a node for each transformation would not be very efficient, as the same pose would be repeated in the graph. To distinguish these poses among all the others that can potentially be inserted in the graph, these poses are called the \emph{key poses}. 
 
@@ -542,8 +569,52 @@ In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 
 \clearpage
 
-\chapter{Scene reconstruction}
-\label{chap:reconstruction}
+\chapter{Experiments}
+\label{chap:experiments}
+
+Now that the main aspects concerning the graph have been studied a software was developed, which goal is to acquire data from the Kinect, and from this compute the camera poses and produce a map. In order to repeat the experiments, the program is able to replay a given sequence from a list of RGB+D files.
+
+TODO SYSTEM OVERVIEW
+
+
+\section{Software project}
+
+The code is available at the following URL: \url{http://code.google.com/p/kth-rgbd/}
+
+The program built does the following tasks:
+\begin{itemize}
+\item Acquire RGB+depth data from the Kinect
+\item Perform features extraction and matching on a sequence of frames and compute the relative transformations with RANSAC
+\item Compute the positions of the camera poses and translate them into graph nodes and edges
+\item Compute the loop closures and insert the corresponding edges into the graph
+\item Optimize the graph and extract the updated camera poses
+\item Reconstruct the global scene by generating PCD file
+\end{itemize}
+
+$g^2o$ provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion.
+
+Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
+
+The number of dependencies has been limited as much as possible, using preferably open-source libraries.
+Here are the main dependencies:
+\begin{itemize}
+\item OpenNI: to acquire the Kinect data
+\item Eigen3: for the geometric support with transformations and matrices
+\item SIFT Library by Rob Hess~\cite{hess_sift}: for the SIFT extraction and initial matching
+\item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching)
+\item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to Point Cloud Datafiles (*.pcd)
+\item Boost: support library especially for the filesystem access
+\item ConfigFile: open source class to easily define configuration files
+\end{itemize}
+
+
+\section{Data collection}
+
+Two types of experiments were conducted: online moving the Kinect sensor by hand, and offline with the help of the robot Dora at KTH. Other universities could provide more data with a similar robot. 
+
+TODO DORA PRESENTATION
+
+\section{Reconstruction}
 
 Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. This process is called the point cloud \emph{registration}. Once the relative camera positions are known, one simple method is to transform each point cloud by reprojecting all its points according to the corresponding camera position, and concatenate together all the transformed point clouds. This transformation can be done with standard functions provided by the PCL Library~\cite{Rusu_ICRA2011_PCL}. For the visualization, the standard viewer is used.
 
@@ -551,7 +622,7 @@ For reasons of performance, it is necessary to control the memory storage by lim
 
 Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition.
 
-This method remains simple, but the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done at Intel~Labs~\cite{Intel_RGBD_2010}, but this would require some intensive processing and is out of the scope of this work.
+This method remains simple, but the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done in the work of Peter~Henry~\cite{Intel_RGBD_2010}, but this would require some intensive processing and is out of the scope of this work.
 
 The next sections present the maps obtained from different datasets. The first section presents the results with data from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The next section shows the results obtained with data from other universities.
 
@@ -641,6 +712,15 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 \caption{Birmingham Lab3}
 \end{figure}
 
+%\begin{figure}[h]
+%\centering$
+%\begin{array}{c}
+%\includegraphics[width=0.5\textwidth]{pictures/bham_robotlab_1}
+%\includegraphics[width=0.5\textwidth]{pictures/bham_robotlab_2}
+%\end{array}$
+%\caption{Birmingham Robotic Lab}
+%\end{figure}
+
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/bham}
@@ -701,32 +781,10 @@ The quality can be improved at different levels:
 
 \section{Other approach}
 
-Microsoft Fusion~\cite{MSFusion}: a solution without any feature though it achieves real-time performance. Based on ICP, directly run on the point clouds from the depth data. However, the details of the method are not published yet. But the shown results seem to be very promising for the future.
+Microsoft KinectFusion~\cite{MSFusion}\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ}}: a solution without any feature though it achieves real-time performance. Based on ICP, directly run on the point clouds from the depth data. However, the details of the method are not published yet. But the shown results seem to be very promising for the future.
 
-\begin{appendices}
-\chapter{Annex - Software implementation}
+%\begin{appendices}
+%\chapter{Annex - Software implementation}
+%\end{appendices}
 
-The program built does the following tasks:
-\begin{itemize}
-\item Acquire RGB+depth data from the Kinect
-\item Perform features extraction and matching on a sequence of frames and compute the relative transformations with RANSAC
-\item Compute the positions of the camera poses and translate them into graph nodes and edges
-\item Compute the loop closures and insert the corresponding edges into the graph
-\item Optimize the graph and extract the updated camera poses
-\item Reconstruct the global scene by generating PCD file
-\end{itemize}
-
-The number of dependencies has been limited as much as possible, using preferably open-source libraries.
-Here are the main dependencies:
-\begin{itemize}
-\item OpenNI: to acquire the Kinect data
-\item Eigen3: for the geometric support with transformations and matrices
-\item SIFT Library by Rob Hess~\cite{hess_sift}: for the SIFT extraction and initial matching
-\item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching)
-\item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to Point Cloud Datafiles (*.pcd)
-\item Boost: support library especially for the filesystem access
-\item ConfigFile: open source class to easily define configuration files
-\end{itemize}
-
-\end{appendices}
 
