@@ -4,6 +4,7 @@
 
 // Open CV
 #include "opencv/highgui.h"
+#include <ctype.h>
 
 // standard
 #include <vector>
@@ -49,6 +50,7 @@ FrameData::FrameData()
 	_pFeatures = NULL;
 	_nbFeatures = 0;
 	_depthData = NULL;
+	_typeFeature = FEATURE_SURF;
 }
 
 FrameData::~FrameData()
@@ -188,20 +190,134 @@ void FrameData::copyData(const FrameData &srcFrameData)
 	if (_pImage != NULL && srcFrameData._depthData != NULL)
 	{
 		_depthData = new TDepthPixel[_pImage->width * _pImage->height];
-		memcpy(_depthData, &srcFrameData._depthData, sizeof(struct feature) * _pImage->width * _pImage->height);
+		memcpy(_depthData, &srcFrameData._depthData, sizeof(TDepthPixel) * _pImage->width * _pImage->height);
 	}
 }
 
 int FrameData::computeFeatures()
 {
-	// extract the SIFT features
+	// free the previous buffer
+	if (_pFeatures != NULL)
+		free(_pFeatures);
+	_pFeatures = NULL;
+	_nbFeatures = 0;
+
+	switch(_typeFeature) {
+	case FEATURE_SIFT:
+		computeFeaturesSIFT();
+		break;
+	case FEATURE_SURF:
+		computeFeaturesSURF();
+		break;
+	default:
+		// invalid type
+		break;
+	}
+}
+
+int FrameData::computeFeaturesSIFT()
+{
+	// compute the new SIFT features
 	if (_pImage != NULL)
 	{
 		_nbFeatures = sift_features( _pImage, &_pFeatures );
 		removeInvalidFeatures();
 	}
-	else
-		_nbFeatures = 0;
+
+	return _nbFeatures;
+}
+
+
+int FrameData::computeFeaturesSURF()
+{
+	if (_pImage != NULL) {
+		IplImage *im2=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,1);
+
+		CvMemStorage* storage = cvCreateMemStorage(0);
+		CvSeq *objectKeypoints = 0, *objectDescriptors = 0;
+
+		// extended descriptor = 128 elements as SIFT default
+		CvSURFParams params = cvSURFParams(500,1);
+		//params.nOctaves=3;
+
+		// convert to grayscale (opencv SURF only works with this format)
+		cvCvtColor(_pImage, im2, CV_RGB2GRAY);
+
+		printf("SURF extraction\n");
+		fflush(stdout);
+		cvExtractSURF(im2, NULL, &objectKeypoints, &objectDescriptors, storage, params, 0);
+		printf("Object Descriptors: %d\n", objectDescriptors->total);
+		cvReleaseImage(&im2);
+		_nbFeatures = objectDescriptors->total;
+		fflush(stdout);
+
+		// --------------------------------------------------------------
+		// QUICK TEST
+		// conversion to SIFT structure to reuse the same matching code
+		// TODO - remove this and write a more generic kNN function
+		// --------------------------------------------------------------
+	    CvSeqReader reader, kreader;
+		cvStartReadSeq( objectKeypoints, &kreader );
+		cvStartReadSeq( objectDescriptors, &reader );
+
+		/* sort features by decreasing scale and move from CvSeq to array */
+		//cvSeqSort( features, (CvCmpFunc)feature_cmp, NULL );
+		_pFeatures = (feature*)calloc( _nbFeatures, sizeof(struct feature) );
+		//feat = cvCvtSeqToArray( features, *feat, CV_WHOLE_SEQ );
+		for (int i=0; i<_nbFeatures; i++) {
+
+			const CvSURFPoint* kp = (const CvSURFPoint*)kreader.ptr;
+			const float* descriptor = (const float*)reader.ptr;
+			CV_NEXT_SEQ_ELEM( kreader.seq->elem_size, kreader );
+			CV_NEXT_SEQ_ELEM( reader.seq->elem_size, reader );
+
+			// coordinates
+			_pFeatures[i].x = kp->pt.x;
+			_pFeatures[i].y = kp->pt.y;
+			// scale
+			_pFeatures[i].scl = kp->size*1.2f/9.0f;	// see surf.cpp
+			// direction
+			_pFeatures[i].ori = kp->dir;
+			// descriptor length
+			_pFeatures[i].d = 128;
+			// descriptor values
+			for (int d=0; d<128; d++)
+				_pFeatures[i].descr[d] = descriptor[d];
+			// type
+			_pFeatures[i].type = FEATURE_LOWE;
+			// category
+			_pFeatures[i].category = 0;
+			// matching features
+			_pFeatures[i].fwd_match = NULL;
+			_pFeatures[i].bck_match = NULL;
+			_pFeatures[i].mdl_match = NULL;
+			// location in image
+			_pFeatures[i].img_pt.x = kp->pt.x;
+			_pFeatures[i].img_pt.y = kp->pt.y;
+			// user data
+			_pFeatures[i].feature_data = NULL;
+
+//			SIFT
+//			  double a;                      /**< Oxford-type affine region parameter */
+//			  double b;                      /**< Oxford-type affine region parameter */
+//			  double c;                      /**< Oxford-type affine region parameter */
+//			  double scl;                    /**< scale of a Lowe-style feature */
+//			  double ori;                    /**< orientation of a Lowe-style feature */
+//			  int d;                         /**< descriptor length */
+//			  double descr[FEATURE_MAX_D];   /**< descriptor */
+//			  int type;                      /**< feature type, OXFD or LOWE */
+//			  int category;                  /**< all-purpose feature category */
+//			  struct feature* fwd_match;     /**< matching feature from forward image */
+//			  struct feature* bck_match;     /**< matching feature from backmward image */
+//			  struct feature* mdl_match;     /**< matching feature from model */
+//			  CvPoint2D64f img_pt;           /**< location in image */
+//			  CvPoint2D64f mdl_pt;           /**< location in model */
+//			  void* feature_data;            /**< user-definable data */
+		}
+		// --------------------------------------------------------------
+
+		cvClearMemStorage(storage);
+	}
 	return _nbFeatures;
 }
 
@@ -259,9 +375,15 @@ void FrameData::removeInvalidFeatures()
 				validIdFeatures.push_back(i);
 		}
 	}
-	
-	if (validIdFeatures.size() < _nbFeatures)
-	{
+
+	if (validIdFeatures.size() == 0) {
+		// free the previous buffer
+		if (_pFeatures != NULL)
+			free(_pFeatures);
+		_pFeatures = NULL;
+		_nbFeatures = 0;
+	}
+	else if (validIdFeatures.size() < _nbFeatures)	{
 		//printf("Features valid: %d/%d\n", validIdFeatures.size(), _nbFeatures);
 		//fflush(stdout);
 		
@@ -281,5 +403,14 @@ void FrameData::removeInvalidFeatures()
 		
 		_pFeatures = pNewFeatures;
 		_nbFeatures = validIdFeatures.size();
+	}
+}
+
+void FrameData::saveImage()
+{
+	char buf[256];
+	if (_pImage != NULL) {
+		sprintf(buf, "%s/image_%d.bmp", Config::_ResultDirectory.c_str(), getFrameID());
+		cvSaveImage(buf, _pImage);
 	}
 }

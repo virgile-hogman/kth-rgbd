@@ -417,7 +417,7 @@ void kdSearchFeatureMatches(
 			// the neighbours are ordered in increasing descriptor distance
 			d0 = descr_dist_sq( feat, neighbourFeatures[0] );
 			d1 = descr_dist_sq( feat, neighbourFeatures[1] );
-			// check if the 2 are close enough
+			// the 2d neighbour should be relatively close (robustness check - see D.Lowe paper)
 			if (d0 < d1 * NN_SQ_DIST_RATIO_THR)
 			{
 				const struct feature* feat1 = frameData1.getFeature(i);
