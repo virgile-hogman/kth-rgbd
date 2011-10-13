@@ -224,7 +224,7 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 		// apend transformed point cloud
 		cloudFull += cloudFrameTransformed;
 		cout << " Total Size: " << cloudFull.size() << " points (";
-		cout <<  cloudFull.size()*100/Config::_PcdMaxNbPoints << "% of PCD capacity)." << std::endl;
+		cout <<  cloudFull.size()*100/Config::_PcdMaxNbPoints << "% of max capacity)." << std::endl;
 
 		if (cloudFull.size() > Config::_PcdMaxNbPoints)
 		{

@@ -12,6 +12,12 @@ extern "C" {
 
 #include <boost/filesystem.hpp>
 
+enum TypeFeature
+{
+	FEATURE_SIFT,
+    FEATURE_SURF
+};
+
 class FrameData
 {
 private:
@@ -20,6 +26,7 @@ private:
 	TDepthPixel*		_depthData;		// depth data
 	struct feature*		_pFeatures;		// SIFT features
 	int					_nbFeatures;	// number of features (size of features data)
+	TypeFeature			_typeFeature;	// SIFT or SURF
 	
 public:
 	FrameData();
@@ -31,6 +38,7 @@ public:
 	TDepthPixel* getDepthData()							{ return _depthData; }
 	struct feature* getFeatures()						{ return _pFeatures; }
 	int getNbFeatures()	const							{ return _nbFeatures; }
+	TypeFeature getTypeFeature() const					{ return _typeFeature; }
 	
 	// get feature
 	const struct feature* getFeature(int i)				{ return &_pFeatures[i]; }
@@ -75,6 +83,8 @@ public:
 	
 	void removeInvalidFeatures();
 	
+	void saveImage();
+
 	// directory where to load/save the data files
 	static std::string _DataPath;
 	
@@ -83,6 +93,10 @@ public:
 			const boost::filesystem::path & dir_path,	// in this directory,
             const std::string & file_name,				// search for this name,
             std::string & path_found );					// placing path here if found
+
+protected:
+	int computeFeaturesSIFT();
+	int computeFeaturesSURF();
 };
 
 #endif

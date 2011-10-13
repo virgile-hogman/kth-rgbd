@@ -202,8 +202,33 @@ int main(int argc, char** argv)
 
         recordSequence(map);
     }
+    // ---------------------------------------------------------------------------------------------------
+    //  compute feature for a single frame
+    // ---------------------------------------------------------------------------------------------------
+    else if (strcmp(argv[1], "-feature") == 0)
+    {
+    	TimeTracker tm;
+    	FrameData frameData;
+    	int frameID;
+
+        boost::filesystem::create_directories(Config::_ResultDirectory);
+
+    	if (argc>2)	{
+    		frameID = atoi(argv[2]);
+    		// load data
+    		if (frameData.loadImage(frameID) && frameData.loadDepthData()) {
+    			// save image with features
+    			tm.start();
+				frameData.computeFeatures();
+				tm.stop();
+				frameData.drawFeatures();
+				printf("%d features.\t(%dms)\n", frameData.getNbFeatures(), tm.duration());
+				frameData.saveImage();
+    		}
+    	}
+    }
     else {
-		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd", argv[0]);
+		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd | -feature <frame>", argv[0]);
     	return -1;
     }
     
