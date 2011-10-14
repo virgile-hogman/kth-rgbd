@@ -125,7 +125,8 @@ bool FrameData::loadDepthData()
 			TDepthPixel depthByte2 = (unsigned char)(pImageDepth->imageData[3*i+1]);
 			_depthData[i] = (depthByte1<<8) | depthByte2;
 		}
-		//printf("Depth value reloaded at (320,240):%x\n", _depthData[640*240 + 320]);				
+		//printf("Depth value reloaded at (320,240):%x\n", _depthData[640*240 + 320]);
+		cvReleaseImage(&pImageDepth);
 	}
 	else
 	{
@@ -146,7 +147,7 @@ void FrameData::releaseData()
 	if (_pFeatures != NULL)		
 		free(_pFeatures);
 	if (_depthData != NULL)
-		delete _depthData;
+		delete[] _depthData;
 
 	_frameID = -1;
 	_pImage = NULL;
@@ -202,6 +203,8 @@ int FrameData::computeFeatures()
 	_pFeatures = NULL;
 	_nbFeatures = 0;
 
+	_typeFeature = (TypeFeature)Config::_FeatureType;
+
 	switch(_typeFeature) {
 	case FEATURE_SIFT:
 		computeFeaturesSIFT();
@@ -213,16 +216,14 @@ int FrameData::computeFeatures()
 		// invalid type
 		break;
 	}
+	removeInvalidFeatures();
 }
 
 int FrameData::computeFeaturesSIFT()
 {
 	// compute the new SIFT features
 	if (_pImage != NULL)
-	{
 		_nbFeatures = sift_features( _pImage, &_pFeatures );
-		removeInvalidFeatures();
-	}
 
 	return _nbFeatures;
 }
@@ -243,24 +244,23 @@ int FrameData::computeFeaturesSURF()
 		// convert to grayscale (opencv SURF only works with this format)
 		cvCvtColor(_pImage, im2, CV_RGB2GRAY);
 
-		printf("SURF extraction\n");
 		fflush(stdout);
 		cvExtractSURF(im2, NULL, &objectKeypoints, &objectDescriptors, storage, params, 0);
 		printf("Object Descriptors: %d\n", objectDescriptors->total);
 		cvReleaseImage(&im2);
+
 		_nbFeatures = objectDescriptors->total;
 		fflush(stdout);
 
 		// --------------------------------------------------------------
-		// QUICK TEST
 		// conversion to SIFT structure to reuse the same matching code
-		// TODO - remove this and write a more generic kNN function
+		// TODO - remove this and write a more general kNN function
 		// --------------------------------------------------------------
 	    CvSeqReader reader, kreader;
 		cvStartReadSeq( objectKeypoints, &kreader );
 		cvStartReadSeq( objectDescriptors, &reader );
 
-		/* sort features by decreasing scale and move from CvSeq to array */
+		// sort features by decreasing scale and move from CvSeq to array
 		//cvSeqSort( features, (CvCmpFunc)feature_cmp, NULL );
 		_pFeatures = (feature*)calloc( _nbFeatures, sizeof(struct feature) );
 		//feat = cvCvtSeqToArray( features, *feat, CV_WHOLE_SEQ );
@@ -277,12 +277,12 @@ int FrameData::computeFeaturesSURF()
 			// scale
 			_pFeatures[i].scl = kp->size*1.2f/9.0f;	// see surf.cpp
 			// direction
-			_pFeatures[i].ori = kp->dir;
+			_pFeatures[i].ori = kp->dir*PI180;  // SURF in degrees, SIFT in radians
 			// descriptor length
 			_pFeatures[i].d = 128;
 			// descriptor values
-			for (int d=0; d<128; d++)
-				_pFeatures[i].descr[d] = descriptor[d];
+			for (int desc=0; desc<128; desc++)
+				_pFeatures[i].descr[desc] = descriptor[desc];
 			// type
 			_pFeatures[i].type = FEATURE_LOWE;
 			// category
@@ -296,27 +296,12 @@ int FrameData::computeFeaturesSURF()
 			_pFeatures[i].img_pt.y = kp->pt.y;
 			// user data
 			_pFeatures[i].feature_data = NULL;
-
-//			SIFT
-//			  double a;                      /**< Oxford-type affine region parameter */
-//			  double b;                      /**< Oxford-type affine region parameter */
-//			  double c;                      /**< Oxford-type affine region parameter */
-//			  double scl;                    /**< scale of a Lowe-style feature */
-//			  double ori;                    /**< orientation of a Lowe-style feature */
-//			  int d;                         /**< descriptor length */
-//			  double descr[FEATURE_MAX_D];   /**< descriptor */
-//			  int type;                      /**< feature type, OXFD or LOWE */
-//			  int category;                  /**< all-purpose feature category */
-//			  struct feature* fwd_match;     /**< matching feature from forward image */
-//			  struct feature* bck_match;     /**< matching feature from backmward image */
-//			  struct feature* mdl_match;     /**< matching feature from model */
-//			  CvPoint2D64f img_pt;           /**< location in image */
-//			  CvPoint2D64f mdl_pt;           /**< location in model */
-//			  void* feature_data;            /**< user-definable data */
 		}
-		// --------------------------------------------------------------
+		// -------------------------------------------------------------*/
 
-		cvClearMemStorage(storage);
+		cvRelease((void **)&objectKeypoints);
+		cvRelease((void **)&objectDescriptors);
+		cvReleaseMemStorage(&storage);
 	}
 	return _nbFeatures;
 }
@@ -412,5 +397,6 @@ void FrameData::saveImage()
 	if (_pImage != NULL) {
 		sprintf(buf, "%s/image_%d.bmp", Config::_ResultDirectory.c_str(), getFrameID());
 		cvSaveImage(buf, _pImage);
+		printf("Generated file: %s\n", buf);
 	}
 }

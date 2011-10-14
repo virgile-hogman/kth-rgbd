@@ -31,10 +31,6 @@ using namespace std;
 
 /* the maximum number of keypoint NN candidates to check during BBF search */
 #define KDTREE_BBF_MAX_NN_CHKS		200
-/* threshold on squared ratio of distances between NN and 2nd NN */
-#define NN_SQ_DIST_RATIO_THR		0.49
-// relative difference of depth for a valid match (higher -> more tolerant)
-#define MATCH_RELATIVE_DEPTH		0.1
 
 // -----------------------------------------------------------------------------------------------------
 //  evaluateTransform
@@ -158,7 +154,7 @@ void drawInliers(
 	if (forLoopClosure)
 		sprintf(buf, "%s/loopc_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 	else
-		sprintf(buf, "%s/sift_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+		sprintf(buf, "%s/matching_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 	cvSaveImage(buf, imgStackedInliers);
 	cvReleaseImage(&imgStackedInliers);
 }
@@ -392,7 +388,7 @@ void kdSearchFeatureMatches(
 	matchesSource.clear();
 	matchesTarget.clear();
 
-	if (Config::_MatchingSaveImageInitialPairs)
+	if (Config::_SaveImageInitialPairs)
 	{
 		// stack the 2 images
 		imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
@@ -418,7 +414,7 @@ void kdSearchFeatureMatches(
 			d0 = descr_dist_sq( feat, neighbourFeatures[0] );
 			d1 = descr_dist_sq( feat, neighbourFeatures[1] );
 			// the 2d neighbour should be relatively close (robustness check - see D.Lowe paper)
-			if (d0 < d1 * NN_SQ_DIST_RATIO_THR)
+			if (d0 < d1 * Config::_MatchingDistanceRatioNN)
 			{
 				const struct feature* feat1 = frameData1.getFeature(i);
 				const struct feature* feat2 = neighbourFeatures[0];
@@ -431,22 +427,12 @@ void kdSearchFeatureMatches(
 				
 				// read depth info
 				const TDepthPixel depth1 = frameData1.getFeatureDepth(feat1);
-				const TDepthPixel depth2 = frameData2.getFeatureDepth(feat2);				
+				const TDepthPixel depth2 = frameData2.getFeatureDepth(feat2);
+
+				bool bValidMatch = false;
 				
-				// check if depth values are close enough (values in mm)
-				if (depth1>0 &&
-					depth2>0 &&
-					abs(depth1-depth2)/float(depth1) < MATCH_RELATIVE_DEPTH)	// read: relative diff
-				{
-					// draw a green line
-					if (imgStacked != NULL)
-						cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
-					// this is a valid match
-					nbValidMatches++;
-					// fwd link the previous features to the new features according to the match
-					frameData1.setFeatureMatch(i, neighbourFeatures[0]);
-					indexMatches.push_back(i);
-			
+				// check if depth values are valid
+				if (depth1>0 && depth2>0) {
 					// convert pixels to metric
 					float z1 = (feat1->x - NBPIXELS_X_HALF) * depth1 * constant;
 					float y1 = (NBPIXELS_Y_HALF - feat1->y) * depth1 * constant;
@@ -459,32 +445,39 @@ void kdSearchFeatureMatches(
 					Eigen::Vector3f orig(x1,y1,z1);
 					Eigen::Vector3f dest(x2,y2,z2);
 					
-					matchesSource.push_back(orig);
-					matchesTarget.push_back(dest);
+					// compute the distance
+					Eigen::Vector3f vectorDiff = dest-orig;
+					double distance = vectorDiff.squaredNorm();
 					
-					/* alternative method
-					if (feat1->x < 210)
-						indexArea1.push_back(nbValidMatches-1);
-					else if (feat1->x > 430)
-						indexArea3.push_back(nbValidMatches-1);
-					else
-						indexArea2.push_back(nbValidMatches-1);*/
-				}
-				else
-				{
-					// ignore the pairs without depth any info, but show the remaining outliers
-					if (depth1>0 || depth2>0)
-					{
+					if (distance<Config::_MatchingMaxDistanceKeypoint) {
+						// draw a green line
 						if (imgStacked != NULL)
-						{
-							// draw a red line
-							cvLine(imgStacked, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0);
-							//cvPutText(imgStacked, bufDiff, cvPoint((pt1.x+pt2.x)/2 -20,(pt1.y+pt2.y)/2), &font, cvScalar(255,255,0));
-							sprintf(buf,"_%u", depth1);
-							cvPutText(imgStacked, buf, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
-							sprintf(buf,"_%u", depth2);
-							cvPutText(imgStacked, buf, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
-						}
+							cvLine( imgStacked, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
+						// this is a valid match
+						nbValidMatches++;
+						// fwd link the previous features to the new features according to the match
+						frameData1.setFeatureMatch(i, neighbourFeatures[0]);
+						indexMatches.push_back(i);
+
+						matchesSource.push_back(orig);
+						matchesTarget.push_back(dest);
+
+						bValidMatch = true;
+					}
+
+				}
+
+				// ignore the pairs without depth any info, but show the remaining outliers
+				if (!bValidMatch && (depth1>0 || depth2>0)) {
+					if (imgStacked != NULL)
+					{
+						// draw a red line
+						cvLine(imgStacked, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0);
+						//cvPutText(imgStacked, bufDiff, cvPoint((pt1.x+pt2.x)/2 -20,(pt1.y+pt2.y)/2), &font, cvScalar(255,255,0));
+						sprintf(buf,"_%u", depth1);
+						cvPutText(imgStacked, buf, cvPoint(pt1.x, pt1.y), &font, cvScalar(255,255,0));
+						sprintf(buf,"_%u", depth2);
+						cvPutText(imgStacked, buf, cvPoint(pt2.x, pt2.y), &font, cvScalar(255,255,0));
 					}
 				}
 			}
@@ -508,7 +501,7 @@ void kdSearchFeatureMatches(
 		if (forLoopClosure)
 			sprintf(buf, "%s/loopc_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 		else
-			sprintf(buf, "%s/sift_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+			sprintf(buf, "%s/matching_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 
 		// save stacked image
 		cvSaveImage(buf, imgStacked);
@@ -550,7 +543,8 @@ bool computeTransformation(
 	// feature extraction
 	// ---------------------------------------------------------------------------
 	tm.start();
-	printf("Frames %03d-%03d:\t Extracting SIFT features... ", frameID1, frameID2);
+	printf("Frames %03d-%03d:\t Extracting %s features... ", frameID1, frameID2,
+			Config::_FeatureType==0?"SIFT":"SURF");
 	fflush(stdout);
 
 	// load data Frame1
