@@ -14,25 +14,30 @@
 
 using namespace std;
 
-#define PI 3.14159265
-
-
-
 double getDistanceTransform(const Eigen::Matrix4f &transformMat)
 {
 	Eigen::Vector3d translation(transformMat(0,3), transformMat(1,3), transformMat(2,3));
 	return translation.norm();
 }
 
-double getAngleTransform(const Eigen::Matrix4f &transformMat)
+void getAngleTransform(const Eigen::Matrix4f &transformMat, double angleEuler[3])
 {
-	// convert angle to degrees (should not be multiple of PI!)
-	return acos((transformMat(0,0)+transformMat(1,1)+transformMat(2,2) - 1) /2) * 180.0 / PI;
+    // roll
+	angleEuler[0]= atan2(transformMat(2,1),transformMat(2,2));
+    //pitch
+	angleEuler[1]= acos((transformMat(0,0)+transformMat(1,1)+transformMat(2,2) - 1) /2);
+    // yaw
+	angleEuler[2]= atan2(transformMat(1,0),transformMat(0,0));
 }
 
 bool isKeyTransform(const Eigen::Matrix4f &transformMat)
 {
-	return (getAngleTransform(transformMat) > Config::_MapNodeAngle ||
+	double maxAngle = Config::_MapNodeAngle * PI180;	// convert to radians
+	double angle[3];
+	getAngleTransform(transformMat, angle);
+	return (fabs(angle[0]) > maxAngle ||
+			fabs(angle[1]) > maxAngle ||
+			fabs(angle[2]) > maxAngle ||
 			getDistanceTransform(transformMat) > Config::_MapNodeDistance);
 }
 
@@ -163,8 +168,9 @@ void loadPresetLC(map<int,int> &presetLC)
 	}
 }
 
-void Map::detectLoopClosure(const PoseVector	&cameraPoses)
+bool Map::detectLoopClosure(const PoseVector	&cameraPoses)
 {
+	bool returnValue = false;
 	Pose		currentPose;
 	FrameData *pFrameDataLC = NULL;
 	FrameData frameDataCurrent;
@@ -198,27 +204,35 @@ void Map::detectLoopClosure(const PoseVector	&cameraPoses)
 			int indexLC;
 			int nbSamples = 0;
 
-			// check if LC preset
-			if (mapPresetLC.find(currentPose._id) != mapPresetLC.end())
+			// check for LC preset "around" the current pose
+			for (int iTest=0; iTest<=currentPose._id; iTest++)
 			{
-				int node = mapPresetLC[currentPose._id];
-				cout << "Search indexLC for node " << node << " from " << currentPose._id << "\n";
-				for (indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
-					if (idCandidateLC[indexLC]==node)
-					{
-						currentCandidates.push_back(indexLC);
-						nbSamples = 1;
-						break;	// found
-					}
+				if (mapPresetLC.find(iTest) != mapPresetLC.end())
+				{
+					int node = mapPresetLC[iTest];
+					cout << "Search indexLC for node " << node << " from " << iTest << "\n";
+					mapPresetLC.erase(mapPresetLC.find(iTest));
+					currentCandidates.clear();
+
+					// search target node "around" the item given in the map
+					for (indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
+						if (idCandidateLC[indexLC]>=node)  // candidate list is ordered
+						{
+							currentCandidates.push_back(indexLC);
+							nbSamples = 1;
+							break;	// found
+						}
+				}
 			}
-			else if (foundLoopClosure)
-			{
+
+			if (foundLoopClosure) {
 				// candidate already known
+				currentCandidates.clear();
 				currentCandidates.push_back(indexBestLC);
 				nbSamples = 1;
 			}
-			else
-			{
+
+			if (nbSamples==0) {
 				// define random sample list
 				nbSamples = Config::_LoopClosureWindowSize;
 				if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
@@ -257,6 +271,9 @@ void Map::detectLoopClosure(const PoseVector	&cameraPoses)
 					cout << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
 					cout << "-" << currentPose._id <<  ") \n";
 					cout << "Ratio: " << transform._ratioInliers << "\n";
+					logLC << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
+					logLC << "-" << currentPose._id <<  ") \n";
+					logLC << "Ratio: " << transform._ratioInliers << "\n";
 
 					// looking for a better loop closure
 					if (transform._ratioInliers >= bestTransformLC._ratioInliers)
@@ -286,6 +303,7 @@ void Map::detectLoopClosure(const PoseVector	&cameraPoses)
 
 			// add the edge = new constraint
 			_graphOptimizer.addEdge(bestTransformLC);
+			returnValue = true;
 
 			// remove the candidates included in the ID range of the loop closure
 			// this supposes the ID are sorted
@@ -335,11 +353,14 @@ void Map::detectLoopClosure(const PoseVector	&cameraPoses)
 		logLC << " between vertex " << bestTransformLC._idOrig << " and " << bestTransformLC._idDest << "\n";
 		// add new constraint
 		_graphOptimizer.addEdge(bestTransformLC);
+		returnValue = true;
 	}
 
 	// free loop closure data
 	for (int indexLC=0; indexLC<bufferFrameDataLC.size(); indexLC++)
 		delete bufferFrameDataLC[indexLC];
+
+	return 	returnValue;
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -368,6 +389,7 @@ void Map::build()
 		_graphOptimizer.addVertex(currentPose);
 		keyTransform._matrix = Eigen::Matrix4f::Identity();
 		keyTransform._idOrig = _sequenceTransform[0]._idOrig;
+		cout << "Start sequence at " << keyTransform._idOrig << "\n";
 		
 		// -------------------------------------------------------------------------------------------
 		//  loop on the global sequence of transformations
@@ -380,7 +402,7 @@ void Map::build()
 			
 			// update key transformation by cumulating the transforms (left side)
 			keyTransform._matrix = _sequenceTransform[iTransform]._matrix * keyTransform._matrix;
-			cout << keyTransform._idOrig << "-" << _sequenceTransform[iTransform]._idDest << "\r";
+			//cout << keyTransform._idOrig << "-" << _sequenceTransform[iTransform]._idDest << "\n";
 			
 			if (isKeyTransform(keyTransform._matrix) || iTransform==_sequenceTransform.size()-1)
 			{
@@ -388,7 +410,12 @@ void Map::build()
 				//  new keynode: define camera position in the graph
 				// -------------------------------------------------------------------------------------------
 				totalDistance += getDistanceTransform(keyTransform._matrix);
-				cout << "Distance=" << getDistanceTransform(keyTransform._matrix) << "(m)\tAngle=" << getAngleTransform(keyTransform._matrix) << "(deg)\n";
+				cout << keyTransform._idOrig << "-" << _sequenceTransform[iTransform]._idDest << ": ";
+				//cout << "Distance=" << getDistanceTransform(keyTransform._matrix) << "(m)\tAngle=" << getAngleTransform(keyTransform._matrix) << "(deg)\n";
+				double angle[3];
+				getAngleTransform(keyTransform._matrix, angle);
+				cout << "Distance=" << getDistanceTransform(keyTransform._matrix);
+				cout << "(m)\tAngles=" << angle[0]/PI180 << "," << angle[1]/PI180 << "," << angle[2]/PI180 << " (deg)\n";
 
 				// add a vertex = current camera pose
 				cameraPoses.push_back(currentPose);
@@ -414,21 +441,26 @@ void Map::build()
 		// -------------------------------------------------------------------------------------------
 		//  loop closure
 		// -------------------------------------------------------------------------------------------
-		detectLoopClosure(cameraPoses);
-		_graphOptimizer.save("graph_initial.g2o");
+		if (! detectLoopClosure(cameraPoses))
+			printf("NO LOOP CLOSURE DETECTED!\n");
+		else
+		{
+			// new constraints in initial graph
+			_graphOptimizer.save("graph_initial.g2o");
 
-		// -------------------------------------------------------------------------------------------
-		//  optimize the graph
-		// -------------------------------------------------------------------------------------------
-		_graphOptimizer.optimize();
-		_graphOptimizer.save("graph_optimized.g2o");
+			// -------------------------------------------------------------------------------------------
+			//  optimize the graph
+			// -------------------------------------------------------------------------------------------
+			_graphOptimizer.optimize();
+			_graphOptimizer.save("graph_optimized.g2o");
 
-		// extract the updated camera positions from the optimized graph
-		_graphOptimizer.extractAllPoses(cameraPoses);
+			// extract the updated camera positions from the optimized graph
+			_graphOptimizer.extractAllPoses(cameraPoses);
 
-		// generate optimized point cloud
-		if (Config::_PcdGenerateOptimized)
-			PointCloud::generatePCD(cameraPoses, "cloud_optimized");
+			// generate optimized point cloud
+			if (Config::_PcdGenerateOptimized)
+				PointCloud::generatePCD(cameraPoses, "cloud_optimized");
+		}
 
 		savePoses(cameraPoses, "poses.dat");
     }
@@ -518,7 +550,7 @@ void Map::addSequence(std::vector<int> &sequenceFramesID)
 	{
 		Transformation transform;
 		int indexLastFrame;
-		int stepFrame = Config::_MatchingRatioFrame;
+		int stepFrame = Config::_DataInRatioFrame;
 
 		indexLastFrame = 0;
 		for (int iFrame=stepFrame; iFrame<sequenceFramesID.size(); iFrame+=stepFrame)
@@ -532,7 +564,7 @@ void Map::addSequence(std::vector<int> &sequenceFramesID)
 				std::cerr << transform._idOrig << "-" << transform._idDest << ": ";
 				std::cerr << "No valid transformation!!";
 				std::cerr << "\tRatio=" << transform._ratioInliers*100 << "% ";
-				std::cerr << "\tResync attempt #" <<  Config::_MatchingRatioFrame-stepFrame+1 << "\n";
+				std::cerr << "\tResync attempt #" <<  Config::_DataInRatioFrame-stepFrame+1 << "\n";
 				// try to lower step
 				stepFrame--;
 				if (stepFrame>0)
@@ -551,7 +583,7 @@ void Map::addSequence(std::vector<int> &sequenceFramesID)
 			}
 			
 			indexLastFrame = iFrame;
-			stepFrame = Config::_MatchingRatioFrame;
+			stepFrame = Config::_DataInRatioFrame;
 		}
 	}
 	
@@ -566,9 +598,11 @@ void Map::restoreSequence(int minFrameID, int maxFrameID)
 	char buf[256];
 	sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
 	std::ifstream fileTransfo(buf);
+	int check=-1;
 	
 	_sequenceTransform.clear();
 
+	printf("Restoring sequence range %d-%d\n", minFrameID, maxFrameID);
 	if (fileTransfo.is_open())
 	{
 		// read sequence archive
@@ -580,6 +614,17 @@ void Map::restoreSequence(int minFrameID, int maxFrameID)
 			for (int irow=0; irow<4; irow++)
 				for (int icol=0; icol<4; icol++)
 					fileTransfo >> transfo._matrix(irow,icol);
+
+			// check there is no hole in the sequence, it should be continuous
+			if (check==-1)
+				check = transfo._idDest;
+			else {
+				if (transfo._idOrig != check) {
+					printf("Invalid sequence!! Found %d, awaited %d.\nCheck file %s\n", transfo._idOrig, check, buf);
+					return;
+				}
+				check = transfo._idDest;
+			}
 
 			//std::cout << transfo._matrix << std::endl;
 			if (transfo._idOrig >= minFrameID && (transfo._idDest <= maxFrameID || maxFrameID<0))

@@ -5,14 +5,17 @@ std::string Config::_DataDirectory = "data_in";
 std::string Config::_GenDirectory = "data_gen";
 std::string Config::_ResultDirectory = "data_out";
 std::string	Config::_PathKinectXmlFile = "SamplesConfig.xml";
+int			Config::_DataInRatioFrame = 1;
+bool		Config::_SaveImageInitialPairs = false;
 
+int			Config::_FeatureType = 0;
 int			Config::_FeatureDepthMin = 0;
 int			Config::_FeatureDepthMax = 6000;
 bool		Config::_FeatureDisplay = false;
 
-int			Config::_MatchingRatioFrame = 0;
+float		Config::_MatchingDistanceRatioNN = 0.5;
+float		Config::_MatchingMaxDistanceKeypoint = 3.0;
 bool		Config::_MatchingAllowInvalid = false;
-bool		Config::_MatchingSaveImageInitialPairs = false;
 int			Config::_MatchingNbIterations = 20;
 int			Config::_MatchingMinNbInlier = 10;
 float		Config::_MatchingMinRatioInlier = 0.3;
@@ -40,14 +43,17 @@ void Config::LoadConfig(std::string filename)
 	Config::_GenDirectory = config.read<string>("DirDataGen", "data_gen");
 	Config::_ResultDirectory = config.read<string>("DirDataOut", "data_out");
 	Config::_PathKinectXmlFile = config.read<string>("PathKinectXmlFile", "SamplesConfig.xml");
+	Config::_DataInRatioFrame = config.read<int>("DataInRatioFrame", 0);
+	Config::_SaveImageInitialPairs = config.read<bool>("SaveImageInitialPairs", false);
 
+	Config::_FeatureType = config.read<int>("FeatureType", 0);
 	Config::_FeatureDepthMin = config.read<int>("FeatureDepthMin", 0);
 	Config::_FeatureDepthMax = config.read<int>("FeatureDepthMax", 6000);
 	Config::_FeatureDisplay = config.read<bool>("FeatureDisplay", false);
 
-	Config::_MatchingRatioFrame = config.read<int>("MatchingRatioFrame", 0);
+	Config::_MatchingDistanceRatioNN = config.read<float>("MatchingDistanceRatioNN", 0.5);
+	Config::_MatchingMaxDistanceKeypoint = config.read<float>("MatchingMaxDistanceKeypoint", 3.0);
 	Config::_MatchingAllowInvalid = config.read<bool>("MatchingAllowInvalid", false);
-	Config::_MatchingSaveImageInitialPairs = config.read<bool>("MatchingSaveImageInitialPairs", false);
 	Config::_MatchingNbIterations = config.read<int>("MatchingNbIterations", 20);
 	Config::_MatchingMinNbInlier = config.read<int>("MatchingMinNbInlier", 10);
 	Config::_MatchingMinRatioInlier = config.read<float>("MatchingMinRatioInlier", 0.3);

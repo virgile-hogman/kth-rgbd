@@ -30,7 +30,7 @@ public:
 	void regeneratePCD();
 
 private:
-	void detectLoopClosure(const PoseVector	&cameraPoses);
+	bool detectLoopClosure(const PoseVector	&cameraPoses);
 
 private:
 	// graph optimizer

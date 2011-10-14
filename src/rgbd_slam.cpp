@@ -4,6 +4,7 @@
 #include "CameraDevice.h"
 #include "FrameData.h"
 #include "Map.h"
+#include "Matching.h"
 #include "TimeTracker.h"
 
 // standard
@@ -51,8 +52,8 @@ void loadSequence(const char *dataDirectory, int min, int max, vector<int> &sequ
 	}
 
 	cout << "Sequence of " << sequenceFramesID.size() << " frames available.\n";
-	cout << "Sequence of " << sequenceFramesID.size()/Config::_MatchingRatioFrame << " frames with ";
-	cout << "Frame ratio:" << Config::_MatchingRatioFrame << "\n";
+	cout << "Sequence of " << sequenceFramesID.size()/Config::_DataInRatioFrame << " frames with ";
+	cout << "Frame ratio:" << Config::_DataInRatioFrame << "\n";
 }
 
 void recordSequence(Map &map)
@@ -116,7 +117,7 @@ int main(int argc, char** argv)
     
 	if (argc<1)
 	{
-		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd", argv[0]);
+		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd | -feature <from> <to> | -transfo <from> <to>", argv[0]);
 		return -1;
 	}
 	
@@ -209,26 +210,64 @@ int main(int argc, char** argv)
     {
     	TimeTracker tm;
     	FrameData frameData;
-    	int frameID;
+    	int frameID1, frameID2;
 
         boost::filesystem::create_directories(Config::_ResultDirectory);
 
     	if (argc>2)	{
-    		frameID = atoi(argv[2]);
-    		// load data
-    		if (frameData.loadImage(frameID) && frameData.loadDepthData()) {
-    			// save image with features
-    			tm.start();
-				frameData.computeFeatures();
-				tm.stop();
-				frameData.drawFeatures();
-				printf("%d features.\t(%dms)\n", frameData.getNbFeatures(), tm.duration());
-				frameData.saveImage();
-    		}
+    		frameID1 = atoi(argv[2]);
+        	if (argc>3)
+        		frameID2 = atoi(argv[3]);
+        	else
+        		frameID2 = frameID1;
+
+        	for (int id=frameID1; id<=frameID2; id++) {
+
+				if (frameData.loadImage(id) && frameData.loadDepthData()) {
+					// save image with features
+					tm.start();
+					frameData.computeFeatures();
+					tm.stop();
+					frameData.drawFeatures();
+					printf("%d features.\t(%dms)\n", frameData.getNbFeatures(), tm.duration());
+					frameData.saveImage();
+				}
+				frameData.releaseData();
+        	}
+    	}
+    }
+    // ---------------------------------------------------------------------------------------------------
+    //  compute transfo for a single pair of frames
+    // ---------------------------------------------------------------------------------------------------
+    else if (strcmp(argv[1], "-transfo") == 0)
+    {
+    	TimeTracker tm;
+    	FrameData frameData1, frameData2;
+    	int frameID1, frameID2;
+    	Transformation transform;
+
+        boost::filesystem::create_directories(Config::_ResultDirectory);
+        // force matching export
+        Config::_SaveImageInitialPairs = true;
+
+    	if (argc>3)	{
+    		frameID1 = atoi(argv[2]);
+    		frameID2 = atoi(argv[3]);
+
+			tm.start();
+    		// match frame to frame (current with previous)
+    		bool match = computeTransformation(
+    				frameID1,
+    				frameID2,
+    				frameData1,
+    				frameData2,
+    				transform);
+			tm.stop();
+			printf("Transformation is %s valid.\t(%dms)\n", match?"":"not", tm.duration());
     	}
     }
     else {
-		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd | -feature <frame>", argv[0]);
+		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd | -feature <from> <to> | -transfo <from> <to>", argv[0]);
     	return -1;
     }
     
