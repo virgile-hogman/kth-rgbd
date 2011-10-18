@@ -1,3 +1,19 @@
+// kth-rgbd: Visual SLAM from RGB-D data
+// Copyright (C) 2011  Virgile Högman
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 #include <boost/filesystem.hpp>
 
 #include "Config.h"
@@ -106,6 +122,17 @@ void recordSequence(Map &map)
     }
 }
 
+void printUsage(const char *name)
+{
+	printf("Usage: %s <options>\n", name);
+	printf(" -record: acquire data from camera, match and build map\n");
+	printf(" -match <from> <to>: build transformations and map");
+	printf(" -map <from> <to>: build map (with loop closure) from existing transformation (transfo.dat)\n");
+	printf(" -pcd: generate PCD file from existing positions (poses.dat)\n");
+	printf(" -feature <from> <to>: compute features for image data in given range\n");
+	printf(" -transfo <from> <to>: compute transformations for image data in given range\n");
+}
+
 // -----------------------------------------------------------------------------------------------------
 //  Main program
 // -----------------------------------------------------------------------------------------------------
@@ -117,13 +144,15 @@ int main(int argc, char** argv)
     
 	if (argc<1)
 	{
-		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd | -feature <from> <to> | -transfo <from> <to>", argv[0]);
+		printUsage(argv[0]);
 		return -1;
 	}
 	
 	// load configuration
 	Config::LoadConfig("kth-rgbd.cfg");
     FrameData::_DataPath = Config::_DataDirectory;
+
+	srand(time(NULL));
 
     // ---------------------------------------------------------------------------------------------------
     //  regenerate PCD files from archive
@@ -267,7 +296,7 @@ int main(int argc, char** argv)
     	}
     }
     else {
-		printf("Usage: %s -record | -match <from> <to> | -map <from> <to> | -pcd | -feature <from> <to> | -transfo <from> <to>", argv[0]);
+		printUsage(argv[0]);
     	return -1;
     }
     

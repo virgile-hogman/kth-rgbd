@@ -1,3 +1,19 @@
+// kth-rgbd: Visual SLAM from RGB-D data
+// Copyright (C) 2011  Virgile Högman
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 #include <Eigen/Geometry>
 
 // PCL includes
@@ -89,6 +105,7 @@ void drawInliers(
 		const vector<int> &initialPairs,
 		bool forLoopClosure)
 {
+	IplImage* imgStackedInliers = NULL;
 	CvPoint pt1, pt2;
 	CvFont font;
 	double hScale=0.5;
@@ -97,66 +114,66 @@ void drawInliers(
 	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 
-	IplImage* imgStackedInliers = NULL;
+	if (frameData1.getImage() != NULL && frameData2.getImage() != NULL) {
+		// stack the 2 images
+		imgStackedInliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
 
-	// stack the 2 images
-	imgStackedInliers = stack_imgs( frameData1.getImage(), frameData2.getImage() );
+		// draw red lines for outliers
+		// all the initial matches are drawn here - the inliers will be overwritten with green
+		for (int i=0; i<indexMatches.size(); i++)
+		{
+			int idMatch = indexMatches[i];
+			const struct feature* feat1 = frameData1.getFeature(idMatch);
+			const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
 
-	// draw red lines for outliers
-	// all the initial matches are drawn here - the inliers will be overwritten with green
-	for (int i=0; i<indexMatches.size(); i++)
-	{
-		int idMatch = indexMatches[i];
-		const struct feature* feat1 = frameData1.getFeature(idMatch);
-		const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
+			// draw a line through the 2 points in the stacked image
+			pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+			pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+			pt2.y += frameData1.getImage()->height;
+			// draw a green line
+			cvLine( imgStackedInliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
+		}
+		// draw green lines for the best inliers
+		for (int i=0; i<indexBestInliers.size(); i++)
+		{
+			int idInlier = indexBestInliers[i];
+			int idMatch = indexMatches[idInlier];
+			const struct feature* feat1 = frameData1.getFeature(idMatch);
+			const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
 
-		// draw a line through the 2 points in the stacked image
-		pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
-		pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-		pt2.y += frameData1.getImage()->height;
-		// draw a green line
-		cvLine( imgStackedInliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
+			// draw a line through the 2 points in the stacked image
+			pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+			pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+			pt2.y += frameData1.getImage()->height;
+			// draw a green line
+			cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
+		}
+		// draw lines for the 3 initial points
+		for (int i=0; i<initialPairs.size(); i++)
+		{
+			int idMatch = initialPairs[i];
+			const struct feature* feat1 = frameData1.getFeature(idMatch);
+			const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
+
+			// draw a line through the 2 points in the stacked image
+			pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+			pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+			pt2.y += frameData1.getImage()->height;
+			// draw a green line
+			cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,0,140), 2, 8, 0 );
+		}
+
+		// save stacked image
+		char buf[256];
+		sprintf(buf,"inliers:%d/%d (%d%%)", indexBestInliers.size(), indexMatches.size(), indexBestInliers.size()*100/indexMatches.size());
+		cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
+		if (forLoopClosure)
+			sprintf(buf, "%s/loopc_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+		else
+			sprintf(buf, "%s/matching_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+		cvSaveImage(buf, imgStackedInliers);
+		cvReleaseImage(&imgStackedInliers);
 	}
-	// draw green lines for the best inliers
-	for (int i=0; i<indexBestInliers.size(); i++)
-	{
-		int idInlier = indexBestInliers[i];
-		int idMatch = indexMatches[idInlier];
-		const struct feature* feat1 = frameData1.getFeature(idMatch);
-		const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
-
-		// draw a line through the 2 points in the stacked image
-		pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
-		pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-		pt2.y += frameData1.getImage()->height;
-		// draw a green line
-		cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,255,0), 1, 8, 0 );
-	}
-	// draw lines for the 3 initial points
-	for (int i=0; i<initialPairs.size(); i++)
-	{
-		int idMatch = initialPairs[i];
-		const struct feature* feat1 = frameData1.getFeature(idMatch);
-		const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
-
-		// draw a line through the 2 points in the stacked image
-		pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
-		pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-		pt2.y += frameData1.getImage()->height;
-		// draw a green line
-		cvLine( imgStackedInliers, pt1, pt2, CV_RGB(0,0,140), 2, 8, 0 );
-	}
-
-	// save stacked image
-	char buf[256];
-	sprintf(buf,"inliers:%d/%d (%d%%)", indexBestInliers.size(), indexMatches.size(), indexBestInliers.size()*100/indexMatches.size());
-	cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
-	if (forLoopClosure)
-		sprintf(buf, "%s/loopc_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
-	else
-		sprintf(buf, "%s/matching_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
-	cvSaveImage(buf, imgStackedInliers);
-	cvReleaseImage(&imgStackedInliers);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -388,8 +405,8 @@ void kdSearchFeatureMatches(
 	matchesSource.clear();
 	matchesTarget.clear();
 
-	if (Config::_SaveImageInitialPairs)
-	{
+	if (Config::_SaveImageInitialPairs &&
+		(frameData1.getImage() != NULL && frameData2.getImage() != NULL)) {
 		// stack the 2 images
 		imgStacked = stack_imgs(frameData1.getImage(), frameData2.getImage());
 	}
@@ -418,18 +435,20 @@ void kdSearchFeatureMatches(
 			{
 				const struct feature* feat1 = frameData1.getFeature(i);
 				const struct feature* feat2 = neighbourFeatures[0];
-	            
-				// draw a line through the 2 points in the stacked image
-				pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
-				pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
-				pt2.y += frameData1.getImage()->height;
-				nbInitialMatches++;
-				
 				// read depth info
 				const TDepthPixel depth1 = frameData1.getFeatureDepth(feat1);
 				const TDepthPixel depth2 = frameData2.getFeatureDepth(feat2);
 
 				bool bValidMatch = false;
+
+				nbInitialMatches++;
+
+				// draw a line through the 2 points in the stacked image
+				if (frameData1.getImage() != NULL) {
+					pt1 = cvPoint( cvRound( feat1->x ), cvRound( feat1->y ) );
+					pt2 = cvPoint( cvRound( feat2->x ), cvRound( feat2->y ) );
+					pt2.y += frameData1.getImage()->height;
+				}
 				
 				// check if depth values are valid
 				if (depth1>0 && depth2>0) {
@@ -548,28 +567,12 @@ bool computeTransformation(
 	fflush(stdout);
 
 	// load data Frame1
-	if (! frameData1.isLoaded(frameID1))
-	{
-		if (!frameData1.loadImage(frameID1))
-			return false;
-		if (!frameData1.loadDepthData())
-			return false;
-
-		frameData1.computeFeatures();
-		frameData1.drawFeatures();
-	}
+	if (! frameData1.fetchFeatures(frameID1))
+		return false;
 
 	// load data Frame2
-	if (! frameData2.isLoaded(frameID2))
-	{
-		if (!frameData2.loadImage(frameID2))
-			return false;
-		if (!frameData2.loadDepthData())
-			return false;
-
-		frameData2.computeFeatures();
-		frameData2.drawFeatures();
-	}
+	if (! frameData2.fetchFeatures(frameID2))
+		return false;
 
 	tm.stop();
 	printf("\t%d + %d features.\t(%dms)\n", frameData1.getNbFeatures(), frameData2.getNbFeatures(), tm.duration());
