@@ -1,3 +1,19 @@
+// kth-rgbd: Visual SLAM from RGB-D data
+// Copyright (C) 2011  Virgile Högman
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 #ifndef FRAMEDATA_H
 #define FRAMEDATA_H
 
@@ -12,7 +28,7 @@ extern "C" {
 
 #include <boost/filesystem.hpp>
 
-enum TypeFeature
+enum FeatureType
 {
 	FEATURE_SIFT,
     FEATURE_SURF
@@ -26,7 +42,7 @@ private:
 	TDepthPixel*		_depthData;		// depth data
 	struct feature*		_pFeatures;		// SIFT features
 	int					_nbFeatures;	// number of features (size of features data)
-	TypeFeature			_typeFeature;	// SIFT or SURF
+	FeatureType			_featureType;	// SIFT or SURF
 	
 public:
 	FrameData();
@@ -38,9 +54,9 @@ public:
 	TDepthPixel* getDepthData()							{ return _depthData; }
 	struct feature* getFeatures()						{ return _pFeatures; }
 	int getNbFeatures()	const							{ return _nbFeatures; }
-	TypeFeature getTypeFeature() const					{ return _typeFeature; }
+	FeatureType getFeatureType() const					{ return _featureType; }
 	
-	// get feature
+	// get feature by index
 	const struct feature* getFeature(int i)				{ return &_pFeatures[i]; }
 	
 	// feature match
@@ -53,50 +69,69 @@ public:
 		_pFeatures[i].fwd_match = featureMatch;
 	}
 	
-	// depth data
-	const TDepthPixel getDepth(int x, int y)
+	// depth data at given pixel coordinates
+	const TDepthPixel getDepthPixel(int x, int y)
 	{
-		return _depthData[y*640 + x];
+		return _depthData[y*NBPIXELS_WIDTH + x];
+	}
+	const TDepthPixel getDepthPixel(double x, double y)
+	{
+		return _depthData[cvRound(y) * NBPIXELS_WIDTH + cvRound(x)];
 	}
 
 	// depth for one feature
 	const TDepthPixel getFeatureDepth(const feature *feature)
 	{
-		return _depthData[cvRound(feature->y) * 640 + cvRound(feature->x)];
+		if (feature->feature_data != NULL)
+			return *(TDepthPixel*)(feature->feature_data);
+		else
+			return 0;
 	}
 	
+	// load RGB data
 	bool loadImage(int frameID);
-	
-	bool isLoaded(int frameID) const;
-
+	bool isImageLoaded(int frameID) const;
+	// load D data only
 	bool loadDepthData();
-
-	void releaseData();
-
-	void assignData(FrameData &srcFrameData);
-	
-	void copyData(const FrameData &srcFrameData);
-	
-	int computeFeatures();
-
-	void drawFeatures();
-	
-	void removeInvalidFeatures();
-	
+	// save RGB data (with features drawn)
 	void saveImage();
 
+	// loads RGBD data, computes and draws features only if necessary
+	bool fetchFeatures(int frameID);
+	// extract features keypoint and descriptors
+	int computeFeatures();
+	// draw feature on RGB data
+	void drawFeatures();
+
+	// free data RGBD
+	void releaseImageAndDepth();
+	// free data features
+	void releaseFeatures();
+	// free all
+	void releaseData();
+
+	// transfer data to current object, without free
+	void assignData(FrameData &srcFrameData);
+	// duplicate data buffers into current object
+	void copyData(const FrameData &srcFrameData);
+	
 	// directory where to load/save the data files
 	static std::string _DataPath;
 	
-	
+	// utility function to locate RGBD files
 	static bool find_file(
 			const boost::filesystem::path & dir_path,	// in this directory,
             const std::string & file_name,				// search for this name,
             std::string & path_found );					// placing path here if found
 
 protected:
+	// SIFT features
 	int computeFeaturesSIFT();
+	// SURF features
 	int computeFeaturesSURF();
+
+	// basic filtering on depth
+	void removeInvalidFeatures();
 };
 
 #endif

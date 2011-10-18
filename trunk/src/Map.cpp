@@ -1,3 +1,19 @@
+// kth-rgbd: Visual SLAM from RGB-D data
+// Copyright (C) 2011  Virgile Högman
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 #include <Eigen/Geometry>
 
 #include "highgui.h"
@@ -119,13 +135,13 @@ void Map::regeneratePCD()
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  selectCandidateLcRandom
+//  selectCandidateLcUniform
 // -----------------------------------------------------------------------------------------------------
-int selectCandidateLcRandom(vector<int> &candidates)
+int selectCandidateLcUniform(vector<int> &candidates)
 {
 	if (candidates.size()<1)
 		return -1;
-	// pickup a candidate randomly
+	// pickup a candidate randomly with uniform distribution
 	int indexRandom = rand() % candidates.size();
 	int indexLC = candidates[indexRandom];
 	// remove this item from the list
@@ -134,9 +150,34 @@ int selectCandidateLcRandom(vector<int> &candidates)
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  selectCandidateLcPolynom
+//  selectCandidateLcLinear
 // -----------------------------------------------------------------------------------------------------
-int selectCandidateLcPolynom(vector<int> &candidates)
+int selectCandidateLcLinear(vector<int> &candidates)
+{
+	if (candidates.size()<1)
+		return -1;
+	// define an arithmetic progression
+	int sumAll = candidates.size()*(candidates.size()+1)/2;
+	int valRandom = rand() % sumAll;	// rand value 0..sum-1
+	//printf("(%d/%d)", valRandom, sumAll);
+
+	int indexRandom = 0;	// start index
+	int sum = candidates.size()-1;	// cumulated sum 0 based
+	while (sum<valRandom && indexRandom<candidates.size()) {
+		sum += candidates.size()-indexRandom-1;
+		indexRandom++;
+	}
+
+	int indexLC = candidates[indexRandom];
+	// remove this item from the list
+	candidates.erase(candidates.begin() + indexRandom);
+	return indexLC;
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  selectCandidateLcQuadatric
+// -----------------------------------------------------------------------------------------------------
+int selectCandidateLcQuadatric(vector<int> &candidates)
 {
 	if (candidates.size()<1)
 		return -1;
@@ -148,6 +189,38 @@ int selectCandidateLcPolynom(vector<int> &candidates)
 	return indexLC;
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  testRandom
+// -----------------------------------------------------------------------------------------------------
+void testRandom()
+{
+	vector<int> v;
+	int total[10];
+	int nbVals=10;
+
+	for (int i=0; i<nbVals; i++)
+		total[i]=0;
+	for (int k=0; k<200; k++) {
+		v.clear();
+		for (int i=0; i<nbVals; i++)
+			v.push_back(i);
+		printf("TEST %d --> ", k);
+		for (int j=0; j<5; j++) {
+			int index=selectCandidateLcLinear(v);
+			printf(" %d/%d # ", index, v.size());
+			total[index]++;
+		}
+		printf("\n");
+	}
+	printf("Totals: ");
+	for (int i=0; i<nbVals; i++)
+		printf("%d ", total[i]);
+	printf("\n");
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  loadPresetLC
+// -----------------------------------------------------------------------------------------------------
 void loadPresetLC(map<int,int> &presetLC)
 {
 	std::ifstream filePresetLC("preset_LC.dat");
@@ -193,102 +266,104 @@ bool Map::detectLoopClosure(const PoseVector	&cameraPoses)
 	// loop
 	for (int iPose=0; iPose<cameraPoses.size(); iPose++)
 	{
+		list<int> samples;
+		int nbSamples = 0;
+		int indexLC;
+		insertLoopClosure = true;
+
 		currentPose = cameraPoses[iPose];
 
-		/*if (totalDistance > Config::_LoopClosureDistance ||
-			getAngleTransform(currentPose._matrix) > Config::_LoopClosureAngle)*/
-		if (true) // TODO - define LC trigger test
+		// check for LC preset "around" the current pose
+		for (int iTest=0; iTest<=currentPose._id; iTest++)
 		{
-			insertLoopClosure = true;
-			vector<int> currentCandidates;
-			int indexLC;
-			int nbSamples = 0;
-
-			// check for LC preset "around" the current pose
-			for (int iTest=0; iTest<=currentPose._id; iTest++)
+			if (mapPresetLC.find(iTest) != mapPresetLC.end())
 			{
-				if (mapPresetLC.find(iTest) != mapPresetLC.end())
-				{
-					int node = mapPresetLC[iTest];
-					cout << "Search indexLC for node " << node << " from " << iTest << "\n";
-					mapPresetLC.erase(mapPresetLC.find(iTest));
-					currentCandidates.clear();
+				int node = mapPresetLC[iTest];
+				cout << "Search indexLC for node " << node << " from " << iTest << "\n";
+				mapPresetLC.erase(mapPresetLC.find(iTest));
+				samples.clear();
 
-					// search target node "around" the item given in the map
-					for (indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
-						if (idCandidateLC[indexLC]>=node)  // candidate list is ordered
-						{
-							currentCandidates.push_back(indexLC);
-							nbSamples = 1;
-							break;	// found
-						}
-				}
-			}
-
-			if (foundLoopClosure) {
-				// candidate already known
-				currentCandidates.clear();
-				currentCandidates.push_back(indexBestLC);
-				nbSamples = 1;
-			}
-
-			if (nbSamples==0) {
-				// define random sample list
-				nbSamples = Config::_LoopClosureWindowSize;
-				if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
-					nbSamples = idCandidateLC.size();
-				// generate list of indexes where samples will be pickup once
-				int sizeLC = idCandidateLC.size()-5;	// ignore last n poses
-				for (int i=0; i<sizeLC; i++)
-					currentCandidates.push_back(i);
-				if (nbSamples>currentCandidates.size())
-					nbSamples = currentCandidates.size();
-			}
-
-			// check loop closure for every sample
-			for (int iSample=0; iSample<nbSamples; iSample++)
-			{
-				if (currentCandidates.size()==1)
-					indexLC = currentCandidates[0];	// candidate already known
-				else
-					indexLC = selectCandidateLcPolynom(currentCandidates);	// the list is updated!
-
-				cout << "Checking loop closure " << iSample+1 << "/" << nbSamples;
-				cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
-				//cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPose._matrix) << "(deg)\n";
-				cout << "\n";
-
-				// loop closure with frame
-				bool validLC = checkLoopClosure(
-						idCandidateLC[indexLC],
-						currentPose._id,
-						*bufferFrameDataLC[indexLC],
-						frameDataCurrent,
-						transform);
-
-				if (validLC)
-				{
-					cout << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
-					cout << "-" << currentPose._id <<  ") \n";
-					cout << "Ratio: " << transform._ratioInliers << "\n";
-					logLC << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
-					logLC << "-" << currentPose._id <<  ") \n";
-					logLC << "Ratio: " << transform._ratioInliers << "\n";
-
-					// looking for a better loop closure
-					if (transform._ratioInliers >= bestTransformLC._ratioInliers)
+				// search target node "around" the item given in the map
+				for (indexLC=0; indexLC<idCandidateLC.size(); indexLC++)
+					if (idCandidateLC[indexLC]>=node)  // candidate list is ordered
 					{
-						// a better loop closure is found
-						foundLoopClosure = true;
-						// it may be improved, don't insert it yet
-						insertLoopClosure = false;
-						// keep the loop closure info
-						bestTransformLC = transform;
-						indexBestLC = indexLC;
+						samples.push_back(indexLC);
+						break;	// found
 					}
+			}
+		}
+
+		if (foundLoopClosure) {
+			// candidate already known
+			samples.clear();
+			samples.push_back(indexBestLC);
+		}
+
+		nbSamples = samples.size();
+		if (nbSamples==0) {
+			// define random sample list
+			vector<int> randomSamples;
+			nbSamples = Config::_LoopClosureWindowSize;
+			if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
+				nbSamples = idCandidateLC.size();
+			// generate list of indexes where samples will be pickup once
+			int sizeLC = idCandidateLC.size()-5;	// ignore last n poses
+			for (int i=0; i<sizeLC; i++)
+				randomSamples.push_back(i);
+			if (nbSamples>randomSamples.size())
+				nbSamples = randomSamples.size();
+
+			for (int iSample=0; iSample<nbSamples; iSample++) {
+				indexLC = selectCandidateLcLinear(randomSamples);	// the list is updated!
+				samples.push_back(indexLC);
+			}
+			// order the list of samples
+			samples.sort();
+		}
+
+		// check loop closure for every sample
+		while (! samples.empty())
+		{
+			indexLC = samples.front();
+			samples.pop_front();
+
+			cout << "Checking loop closure " << nbSamples-samples.size() << "/" << nbSamples;
+			cout << "\tCandidate frames: " << idCandidateLC[indexLC] << "-" << currentPose._id;
+			//cout << "\tTotalDistance=" << totalDistance << "(m)\tAngle=" <<  getAngleTransform(currentPose._matrix) << "(deg)\n";
+			cout << "\n";
+
+			// loop closure with frame
+			bool validLC = checkLoopClosure(
+					idCandidateLC[indexLC],
+					currentPose._id,
+					*bufferFrameDataLC[indexLC],
+					frameDataCurrent,
+					transform);
+
+			// free RGBD data in frame buffer
+			bufferFrameDataLC[indexLC]->releaseImageAndDepth();
+
+			if (validLC)
+			{
+				cout << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
+				cout << "-" << currentPose._id <<  ") \n";
+				cout << "Ratio: " << transform._ratioInliers << "\n";
+				logLC << " LOOP CLOSURE DETECTED (" << idCandidateLC[indexLC];
+				logLC << "-" << currentPose._id <<  ") \n";
+				logLC << "Ratio: " << transform._ratioInliers << "\n";
+
+				// looking for a better loop closure
+				if (transform._ratioInliers >= bestTransformLC._ratioInliers)
+				{
+					// a better loop closure is found
+					foundLoopClosure = true;
+					// it may be improved, don't insert it yet
+					insertLoopClosure = false;
+					// keep the loop closure info
+					bestTransformLC = transform;
+					indexBestLC = indexLC;
 				}
 			}
-			//cout << "----------------------------------------------------------------------------\n";
 		}
 
 		// trigger the loop closure unless a better one has just been found

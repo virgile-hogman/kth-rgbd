@@ -1,3 +1,18 @@
+// kth-rgbd: Visual SLAM from RGB-D data
+// Copyright (C) 2011  Virgile Högman
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "FrameData.h"
 #include "Config.h"
@@ -50,7 +65,7 @@ FrameData::FrameData()
 	_pFeatures = NULL;
 	_nbFeatures = 0;
 	_depthData = NULL;
-	_typeFeature = FEATURE_SURF;
+	_featureType = FEATURE_SURF;
 }
 
 FrameData::~FrameData()
@@ -85,7 +100,7 @@ bool FrameData::loadImage(int frameID)
 	return (_pImage != NULL);
 }
 
-bool FrameData::isLoaded(int frameID) const
+bool FrameData::isImageLoaded(int frameID) const
 {
 	// check only if RGB data is available here
 	return (_frameID == frameID && _pImage != NULL);
@@ -139,21 +154,63 @@ bool FrameData::loadDepthData()
 	return (_depthData != NULL);
 }
 
+void FrameData::saveImage()
+{
+	char buf[256];
+	if (_pImage != NULL) {
+		sprintf(buf, "%s/image_%d.bmp", Config::_ResultDirectory.c_str(), getFrameID());
+		cvSaveImage(buf, _pImage);
+		printf("Generated file: %s\n", buf);
+	}
+}
+
+bool FrameData::fetchFeatures(int frameID)
+{
+	if (_frameID != frameID)
+	{
+		if (!loadImage(frameID))
+			return false;
+		if (!loadDepthData())
+			return false;
+
+		computeFeatures();
+		drawFeatures();
+	}
+	return true;
+}
+
+void FrameData::releaseImageAndDepth()
+{
+	if (_pImage != NULL)
+		cvReleaseImage(&_pImage);
+	_pImage = NULL;
+	if (_depthData != NULL)
+		delete[] _depthData;
+	_depthData = NULL;
+}
+
+void FrameData::releaseFeatures()
+{
+	if (_pFeatures != NULL)
+	{
+		// free user data
+		for (int i=0; i<_nbFeatures; i++)
+			if (_pFeatures[i].feature_data != NULL)
+				delete (TDepthPixel*)(_pFeatures[i].feature_data);
+		// free buffer
+		free(_pFeatures);
+	}
+	_pFeatures = NULL;
+	_nbFeatures = 0;
+}
+
 void FrameData::releaseData()
 {
 	// free memory
-	if (_pImage != NULL)
-		cvReleaseImage(&_pImage);
-	if (_pFeatures != NULL)		
-		free(_pFeatures);
-	if (_depthData != NULL)
-		delete[] _depthData;
-
+	releaseFeatures();
+	releaseImageAndDepth();
 	_frameID = -1;
-	_pImage = NULL;
-	_pFeatures = NULL;
 	_nbFeatures = 0;
-	_depthData = NULL;
 }
 
 void FrameData::assignData(FrameData &srcFrameData)
@@ -197,15 +254,9 @@ void FrameData::copyData(const FrameData &srcFrameData)
 
 int FrameData::computeFeatures()
 {
-	// free the previous buffer
-	if (_pFeatures != NULL)
-		free(_pFeatures);
-	_pFeatures = NULL;
-	_nbFeatures = 0;
+	_featureType = (FeatureType)Config::_FeatureType;
 
-	_typeFeature = (TypeFeature)Config::_FeatureType;
-
-	switch(_typeFeature) {
+	switch(_featureType) {
 	case FEATURE_SIFT:
 		computeFeaturesSIFT();
 		break;
@@ -216,11 +267,24 @@ int FrameData::computeFeatures()
 		// invalid type
 		break;
 	}
+
 	removeInvalidFeatures();
+
+	// features depth
+	if (_nbFeatures>0) {
+		for (int i=0; i<_nbFeatures; i++) {
+			// compute and store feature depth
+			TDepthPixel depth=getDepthPixel(_pFeatures[i].x, _pFeatures[i].y);
+			_pFeatures[i].feature_data = new TDepthPixel(depth);
+		}
+	}
 }
 
 int FrameData::computeFeaturesSIFT()
 {
+	// free the previous buffer
+	releaseFeatures();
+
 	// compute the new SIFT features
 	if (_pImage != NULL)
 		_nbFeatures = sift_features( _pImage, &_pFeatures );
@@ -231,8 +295,13 @@ int FrameData::computeFeaturesSIFT()
 
 int FrameData::computeFeaturesSURF()
 {
+	// free the previous buffer
+	releaseFeatures();
+
 	if (_pImage != NULL) {
-		IplImage *im2=cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,1);
+		IplImage *pImgGray=cvCreateImage(cvSize(_pImage->width, _pImage->height),IPL_DEPTH_8U,1);
+		if (pImgGray == NULL)
+			return -1;
 
 		CvMemStorage* storage = cvCreateMemStorage(0);
 		CvSeq *objectKeypoints = 0, *objectDescriptors = 0;
@@ -242,12 +311,11 @@ int FrameData::computeFeaturesSURF()
 		//params.nOctaves=3;
 
 		// convert to grayscale (opencv SURF only works with this format)
-		cvCvtColor(_pImage, im2, CV_RGB2GRAY);
+		cvCvtColor(_pImage, pImgGray, CV_RGB2GRAY);
 
 		fflush(stdout);
-		cvExtractSURF(im2, NULL, &objectKeypoints, &objectDescriptors, storage, params, 0);
-		printf("Object Descriptors: %d\n", objectDescriptors->total);
-		cvReleaseImage(&im2);
+		cvExtractSURF(pImgGray, NULL, &objectKeypoints, &objectDescriptors, storage, params, 0);
+		cvReleaseImage(&pImgGray);
 
 		_nbFeatures = objectDescriptors->total;
 		fflush(stdout);
@@ -336,7 +404,7 @@ void FrameData::removeInvalidFeatures()
 	// generate a list of the valid features
 	for (int i=0; i < _nbFeatures; i++)
 	{
-		TDepthPixel depthFeature = getFeatureDepth(&_pFeatures[i]); 
+		TDepthPixel depthFeature = getDepthPixel(_pFeatures[i].x, _pFeatures[i].y);
 		if (depthFeature == 0 ||	// no available depth information
 			depthFeature < Config::_FeatureDepthMin ||
 			depthFeature > Config::_FeatureDepthMax)
@@ -351,7 +419,7 @@ void FrameData::removeInvalidFeatures()
 			for (int row=-sizeFeatureArea; row<=sizeFeatureArea && validArea; row++)
 				for (int col=-sizeFeatureArea; col<=sizeFeatureArea && validArea; col++)
 				{
-					TDepthPixel depthNeighbour = _depthData[(cvRound(_pFeatures[i].y)+col) * 640 + cvRound(_pFeatures[i].x)+row];
+					TDepthPixel depthNeighbour = getDepthPixel(_pFeatures[i].x+row, _pFeatures[i].y+col);
 					if (depthNeighbour!=0 && abs(depthFeature-depthNeighbour)>maxDeltaDepthArea)
 						validArea = false;
 				}
@@ -363,10 +431,7 @@ void FrameData::removeInvalidFeatures()
 
 	if (validIdFeatures.size() == 0) {
 		// free the previous buffer
-		if (_pFeatures != NULL)
-			free(_pFeatures);
-		_pFeatures = NULL;
-		_nbFeatures = 0;
+		releaseFeatures();
 	}
 	else if (validIdFeatures.size() < _nbFeatures)	{
 		//printf("Features valid: %d/%d\n", validIdFeatures.size(), _nbFeatures);
@@ -382,21 +447,8 @@ void FrameData::removeInvalidFeatures()
 			_pFeatures[validIdFeatures[i]].feature_data = NULL;
 		}
 		
-		// free the previous buffer		
-		if (_pFeatures != NULL)		
-			free(_pFeatures);
-		
+		releaseFeatures();
 		_pFeatures = pNewFeatures;
 		_nbFeatures = validIdFeatures.size();
-	}
-}
-
-void FrameData::saveImage()
-{
-	char buf[256];
-	if (_pImage != NULL) {
-		sprintf(buf, "%s/image_%d.bmp", Config::_ResultDirectory.c_str(), getFrameID());
-		cvSaveImage(buf, _pImage);
-		printf("Generated file: %s\n", buf);
 	}
 }
