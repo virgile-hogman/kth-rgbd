@@ -235,7 +235,7 @@ bool findTransformRANSAC(
 		//printf("Found %d inliers (%d%%)\tMean error:%f\n", indexInliers.size(), indexInliers.size()*100/nbValidMatches, meanError);
 
 		if (meanError<0 || meanError >= maxInlierDistance)
-			continue;	// skip these 3 points and go for a new iteration
+			continue;	// skip this set of sample points and go for a new iteration
 
 		if (meanError < bestError)
 		{
@@ -244,12 +244,6 @@ bool findTransformRANSAC(
 
 			if (indexInliers.size()<Config::_MatchingMinNbInlier || ratio<Config::_MatchingMinRatioInlier)
 				continue;	// not enough inliers found
-
-/* NEVER STORE THIS FIRST TRANSFORM - for k=3 it is most probable that it is a bad transform!
- 			//printf("\t => Best candidate transformation! ", indexInliers.size(), meanError);
-			bestTransformationMat = transformation;
-			bestError = meanError;
-			indexBestInliers = indexInliers;*/
 		}
 
 		// ------------------------------------------------
@@ -442,6 +436,7 @@ void kdSearchFeatureMatches(
 				bool bValidMatch = false;
 
 				nbInitialMatches++;
+				//printf("Feature %d : ratio2N=%f d0=%f d1=%f x2=%f y2=%f\n", i, d0/d1, d0, d1, feat2->x, feat2->y);
 
 				// draw a line through the 2 points in the stacked image
 				if (frameData1.getImage() != NULL) {
