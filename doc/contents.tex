@@ -32,7 +32,7 @@ The rest of the document is structured as follows:
 
 As mentioned in the introduction, the hardware used in this work is the Kinect, a device developed by PrimeSense, initially for the Microsoft Xbox 360 and released in November 2010. It is composed by an RGB camera, 3D depth sensors, a multi-array microphone and a motorized tilt. In this work, only the RGB and depth sensors are used to provide the input data.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{pictures/kinect_sensor}
 \caption{the Kinect sensor device (courtesy of Microsoft)}
@@ -139,7 +139,7 @@ Once the keypoints are found and the descriptors computed, the next step is to b
 \caption{SIFT features matched between the two images}
 \end{figure}
 
-Concerning the implementation, several libraries exist. For this work is used the library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a kd-tree search function to perform the initial matching. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
+For this work, we use the SIFT library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a function to perform the initial matching through a kd-tree. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
 
 \subsection{SURF feature}
 
@@ -209,7 +209,7 @@ For each iteration:
   Keep the best hypothesis with respect to the the mean error (lowest is best).
 \end{verbatim}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering%$
 %\begin{array}{ccc}
 \subfloat[]{\label{fig:exransac1} \includegraphics[width=0.3\textwidth]{figures/ransac1}} 
@@ -249,7 +249,7 @@ Finds the rigid transformation minimizing the squared distance between each neig
 
 As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Peter~Henry~\cite{Intel_RGBD_2010}, is to run RANSAC first to determine a good approximation of the rigid transformation, and use it as the first guess for the ICP procedure.
 
-\section{SLAM}
+\section{General concepts for SLAM}
 
 As described in the introduction, the SLAM problem can be defined as looking for the best estimation of the robot/camera poses, by reducing the uncertainty due to the noise affecting the measurements. This leads to use the probabilistic approach widely described in the litterature such as~\cite{Thrun_2005}.
 
@@ -301,17 +301,17 @@ This chapter gives an overview of some of the main concepts used for SLAM and mo
 
 While the performance is not the main issue of this work, it is still possible to make a distinction between the operations that can be performed \emph{online} (while the robot is moving) and the operations done \emph{offline} (after a given sequence of moves). While the SLAM adresses both Localization and Mapping, it seems clear that as long as the solution based on the graph implies the detection of loop closures to give a correct result, the dual problem of building the map and localizating the robot at the same time is realistically meant to be done \emph{offline}. This is one of the main constraint resulting of this approach. However, once the map is built, the single operation of localization could be done on the basis of the relevant features that have been used during the initial SLAM operation. So we can foresee that this kind of approach should allow the robot to build a map as a first step, only for this purpose. Once the map is built, the localization and further operations could be done but this mainly depends on the tasks the robot has to fulfill.
 
-\chapter{Feature Matching}
+\chapter{Features Matching}
 \label{chap:features}
 
-\section{Feature extraction}
+\section{Features extraction}
 
 The first question is the choice of the features. In the context of Visual SLAM, the goal is to track some keypoints precisely in order to compute the motion of the camera from the keypoint coordinates. For this, in addition to the scale and rotation invariance, one important condition that can be easily verified is to be stable if the camera does not move. 
 
-Here we tested the SIFT features~\cite{lowe_2004_sift} with the library developed by Rob Hess~\cite{hess_sift}, and the NARF descriptor~\cite{steder10irosws} provided by the PCL. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
+Here we first tested the SIFT features~\cite{lowe_2004_sift} with the library developed by Rob Hess~\cite{hess_sift}, and the NARF descriptor~\cite{steder10irosws} provided by the PCL. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
 The NARF keypoints showed to be unstable, as shown below while the camera was not moving.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering$
 \begin{array}{cc}
 \includegraphics[width=0.5\textwidth]{pictures/narf1_a} &
@@ -330,9 +330,9 @@ Now that the features can be computed, it is possible to perform some feature ma
 The SIFT Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. 
 After this, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}
+\includegraphics[width=0.8\textwidth]{pictures/sift_matching_init}
 \caption{Initial matching of SIFT features}
 \end{figure}
 
@@ -355,7 +355,7 @@ z: width,\:positive\:to\:the\:right\\
 \right.
 \]
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{figures/coordinates}
 \caption{The two different coordinate systems, from the "screen" (as seen by the sensors RGB+D) to the 3D scene in the real world.}
@@ -393,7 +393,7 @@ Recompute transformation again with all the best inliers (final step *)
 
 As presented in the background, it is possible to estimate the optimal value of N to fulfill a target probability of having a desired number/ratio of inliers (or outliers). In this work we use a fixed value given by parameter of N=20. A deeper study of the RANSAC step could lead to tune more accurately this parameter.
 
-In the nominal case, the quantity of features is quite important and the probability of having an outlier is generally very low, as most of the mismatches are excluded by the initial SIFT matching round.
+In the nominal case, the quantity of features is quite important and the probability of having an outlier is generally very low, as most of the mismatches are excluded by the initial matching round.
 
 
 %If we define that the mean number of features is 500 with 10 outliers (after different experiments) then we have:
@@ -404,11 +404,9 @@ In the nominal case, the quantity of features is quite important and the probabi
 
 To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class \emph{pcl::TransformationFromCorrespondences} from the PCL library~\cite{Rusu_ICRA2011_PCL} and we use the minimal number of points necessary to solve this equation, hence k=3.
 
-[TODO - for around 800 features this k=3 may be far too low! consider the 3 points are very close (probable for large nb of features), the initial model will not be precise enough. As most of the "basic" hypothesis are not good, only the ones recomputed from the inliers are kept. The first one should be discarded most of the time... this is a bit more complex than standard RANSAC. An interesting test would be to run a standard RANSAC with a higher k but the N has to be reavaluted accordingly (they both depend on the nb of initial matches)].
-
 To evaluate a transformation, each sample taken from the initial matches (source) is then projected according to this transformation. A 3D vector is computed from the difference between the projected point and the real point taken from the matching point (destination). The error is the norm of this vector.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering$
 \begin{array}{cc}
 \subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}} &
@@ -428,7 +426,7 @@ The main difficulty here is to find the best balance among these 3 values, by pu
 
 If the criterions are too permissive, this could result in an invalid model, leading to errated assocations. 
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering$
 \includegraphics[width=0.4\textwidth]{pictures/bad_inliers1}$
 \caption{Example of bad model (during a check for loop closure) - the matches are semantically incorrect, as the scenes are different. But the green lines are still considered to be inliers. Here, the threshold defining the minimum ratio of inliers with respect to the initial matches is too low.}
@@ -448,7 +446,7 @@ Let N be the number of inliers and $p_i$ be the i-th inlier vector. We can then 
 \sigma^2 = \frac{1}{N} \sum_{i=1}^N{(p_i - \mu)^2}
 \]
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering$
 \begin{array}{cccc}
 \includegraphics[width=0.3\textwidth]{pictures/bad_transform1} &
@@ -473,12 +471,15 @@ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
 
 Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. For example, the initial elements would have above a minimal distance from the mean, set by a threshold.
 
+\section{Type of features}
+After testing and getting good results with the SIFT feature, the SURF features~\cite{surf} were tested. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features, which also depends on the parameters such as the number of octaves and the variance of the Gaussian. For a scene requiring about 1000ms with SIFT, the extraction of the SURF feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
+
 \section{Summary}
 
 This chapter presented a method to define a rigid transformation from a couple of frames given their RGB+D data.
 \begin{enumerate}
-\item The SIFT features are first extracted in 2D from each RGB frame.
-\item By integrating the depth information, an initial matching is performed in 3D with the use of a kd-tree.
+\item The SIFT/SURF features are first extracted in 2D from each RGB frame.
+\item An initial matching is performed with the use of a kd-tree, and the depth information is integrated to compute the feature positions in 3D.
 \item From this set of pairs (of features), a transformation is computed by running a RANSAC algorithm.
 \end{enumerate}
 
@@ -546,7 +547,7 @@ Another approach would be to select the past frames that are more likely to matc
 \section{Example of graph optimization}
 In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering$
 \begin{array}{cc}
 \includegraphics[width=0.4\textwidth]{pictures/graph4_base} &
@@ -554,7 +555,7 @@ In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 \end{array}$
 \caption{Graph with 4 rooms: non optimized - initial guess}
 \end{figure}
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering$
 \begin{array}{cc}
 \includegraphics[width=0.4\textwidth]{pictures/graph4_initial_guess} &
@@ -574,12 +575,13 @@ In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 
 Now that the main aspects concerning the graph have been studied a software was developed, which goal is to acquire data from the Kinect, and from this compute the camera poses and produce a map. In order to repeat the experiments, the program is able to replay a given sequence from a list of RGB+D files.
 
-TODO SYSTEM OVERVIEW
-
+[TODO SYSTEM OVERVIEW]
 
 \section{Software project}
 
-The code is available at the following URL: \url{http://code.google.com/p/kth-rgbd/}
+The code is available as an open source project \footnote{\url{http://code.google.com/p/kth-rgbd/}}.
+
+There are some similarities with the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop} that use SURF features, RANSAC and HOG-Man graph optimization. It is based on ROS framework unlike this project which is stand alone and there are less dependencies, as it uses PCL for the reconstruction at the final step.
 
 The program built does the following tasks:
 \begin{itemize}
@@ -610,9 +612,9 @@ Here are the main dependencies:
 
 \section{Data collection}
 
-Two types of experiments were conducted: online moving the Kinect sensor by hand, and offline with the help of the robot Dora at KTH. Other universities could provide more data with a similar robot. 
-
-TODO DORA PRESENTATION
+Two types of experiments were conducted: online moving the Kinect sensor by hand, and offline with the help of the DORA robot at KTH.
+%Experiments were carried out on a Pioneer III wheeled robot, equipped with a Hokuyo URG laser scanner, and a camera mounted at 1.4 m above the ﬂoor. Experiments at KTH took place in environment with 4 different rooms connected by a corridor.
+Other universities could provide data with a similar robot. 
 
 \section{Reconstruction}
 
@@ -632,7 +634,7 @@ The next sections present the maps obtained from different datasets. The first s
 
 This map is built from a sequence containing 1 room without loop closure (no graph optimization). 
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/room1_initial}
 \caption{Map with 1 room, without optimization (initial). Note how the corner of the table and the chair appears to be doubled.}
@@ -641,7 +643,7 @@ This map is built from a sequence containing 1 room without loop closure (no gra
 \subsection{Map with 1 room, graph optimized with 1 loop closure}
 This map is built from a sequence containing 1 room with 1 loop closure, which is triggered after having gone through the room and back to a position close to the initial position. 
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/room1_1}
 \caption{Map with 1 room, optimized with 1 loop closure. Note how the corner of the table and the chair are now correctly "merged" compared to the previous figure.}
@@ -652,7 +654,7 @@ This map is built from a sequence containing 1 room with 1 loop closure, which i
 \subsection{Map with 2 rooms and corridor}
 Map with 2 rooms, optimized with 2 loop closures.
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \centering$
 \begin{array}{c}
 \includegraphics[width=0.8\textwidth]{pictures/room2_1}\\
@@ -666,7 +668,7 @@ Map with 2 rooms, optimized with 2 loop closures.
 \subsection{Map with 4 rooms and corridor}
 Map with 4 rooms, optimized with 4 loop closures.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering$
 \begin{array}{c}
 \includegraphics[width=0.8\textwidth]{pictures/room4_1}\\
@@ -679,7 +681,7 @@ Map with 4 rooms, optimized with 4 loop closures.
 
 Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputing final transfo with best inliers.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering$
 \begin{array}{c}
 \includegraphics[width=0.8\textwidth]{pictures/room4_new_init1}\\
@@ -690,7 +692,7 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 
 \clearpage
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering$
 \begin{array}{c}
 \includegraphics[width=0.8\textwidth]{pictures/room4_new_optim1}\\
@@ -701,9 +703,19 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 
 \clearpage
 
+\begin{figure}[H]
+\centering$
+\begin{array}{ccc}
+\subfloat[]{\label{fig:poses_4r_1} \includegraphics[width=0.3\textwidth]{figures/poses_4r_odometry_raw}} &
+\subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.3\textwidth]{figures/poses_4r_initial}} &
+\subfloat[]{\label{fig:poses_4r_3} \includegraphics[width=0.3\textwidth]{figures/poses_4r_optimized}}
+\end{array}$
+\caption{Estimation of the poses - \subref{fig:poses_4r_1} From standard odometry, raw data. Notice the drift. \subref{fig:poses_4r_2} From this system, initial graph. Note the similarity with the standard odometry. \subref{fig:poses_4r_3} From this system, optimized graph. }
+\end{figure}
+
 \section{Other universities}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering$
 \begin{array}{c}
 \includegraphics[width=0.5\textwidth]{pictures/bham_lab3_1}
@@ -712,7 +724,7 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 \caption{Birmingham Lab3}
 \end{figure}
 
-%\begin{figure}[h]
+%\begin{figure}[H]
 %\centering$
 %\begin{array}{c}
 %\includegraphics[width=0.5\textwidth]{pictures/bham_robotlab_1}
@@ -721,13 +733,13 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 %\caption{Birmingham Robotic Lab}
 %\end{figure}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/bham}
 \caption{Birmingham office}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering$
 \begin{array}{cc}
 \subfloat[]{\label{fig:ljub1_1} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1}} &
@@ -737,7 +749,7 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 \end{figure}
 
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/ljub_office2and3}
 \caption{Ljubljana office2 - map without closure loop}
@@ -750,8 +762,8 @@ This work gave a good insight into the general problem SLAM, and more specifical
 
 The approach can be described in the following steps:
 \begin{enumerate}
-\item Feature extraction: SIFT extraction in 2D
-\item Feature matching: kd-tree in 2D/3D
+\item Feature extraction: SIFT/SURF extraction in 2D
+\item Feature matching: kd-tree on the feature space with depth criterion
 \item Transformation: RANSAC in 3D
 \item Graph optimization: Based on the $g^2o$ framework
 \item Loop Closures: Add some constraints in the graph
@@ -764,7 +776,7 @@ Given the big picture, it is now possible to imagine some improvements of the cu
 
 Currently, most of the time is passed on the feature extraction. Remaining very close to the given method, the overall performance would significantly be improved by lowering the time spent for this step. This could be done through the use of new features:
 \begin{itemize}
-\item SURF: these features would probably give a result close to the SIFT features, with a lower computational time, such as done in the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop}. However, this would imply to rewrite the matching code (the nearest neighbour based on the kd-tree was provided by the SIFT library~\cite{hess_sift}).
+\item BRIEF: these features would probably give a result close to the SIFT/SURF features, with a lower computational time. However, this would imply to rewrite the matching code, by doing binary string comparison (the nearest neighbour based on the kd-tree was provided by the SIFT library~\cite{hess_sift}).
 \item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
 \item BRIEF: combined with a keypoint detector such as SURF or SIFT, the BRIEF descriptors\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute.
 \end{itemize}
