@@ -34,6 +34,25 @@
 \usepackage{natbib}
 \usepackage{url}
 
+%\usepackage[acronym]{glossaries}
+%\makeglossaries
+
+\hypersetup{
+   plainpages=false,
+   pdfpagelayout=SinglePage,
+   bookmarksopen=false,
+   bookmarksnumbered=true,
+   breaklinks=true,
+   linktocpage,
+   colorlinks=true,
+   linkcolor=blue,
+   urlcolor=blue,
+   citecolor=blue,
+   anchorcolor=green,
+   backref,
+   pdfborder=0 0 0
+}
+
 \title{Building a 3D map from RGB-D sensors}
 \author{Virgile H\"{o}gman}
 \date{October 2011}
@@ -54,6 +73,13 @@
 \selectlanguage{english}
 \clearpage
 \tableofcontents
+
+%\clearpage
+%\pdfbookmark[0]{Glossary}{glossary}
+%\printglossaries
+
+%\input{glossary}
+
 \mainmatter
 
 \input{contents}
