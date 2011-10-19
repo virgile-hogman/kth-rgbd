@@ -97,10 +97,14 @@ void savePoses(const PoseVector &poses, const char *filename)
 	sprintf(buf, "%s/%s", Config::_ResultDirectory.c_str(), filename);
 	std::ofstream filePoses(buf);
 
+	//filePoses << "#Num\tFrameID\tMatrix rows,cols";
 	for (int i=0; i<poses.size(); i++)
 	{
-		filePoses << "Pose [" << i << "] - Frame #" << poses[i]._id << "\n";
-		filePoses << poses[i]._matrix << "\n----------------------------------------\n";
+		filePoses << poses[i]._id;
+		for (int r=0; r<3; r++)
+			for (int c=0; c<4; c++)
+				filePoses << "\t" << poses[i]._matrix(r,c);
+		filePoses << "\n";
 	}
 }
 
@@ -508,6 +512,7 @@ void Map::build()
 		}
 
 		_graphOptimizer.save("graph_initial.g2o");
+		savePoses(cameraPoses, "poses_initial.dat");
 
 		// build initial point cloud
 		if (Config::_PcdGenerateInitial)
@@ -520,7 +525,7 @@ void Map::build()
 			printf("NO LOOP CLOSURE DETECTED!\n");
 		else
 		{
-			// new constraints in initial graph
+			// new constraints in initial graph, overwrite
 			_graphOptimizer.save("graph_initial.g2o");
 
 			// -------------------------------------------------------------------------------------------
@@ -531,13 +536,12 @@ void Map::build()
 
 			// extract the updated camera positions from the optimized graph
 			_graphOptimizer.extractAllPoses(cameraPoses);
+			savePoses(cameraPoses, "poses_optimized.dat");
 
 			// generate optimized point cloud
 			if (Config::_PcdGenerateOptimized)
 				PointCloud::generatePCD(cameraPoses, "cloud_optimized");
 		}
-
-		savePoses(cameraPoses, "poses.dat");
     }
 }
 

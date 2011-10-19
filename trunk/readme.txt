@@ -1,10 +1,21 @@
+// kth-rgbd: Visual SLAM from RGB-D data
+// Copyright (C) 2011  Virgile Högman
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 Requirements
 ------------
-
-* Eigen3
-
-* SIFT Library - Rob Hess
-http://blogs.oregonstate.edu/hess/code/sift/
 
 * OpenCV
 http://opencv.willowgarage.com/
@@ -14,32 +25,28 @@ http://www.openni.org/
 
 * Point Cloud Libary
 (cminpack, Flann, Eigen3, OpenNI)
-pointclouds.org/
+http://pointclouds.org/
 
-* Boost
+* Eigen3
+http://eigen.tuxfamily.org/
 
+* SIFT Library - Rob Hess
+http://blogs.oregonstate.edu/hess/code/sift/
+
+* Boost Library
+http://www.boost.org/
 
 Other
 -----
 
 * LibUSB
-
 * GTK ?
+* subdependencies
 
 Known bugs
 ----------
 
-A memory leak still not found. Alloc can fail from a certain point (typically during the reconstruction when big amounts of memory are used for the pointclouds or during the matching).
-
---------------------------
-
-OpenCV Error: Insufficient memory (Failed to allocate 1843200 bytes) in OutOfMemoryError, file /tmp/buildd/libopencv-2.3.1+svn6514+branch23/modules/core/src/alloc.cpp, line 52
-terminate called after throwing an instance of 'cv::Exception'
-  what():  /tmp/buildd/libopencv-2.3.1+svn6514+branch23/modules/core/src/alloc.cpp:52: error: (-4) Failed to allocate 1843200 bytes in function OutOfMemoryError
-
---------------------------
-
 Frames 2734-2735:	 Extracting SIFT features... OpenCV Error: Null pointer () in cvCvtSeqToArray, file cxcore/cxdatastructs.cpp, line 548
 terminate called after throwing an instance of 'cv::Exception'
 
-this may be a pb in the SIFT library.
+this may be a pb in the SIFT library (?).
