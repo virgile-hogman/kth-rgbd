@@ -1,8 +1,8 @@
 \chapter{Introduction}
 
-To navigate in an unknown environment, a mobile robot needs to build a map of the environment and locate itself in the map at the same time. The process adressing this dual problem is called SLAM, which stands for Simultaneous Localization and Mapping. In an outdoor environment, this can generally be solved by a GPS that generally allows to get an estimation of the position with a very good accuracy. However, when moving indoor or in places where the GPS data is not available, or not reliable enough, other solutions have to be found. 
+To navigate in an unknown environment, a mobile robot needs to build a map of the environment and locate itself in the map at the same time. The process adressing this dual problem is called \gls{SLAM}. In an outdoor environment, this can generally be solved by a GPS that generally allows to get an estimation of the position with a very good accuracy. However, when moving indoor or in places where the GPS data is not available, or not reliable enough, other solutions have to be found. 
 
-Generally, the main problem raised with SLAM comes from the measurement errors, due to the sensors noise. Probablistic models are widely used to reduce these errors and provide satisfying estimations. While the SLAM process is generally based on data provided by sensors such as laser scanners, or odometry data, Visual SLAM focuses on the use of camera. 
+Generally, the main problem raised with \gls{SLAM} comes from the measurement errors, due to the sensors noise. Probablistic models are widely used to reduce these errors and provide satisfying estimations. While this process is generally based on data provided by sensors such as laser scanners, or odometry data, \gls{VSLAM} focuses on the use of camera. 
 
 \section{Context}
 
@@ -10,21 +10,21 @@ Currently, most of robotic mapping is performed using sensors that offers only a
 
 \section{Goals}
 
-The goal of this work is to build a 3D map from RGB \& depth information provided by a camera. The hardware device used here is the Microsoft Kinect. The main objective of this work is to have an overview of the different methods and techniques in order to build a consistent map, so the problems can better be identified and then be individually handled more deeply. Even if Visual SLAM is intended to be used in real time, some of the processing may be done without focusing on the performance issues in this study. 
+The goal of this work is to build a 3D map from RGB \& depth information provided by a camera. The hardware device used here is the Microsoft Kinect. The main objective of this work is to have an overview of the different methods and techniques in order to build a consistent map, so the problems can better be identified and then be individually handled more deeply. Even if \gls{VSLAM} is intended to be used in real time, some of the processing may be done without focusing on the performance issues in this study. 
 
-The Visual SLAM process can be described as estimating the poses of the camera in order to reconstruct the entire environment while the camera is moving. As the sensor noise lead to deviations in the estimations of each camera poses with respect to the the real motion, the goal is to build a 3D map which is close to the real environment as much as possible.
+The \gls{VSLAM} process can be described as estimating the poses of the camera in order to reconstruct the entire environment while the camera is moving. As the sensor noise lead to deviations in the estimations of each camera poses with respect to the the real motion, the goal is to build a 3D map which is close to the real environment as much as possible.
 
-In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the project were using techniques such as EKF (Extended Kalman Filtering) or particle filters, at the cost of computational time. Recently, some projects ~\cite{Intel_RGBD_2010}~\cite{engelhard11euron-workshop} make use of pose graphs, that seem to be an interesting alternative to study.
+In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the project were using techniques such as \gls{EKF} or particle filters, at the cost of computational time. Recently, some projects ~\cite{Intel_RGBD_2010}~\cite{engelhard11euron-workshop} make use of pose graphs, that seem to be an interesting alternative to study.
 
 \section{Thesis outline}
 
 The rest of the document is structured as follows:
 \begin{description}
-\item[Chapter \ref{chap:background}] presents the Background and the underlying concepts that are most commonly used in this area.
-\item[Chapter \ref{chap:features}] presents the Feature Matching and describe how a single 3D transformation can be computed  from a couple of frames by tracking some features.
-\item[Chapter \ref{chap:graph}] presents the Graph Optimization and how the camera poses can be estimated through the use of a pose graph.
-\item[Chapter \ref{chap:experiments}] presents the Experimentations with examples of maps obtained from different datasets.
-\item[Chapter \ref{chap:conclusion}] presents the Conclusion and the Future Works with some suggestions of possible improvements.
+ \item[Chapter \ref{chap:background}] presents the background and the underlying concepts that are most commonly used in this area.
+ \item[Chapter \ref{chap:features}] presents the feature matching and describe how a single 3D transformation can be computed  from a couple of frames by tracking some features.
+ \item[Chapter \ref{chap:map}] presents how a map can be built, by estimating the camera poses through the use of a pose graph and performing a 3D reconstruction.
+ \item[Chapter \ref{chap:experiments}] presents the experimentations, the software and how the data was acquired and produced, with examples of maps generated from different datasets.
+ \item[Chapter \ref{chap:conclusion}] presents the conclusion and the future works with some suggestions of possible improvements.
 \end{description}
 
 \chapter{Background}
@@ -42,14 +42,14 @@ As mentioned in the introduction, the hardware used in this work is the Kinect, 
 
 Kinect characteristics:
 \begin{itemize}
-\item The RGB sensor is a regular camera that streams video with 8 bits for every color channel, giving a 24-bit color depth. Its color filter array is a Bayer filter mosaic. The color resolution is 640x480 pixels and a maximal frame rate of 30 Hz.
-\item The depth sensing system is composed by an IR emitter projecting structured light, which is captured by the CMOS image sensor, and decoded to produce the depth image of the scene. It has an operation range between 0.7 and 6 meters, although best results are obtained in the range that goes from 1.2 to 3.5 meters. Its data output has 12-bit depth. The depth sensor resolution is 320x240 pixels with a rate of 30Hz.
-\item The field of view is 57\textdegree horizontal 43\textdegree vertical, with a tilt range of $\pm$ 27\textdegree.
+ \item The RGB sensor is a regular camera that streams video with 8 bits for every color channel, giving a 24-bit color depth. Its  color filter array is a Bayer filter mosaic. The color resolution is 640x480 pixels and a maximal frame rate of 30 Hz.
+ \item The depth sensing system is composed by an \gls{IR} emitter projecting structured light, which is captured by the CMOS image sensor, and decoded to produce the depth image of the scene. It has an operation range between 0.7 and 6 meters, although best results are obtained in the range that goes from 1.2 to 3.5 meters. Its data output has 12-bit depth. The depth sensor resolution is 320x240 pixels with a rate of 30Hz.
+ \item The field of view is 57\textdegree horizontal 43\textdegree vertical, with a tilt range of $\pm$ 27\textdegree.
 \end{itemize}
 
 The drivers used are those developed by OpenNI\footnote{\url{http://www.openni.org/}} (Open Natural Interface). OpenNI is an organization established in November 2010, composed in October 2011 by PrimeSense, Willow Garage, Side-Kick, ASUS, AppSide.
 
-The OpenNI framework offers high level functions which are mainly oriented for the gaming experience, such as gesture recognition and motion tracking. It is an abstraction layer that provides a generic interface to the hardware devices. In the case of the Kinect, one of the main advantages is that the calibration of the RGB sensor with respect to the IR sensor is ensured, so the resulting RGB and depth data are correctly mapped with respect to a unique viewpoint.
+The OpenNI framework offers high level functions which are mainly oriented for the gaming experience, such as gesture recognition and motion tracking. It is an abstraction layer that provides a generic interface to the hardware devices. In the case of the Kinect, one of the main advantages is that the calibration of the RGB sensor with respect to the \gls{IR} sensor is ensured, so the resulting RGB and depth data are correctly mapped with respect to a unique viewpoint.
 
 
 \section{Features}
@@ -57,44 +57,45 @@ The OpenNI framework offers high level functions which are mainly oriented for t
 An approach widely used in computer vision, especially in object recognition, is based on the detection of points of interests on object or surfaces. This is done through the extraction of features. In order to track these points of interests during a movement of the camera and/or the robot, a reliable feature has to be invariant to image location, scale and rotation. A few methods are briefly presented here:
 
 \begin{description}
-\item[Harris Corner] A corner detector, by Harris and Stephens~\cite{Harris88alvey}
-\item[SIFT] Scale Invariant Feature Transform, by David Lowe~\cite{lowe_2004_sift} 
-\item[SURF] Speeded Up Robust Feature~\cite{surf}
-\item[NARF] Normal Aligned Radial Feature~\cite{steder10irosws}
-\item[BRIEF] Binary Robust Independent Elementary Features~\cite{Calonder10-brief}
+ \item[Harris Corner] A corner detector, by Harris and Stephens~\cite{Harris88alvey}
+ \item[SIFT] \gls{SIFT}, by David Lowe~\cite{lowe_2004_sift} 
+ \item[SURF] \gls{SURF}~\cite{surf}
+ \item[NARF] \gls{NARF}~\cite{steder10irosws}
+ \item[BRIEF] \gls{BRIEF}~\cite{Calonder10-brief}
 \end{description}
 
 Feature is quite a generic term for which two aspects should be distinguised: the detection of a \emph{keypoint} which allows to localize an area of interest, and the \emph{descriptor} of this item, allows to characterize this region. Typically, the detector identifies a region which is delimitated by edges, and its center is designed as a keypoint. The descriptor is generally computed by measuring the main orientations of the surrounding points, leading to a multidimensional \emph{feature vector} which identifies the given keypoint. Given a set of features, a matching can then be performed in order to associate pairs of keypoints, inside an image or between different frames. If we summarize, the mentioned features can be listed as follows :
 
 \begin{center}
-\begin{tabular}{|c|cc|}
-\hline
-Feature & Detector & Descriptor \\
-\hline
-Harris Corner & X & - \\
-SIFT & X & X \\
-SURF & X & X \\
-NARF & X & X \\
-BRIEF & - & X \\
-\hline
-\end{tabular}
+ \begin{tabular}{|c|cc|}
+  \hline
+  Feature & Detector & Descriptor \\
+  \hline
+  Harris Corner & X & - \\
+  SIFT & X & X \\
+  SURF & X & X \\
+  NARF & X & X \\
+  BRIEF & - & X \\
+  \hline
+ \end{tabular}
 \end{center}
 
 \subsection{Harris Corner}
 
-Known as the Harris corner operator, this is one of the earliest detector, as it has been proposed by Harris and Stephens in 1988~\cite{Harris88alvey}. By corner, it should be understood in a wide sense as it allows to detect corners, edges and more generally, keypoints. It is done by computing the second moment matrix. It is an important reference to mention as it has been used as the basis for further works and improvements leading to more recent methods. One of the main limitation with the Harris operator concerns the scale invariance.
+Known as the Harris corner operator, this is one of the earliest detector, as it was proposed in 1988 by Harris and Stephens~\cite{Harris88alvey}. The  notion of corner should be taken in a wide sense as it allows to detect not only corners, but edges and more generally, keypoints. It is done by computing the second moment matrix. It is an important reference to mention as it has been used as the basis for further works and improvements leading to more recent methods. One of the main limitation with the Harris operator concerns the scale invariance.
 
 \subsection{SIFT feature}
 
-The method presented by David Lowe~\cite{lowe_2004_sift} is now widely used in robotics and computer vision.
+\glsreset{SIFT}
+The \gls{SIFT} is a method presented by David Lowe~\cite{lowe_2004_sift} is now widely used in robotics and computer vision.
 This is a method to detect distinctive, invariant image feature points, which easily can be matched between images to perform tasks such as object detection and recognition, or to compute geometrical transformations between images.
 
-The main idea of the SIFT method is to define a cascade of operations following an increasing complexity, so that the most expensive operations are only performed to the most probable candidates.
+The main idea of the \gls{SIFT} method is to define a cascade of operations following an increasing complexity, so that the most expensive operations are only performed to the most probable candidates.
 \begin{enumerate}
-\item The first step relies on a pyramid of Difference-of-Gaussian (DoG) in order to be invariant to scale and orientation.
-\item From this, stable  keypoints are determined with a more accurate model.
-\item The image gradient directions is then used to assign one or more orientations to the keypoints.
-\item The local image gradients are then transformed to be stable against distortion and changes in illumination.
+ \item The first step relies on a pyramid of \gls{DoG} in order to be invariant to scale and orientation.
+ \item From this, stable  keypoints are determined with a more accurate model.
+ \item The image gradient directions is then used to assign one or more orientations to the keypoints.
+ \item The local image gradients are then transformed to be stable against distortion and changes in illumination.
 \end{enumerate}
 
 \emph{Difference-of-Gaussian}
@@ -103,7 +104,7 @@ Most of these concepts are based on the works of Lindeberg~\cite{Lindeberg_1994}
 
 \[ L(x,y,\sigma) = G(x,y,\sigma) * I(x,y) \]
 
-The difference of Gaussian (DoG) is the difference between two layers in scale space along the $\sigma$ axis:
+The \gls{DoG} is the difference between two layers in scale space along the $\sigma$ axis:
 
 \[
 \begin{array}{rcl}
@@ -120,60 +121,62 @@ and therefore:
 
 \[ G(x,y,k\sigma) - G(x,y,\sigma) \approx (k-1)\sigma^2\nabla^2G \]
 
-Then the localization of the keypoints is done by finding the extrema in the differences of Gaussian. 
+Then the localization of the keypoints is done by finding the extrema in the \gls{DoG}. 
 
 
 \emph{Descriptor}
 
-In order to provide a good basis for the matching, the descriptor has to be highly distinctive and invariant to remaining variations such as change in illumination or 3D viewpoint. The SIFT descriptor is based on a histogram of local oriented gradients (HoG) around the keypoint. It is stored as a 128 dimensional feature vector (with 8 orientation bins for each of 4x4 subregion).
+In order to provide a good basis for the matching, the descriptor has to be highly distinctive and invariant to remaining variations such as change in illumination or 3D viewpoint. The \gls{SIFT} descriptor is based on a \gls{HoG} around the keypoint. It is stored as a 128 dimensional feature vector (with 8 orientation bins for each of 4x4 subregion).
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.6\textwidth]{figures/sift_descriptor}
-\caption{SIFT descriptor (courtesy of David Lowe) - illustration of how the gradient directions are accumulated into orientation histograms around the center of the region defined by the keypoint. The gradients are first weighted by a Gaussian window represented by the circle. From the 8x8 sample, a 2x2 descriptor is computed this way.}
+ \centering
+ \includegraphics[width=0.8\textwidth]{figures/sift_descriptor}
+ \caption{SIFT descriptor (courtesy of David Lowe) - illustration of how the gradient directions are accumulated into orientation histograms around the center of the region defined by the keypoint. The gradients are first weighted by a Gaussian window represented by the circle. From the 8x8 sample, a 2x2 descriptor is computed this way.}
 \end{figure}
 
 Once the keypoints are found and the descriptors computed, the next step is to be able to perform fast searches on the features in order to identify candidate matching. Refer to the method described in~\cite{lowe_2004_sift} for further details.
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{pictures/sift_matches_robhess}
-\caption{SIFT features matched between the two images}
+ \centering
+ \includegraphics[width=0.8\textwidth]{pictures/sift_matches_robhess}
+ \caption{SIFT features matched between the two images}
 \end{figure}
 
-For this work, we use the SIFT library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a function to perform the initial matching through a kd-tree. There are also other functions such as a extendable function that can be used to compute geometrical transformations with RANSAC (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
+For this work, we use the \gls{SIFT} library developed by Rob Hess~\cite{hess_sift}. Additionally to the feature extraction, this library also provides a function to perform the initial matching through a kd-tree. There are also other functions such as a extendable function that can be used to compute geometrical transformations with \gls{RANSAC} (method described in ~\ref{sub:ransac}) but the given functions are only working for 2D operations and will not be used.
 
 \subsection{SURF feature}
 
-SURF (Speeded Up Robust Feature) is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the SIFT descriptor, both are using local gradient histograms. The main difference concerns the performance, lowering the computational time through an efficient use of integral images for the image convolutions, hessian matrix-based detector (optimized through approximations of the second order Gaussian partial derivatives), and sums of approximated 2D Haar wavelet responses for the descriptor. The standard version of SURF is several times faster than SIFT and claimed by its authors to be more robust against different image transformations than SIFT. 
+\glsreset{SURF}
+The \gls{SURF} is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the \gls{SIFT} descriptor, both are using local gradient histograms. The main difference concerns the performance, lowering the computational time through an efficient use of integral images for the image convolutions, hessian matrix-based detector (optimized through approximations of the second order Gaussian partial derivatives), and sums of approximated 2D Haar wavelet responses for the descriptor. The standard version of \gls{SURF} is several times faster than \gls{SIFT} and claimed by its authors to be more robust against different image transformations than \gls{SIFT}. A comparison is done in this work.
 
 \begin{figure}[H]
-\centering
-\begin{tabular}{cc}
-\includegraphics[width=0.4\textwidth]{figures/surf_lyy} &
-\includegraphics[width=0.4\textwidth]{figures/surf_lxy}
-\end{tabular}
-\caption{SURF detector relies on approximation of the Gaussian second order derivatives}
+ \centering
+ \begin{tabular}{cc}
+  \includegraphics[width=0.4\textwidth]{figures/surf_lyy} &
+  \includegraphics[width=0.4\textwidth]{figures/surf_lxy}
+ \end{tabular}
+ \caption{SURF detector relies on approximation of the Gaussian second order derivatives}
 \end{figure}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.4\textwidth]{figures/surf_scale}
-\caption{SURF scale space is built by changing the filter size}
+ \centering
+ \includegraphics[width=0.4\textwidth]{figures/surf_scale}
+ \caption{SURF scale space is built by changing the filter size}
 \end{figure}
 
 \begin{figure}[H]
-\centering
-\begin{tabular}{cc}
-\includegraphics[width=0.4\textwidth]{figures/surf_orientation} &
-\includegraphics[width=0.4\textwidth]{figures/surf_descriptor}
-\end{tabular}
-\caption{SURF keypoint orientation is found by summing up the response of Haar wavelets with a sliding window of 60 degrees. The descriptor is finally computed by splitting the region around the keypoint into 4x4 subregions and computing Haar wavelet responses weighted with a Gaussian kernel}
+ \centering
+ \begin{tabular}{cc}
+  \includegraphics[width=0.4\textwidth]{figures/surf_orientation} &
+  \includegraphics[width=0.4\textwidth]{figures/surf_descriptor}
+ \end{tabular}
+ \caption{SURF keypoint orientation is found by summing up the response of Haar wavelets with a sliding window of 60 degrees. The descriptor is finally computed by splitting the region around the keypoint into 4x4 subregions and computing Haar wavelet responses weighted with a Gaussian kernel}
 \end{figure}
 
 \subsection{NARF feature}
 
-The NARF feature is presented by Bastian Steder in~\cite{steder10irosws}. It is meant to be used on single range scan obtained with 3D laser range finders or stereo camera. This work is part of the ROS Point Cloud Library~\cite{Rusu_ICRA2011_PCL}. Its detector looks for stable areas with significant change in vicinity, that can identified from different viewpoint. The descriptor characterize the area around the keypoint by calculating a normal aligned range value patch and finding the dominant orientation of the neighbouring pixels.
+\glsreset{NARF}
+The \gls{NARF} is presented by Bastian Steder in~\cite{steder10irosws}. It is meant to be used on single range scan obtained with 3D laser range finders or stereo camera. This work is part of the \gls{PCL}~\cite{Rusu_ICRA2011_PCL} which is itself a component of the \gls{ROS}. Its detector looks for stable areas with significant change in vicinity, that can identified from different viewpoint. The descriptor characterize the area around the keypoint by calculating a normal aligned range value patch and finding the dominant orientation of the neighbouring pixels.
 
 \begin{figure}[H]
 \centering
@@ -182,14 +185,15 @@ The NARF feature is presented by Bastian Steder in~\cite{steder10irosws}. It is 
 \end{figure}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.5\textwidth]{pictures/narf1}
-\caption{Example of NARF keypoints computed on a desk}
+ \centering
+ \includegraphics[width=0.5\textwidth]{pictures/narf1}
+ \caption{Example of NARF keypoints computed on a desk}
 \end{figure}
 
-\subsection{BRIEF descriptor}
+\subsection{BRIEF feature}
 
-BRIEF Features\cite{Calonder10-brief}: Binary Robust Independent Elementary Features present an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a BRIEF descriptor supposes the keypoints are already known, which can be done with a detector such as SIFT or SURF. A deeper study is available in the PhD thesis of Calonder\cite{Calonder10_PhD}, which is the main author of the BRIEF features. This document presents comparative evaluation of BRIEF, SIFT and SURF.
+\glsreset{BRIEF}
+The \glspl{BRIEF} presented in~\cite{Calonder10-brief} are an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a \gls{BRIEF} descriptor supposes the keypoints are already known, which can be done with a detector such as \gls{SIFT} or \gls{SURF}. A deeper study is available in the PhD thesis of Calonder~\cite{Calonder10_PhD}, which is the main author of the \gls{BRIEF} features. This document presents comparative evaluation of \gls{BRIEF}, \gls{SIFT} and \gls{SURF}.
 
 \section{Computing a transformation}
 
@@ -198,7 +202,8 @@ Once the features have been computed, the question is to be able to track them d
 \subsection{RANSAC}
 \label{sub:ransac}
 
-The RANdom SAmple Consensus is an iterative method, widely known in the computer vision, to estimate the parameters of a transformation. It was published in 1981 \cite{FischlerB81}.
+\glsreset{RANSAC}
+The \gls{RANSAC} is an iterative method, widely known in the computer vision, to estimate the parameters of a transformation. It was published in 1981 \cite{FischlerB81}.
 
 The main idea is to \emph{randomly} select for each iteration a very small number of samples to determine a model representing an hypothesis. This model is then evaluated for the whole set. This is repeated several times by choosing new samples for iteration and keeping the best transformation found. After running this for a fixed number of steps, the algorithm is guaranteed to converge to a better transformation (with a lower error), but it does not necessarily find the best one, as all the possibilities have not been tested. 
 
@@ -212,17 +217,17 @@ For each iteration:
 \end{verbatim}
 
 \begin{figure}[H]
-\centering%$
-%\begin{array}{ccc}
-\subfloat[]{\label{fig:exransac1} \includegraphics[width=0.3\textwidth]{figures/ransac1}} 
-\subfloat[]{\label{fig:exransac2} \includegraphics[width=0.3\textwidth]{figures/ransac2}} 
-\subfloat[]{\label{fig:exransac3} \includegraphics[width=0.3\textwidth]{figures/ransac3}}
-%\end{array}$
-\caption{Illustration of a RANSAC iteration. \protect\subref{fig:exransac1}First, k items are chosen randomly among the set (here k=3). \protect\subref{fig:exransac2}From these points, a model is defined. \protect\subref{fig:exransac3}The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
+ \centering%$
+ %\begin{array}{ccc}
+ \subfloat[]{\label{fig:exransac1} \includegraphics[width=0.3\textwidth]{figures/ransac1}} 
+ \subfloat[]{\label{fig:exransac2} \includegraphics[width=0.3\textwidth]{figures/ransac2}} 
+ \subfloat[]{\label{fig:exransac3} \includegraphics[width=0.3\textwidth]{figures/ransac3}}
+ %\end{array}$
+ \caption{Illustration of a RANSAC iteration. \protect\subref{fig:exransac1}First, k items are chosen randomly among the set (here k=3). \protect\subref{fig:exransac2}From these points, a model is defined. \protect\subref{fig:exransac3}The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
 \end{figure}
 
 
-The main difficulty with the RANSAC algorithm is to define the number of iterations and the thresholds.
+The main difficulty with the \gls{RANSAC} algorithm is to define the number of iterations and the thresholds.
 For the number of iterations, it is possible to define the ideal value according to a desired probability. Considering a sample of $k$ points, if $p$ denotes the probability (generally set to 0.99) that at least one of the sample set does not include an outlier, $u$ the probability of observing an inlier, we have then:
 
 \[
@@ -235,56 +240,55 @@ It can be more convenient to define $v=1-u$ as the probability of observing an o
 N = \frac{log(1-p)}{log(1-(1-v)^k)}
 \]
 
-For the threshold, it depends of the problem and the application, generally this is done empirically with the standard method. There are many variants of the RANSAC that try to overcome this problem, such as the MLESAC method \cite{TorrZ00} using M-estimators in order to find the good parameters in a robust way.
+For the threshold, it depends of the problem and the application, generally this is done empirically with the standard method. There are many variants of the \gls{RANSAC} that try to overcome this problem, such as the MLESAC method \cite{TorrZ00} using M-estimators in order to find the good parameters in a robust way.
 
 
 \subsection{ICP}
 
-The Iterative Closest Point is an algorithm presented by Zhang~\cite{zhang_92_icp}.
+\glsreset{ICP}
+The \gls{ICP} is an algorithm presented by Zhang~\cite{zhang_92_icp}.
 It iteratively revises the transformation (translation, rotation) needed to minimize the distance between the points of two raw scans.
 
 Finds the rigid transformation minimizing the squared distance between each neighboring pairs $(p_{i}, p'_{i})$.
 
 \[min \sum_{i}{||(Rp_{i}+t)-p'_{i}||}^2\]
 
-[TODO precisions]
+%[TODO precisions]
 
-As any gradient descent method, the ICP is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Peter~Henry~\cite{Intel_RGBD_2010}, is to run RANSAC first to determine a good approximation of the rigid transformation, and use it as the first guess for the ICP procedure.
+As any gradient descent method, the \gls{ICP} is applicable when we have in advance an relatively good starting point. Otherwise, it will be trapped into a local minimum. One possibility, as done by Peter~Henry~\cite{Intel_RGBD_2010}, is to run \gls{RANSAC} first to determine a good approximation of the rigid transformation, and use it as the first guess for the \gls{ICP} procedure.
 
 \section{General concepts for SLAM}
 
-As described in the introduction, the SLAM problem can be defined as looking for the best estimation of the robot/camera poses, by reducing the uncertainty due to the noise affecting the measurements. This leads to use the probabilistic approach widely described in the litterature such as~\cite{Thrun_2005}.
+As described in the introduction, the \gls{SLAM} problem can be defined as looking for the best estimation of the robot/camera poses, by reducing the uncertainty due to the noise affecting the measurements. This leads to use the probabilistic approach such as Expectation Maximization techniques widely described in~\cite{Thrun_2005}. The underlying idea is to compute a most likely map, and every time the estimation of the robot pose is known with more accuracy, the previously computed map is updated and the process is repeated.
 
 By denoting $x_t$ the state, $u_t$ a measurement, and $z_t$ the state at time t, the belief over the state variable $x_t$ is given by:
 
 \[bel(x_t) = p(x_t | z_{1:t}, u_{1:t})\]
 
-[TODO precisions]
-
-In the case of Visual SLAM, we consider the video sequence as a collection of frames, defined by a flow of RGB \& Depth data coming from the Kinect. Here we use exclusively the video, and therefore each measurement $u_t$ is a couple of RGB \& Depth frame at time $t$ . The number of frames then depends on the length of the sequence and the effective frame rate, which is bounded by the maximum rate of the Kinect which is 30Hz.
+In the case of \gls{VSLAM}, we consider the video sequence as a collection of frames, defined by a flow of RGB \& Depth data coming from the Kinect. Here we use exclusively the video, and therefore each measurement $u_t$ is a couple of RGB \& Depth frame at time $t$ . The number of frames then depends on the length of the sequence and the effective frame rate, which is bounded by the maximum rate of the Kinect which is 30Hz.
 
 
 \subsection{Filtering vs Smoothing}
 
-To solve the SLAM problem, the litterature presents different approaches can be classified either as filtering or smoothing. Filtering approaches model the problem as an on-line state estimation where the state of the system consists in the current robot position and the map. The estimate is augmented and refined by incorporating the new measurements as they become available.
-The most common techniques are the Kalman filters (EKF) and the particle filters. To highlight their incremental nature, the filtering approaches are usually referred to as on-line SLAM methods.
+To solve the \gls{SLAM} problem, the litterature presents different approaches can be classified either as filtering or smoothing. Filtering approaches model the problem as an on-line state estimation where the state of the system consists in the current robot position and the map. The estimate is augmented and refined by incorporating the new measurements as they become available.
+The most common techniques are the \glsreset{EKF}\gls{EKF} and the particle filters. To highlight their incremental nature, the filtering approaches are usually referred to as on-line \gls{SLAM} methods.
 The major drawback of these techniques is the computational cost. As the robot moves, the quantity of data to be handled becomes bigger.
 
-Conversely, smoothing approaches estimate the full trajectory of the robot from the full set of measurements. These approaches address the so-called full SLAM problem, and they typically rely on least-square error minimization techniques.
+Conversely, smoothing approaches estimate the full trajectory of the robot from the full set of measurements. These approaches address the so-called full \gls{SLAM} problem, and they typically rely on least-square error minimization techniques.
 
 Recently, the performance of the graph optimization has been dramatically improved. In this work, we will therefore study the results that can be obtained from a graph-based approach. But, in opposition to the online techniques, the pose graph is said to be offline or a "lazy" technique as the optimization processing triggered by specific constraints.
 
 \subsection{Pose Graph}
 
-The SLAM problem can be defined as a least squares optimization of an error function described by a graph. Such a graph is called a pose graph. In a general way, the problem can be formulated by a graph where the nodes (or vertices) represent a state variable describing the poses of the cameras, and the edges would represent the related constraints between the observations connecting a pair of nodes. Not only the graph representation gives a quite intuitive representation of the problem, but the graph model is also the base for the mathematical optimization, which purpose is to find the most-likely configuration of the nodes.
+The \gls{SLAM} problem can be defined as a least squares optimization of an error function described by a graph. Such a graph is called a pose graph. In a general way, the problem can be formulated by a graph where the nodes (or vertices) represent a state variable describing the poses of the cameras, and the edges would represent the related constraints between the observations connecting a pair of nodes. Not only the graph representation gives a quite intuitive representation of the problem, but the graph model is also the base for the mathematical optimization, which purpose is to find the most-likely configuration of the nodes.
 
 Here we present different approaches:
 
 \begin{description}
-\item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background. [TODO complete...]
+\item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background. %[TODO complete...]
 \item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error, by taking steps proportional to the negative of the gradient (or its approximation). It is used in the 3D dense modeling project led by Peter~Henry~\cite{Intel_RGBD_2010}.
 \item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping~\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps. It is used in the RGBD-6D-SLAM~project~\cite{engelhard11euron-workshop}.
-\item[$g^2o$] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. $g^2o$ is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D SLAM or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in $g^2o$. This is the method chosen to solve the graph problem in this work.
+\item[$g^2o$] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. $g^2o$ is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D \gls{SLAM} or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in $g^2o$. This is the method chosen to solve the graph problem in this work.
 \end{description}
 
 \subsection{Loop closure}
@@ -292,44 +296,44 @@ Here we present different approaches:
 In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure}. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.5\textwidth]{figures/graph1}
-\caption{Overview of the graph optimization procedure}
+ \centering
+ \includegraphics[width=0.5\textwidth]{figures/graph1}
+ \caption{Overview of the graph optimization procedure}
 \end{figure}
 
 \section{Summary}
 
-This chapter gives an overview of some of the main concepts used for SLAM and more specifically Visual SLAM, defining the main lines of a possible approach to solve the problem. The features allow to track some points of interest and can be used to evaluate a unitary move from a couple of frames. By combining them together an estimation of the camera could be estimated. With the use of a pose graph, and after detecting loop closures, the graph could be optimized in order to reduce the global drift error. From the corrected camera poses, a map can then be built. 
+This chapter gives an overview of some of the main concepts used for \gls{SLAM} and more specifically \gls{VSLAM}, defining the main lines of a possible approach to solve the problem. The features allow to track some points of interest and can be used to evaluate a unitary move from a couple of frames. By combining them together an estimation of the camera could be estimated. With the use of a pose graph, and after detecting loop closures, the graph could be optimized in order to reduce the global drift error. From the corrected camera poses, a map can then be built. 
 
-While the performance is not the main issue of this work, it is still possible to make a distinction between the operations that can be performed \emph{online} (while the robot is moving) and the operations done \emph{offline} (after a given sequence of moves). While the SLAM adresses both Localization and Mapping, it seems clear that as long as the solution based on the graph implies the detection of loop closures to give a correct result, the dual problem of building the map and localizating the robot at the same time is realistically meant to be done \emph{offline}. This is one of the main constraint resulting of this approach. However, once the map is built, the single operation of localization could be done on the basis of the relevant features that have been used during the initial SLAM operation. So we can foresee that this kind of approach should allow the robot to build a map as a first step, only for this purpose. Once the map is built, the localization and further operations could be done but this mainly depends on the tasks the robot has to fulfill.
+While the performance is not the main issue of this work, it is still possible to make a distinction between the operations that can be performed \emph{online} (while the robot is moving) and the operations done \emph{offline} (after a given sequence of moves). While the \gls{SLAM} adresses both Localization and Mapping, it seems clear that as long as the solution based on the graph implies the detection of loop closures to give a correct result, the dual problem of building the map and localizating the robot at the same time is realistically meant to be done \emph{offline}. This is one of the main constraint resulting of this approach. However, once the map is built, the single operation of localization could be done on the basis of the relevant features that have been used during the initial \gls{SLAM} operation. So we can foresee that this kind of approach should allow the robot to build a map as a first step, only for this purpose. Once the map is built, the localization and further operations could be done but this mainly depends on the tasks the robot has to fulfill.
 
-\chapter{Features Matching}
+\chapter{Feature matching}
 \label{chap:features}
 
-\section{Features extraction}
+\section{Feature extraction}
 
-The first question is the choice of the features. In the context of Visual SLAM, the goal is to track some keypoints precisely in order to compute the motion of the camera from the keypoint coordinates. For this, in addition to the scale and rotation invariance, one important condition that can be easily verified is to be stable if the camera does not move. 
+The first question is the choice of the features. In the context of \gls{VSLAM}, the goal is to track some keypoints precisely in order to compute the motion of the camera from the keypoint coordinates. For this, in addition to the scale and rotation invariance, one important condition that can be easily verified is to be stable if the camera does not move. 
 
-Here we first tested the SIFT features~\cite{lowe_2004_sift} with the library developed by Rob Hess~\cite{hess_sift}, and the NARF descriptor~\cite{steder10irosws} provided by the PCL. One important difference is that the SIFT feature is computed from the RGB data in 2D, while the NARF keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
-The NARF keypoints showed to be unstable, as shown below while the camera was not moving.
+Here we first tested the \gls{SIFT} features~\cite{lowe_2004_sift} with the library developed by Rob Hess~\cite{hess_sift}, and the \gls{NARF} descriptor~\cite{steder10irosws} provided by the \gls{PCL}. One important difference is that the \gls{SIFT} feature is computed from the RGB data in 2D, while the \gls{NARF} keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
+The \gls{NARF} keypoints showed to be unstable, as shown below while the camera was not moving.
 
-\begin{figure}[H]
-\centering$
-\begin{array}{cc}
-\includegraphics[width=0.5\textwidth]{pictures/narf1_a} &
-\includegraphics[width=0.5\textwidth]{pictures/narf2_a}
-\end{array}$
-\caption{Example of NARF keypoints computed from two consecutive frames without moving the camera. The marks show some keypoints that differs (new or moved).}
+\begin{figure}[h]
+ \centering$
+ \begin{array}{cc}
+  \includegraphics[width=0.5\textwidth]{pictures/narf1_a} &
+  \includegraphics[width=0.5\textwidth]{pictures/narf2_a}
+ \end{array}$
+ \caption{Example of NARF keypoints computed from two consecutive frames without moving the camera. The marks show some keypoints that differs (new or moved).}
 \end{figure}
 
-These variations could be explained by the noise of the depth data of the Kinect, affecting the NARF detector. It is possible that some tuning would help to get more stable results, but the NARF was mainly designed for range scans such as laser range finders or stereo cameras which are generally more accurate and probably less sensible to noise than the Kinect sensor. For this reason, we prefered to work with the 2D image, using SIFT feature~\cite{lowe_2004_sift} which is widely used in the community and is known to be highly discriminant. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 5 meters is used.
+These variations could be explained by the noise of the depth data of the Kinect, affecting the \gls{NARF} detector. It is possible that some tuning would help to get more stable results, but the \gls{NARF} was mainly designed for range scans such as laser range finders or stereo cameras which are generally more accurate and probably less sensible to noise than the Kinect sensor. For this reason, we prefered to work with the 2D image, using \gls{SIFT} feature~\cite{lowe_2004_sift} which is widely used in the community and is known to be highly discriminant. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 5 meters is used.
 
-Practically, there are many parameters to define how the SIFT features are extracted. This will mainly affect the number of features and the computational time. In particular, it concerns how many scales ($k$) are computed for each octave and the variance ($\sigma$) of the Gaussian. Here, the default values of the SIFT library~\cite{hess_sift} are used, refering themselves to the standard values recommanded by David Lowe ($k=3$, $\sigma=1.6$). Refer to the method~\cite{lowe_2004_sift} for the description of these parameters.
+Practically, there are many parameters to define how the \gls{SIFT} features are extracted. This will mainly affect the number of features and the computational time. In particular, it concerns how many scales ($k$) are computed for each octave and the variance ($\sigma$) of the Gaussian. Here, the default values of the \gls{SIFT} library~\cite{hess_sift} are used, refering themselves to the standard values recommanded by David Lowe ($k=3$, $\sigma=1.6$). Refer to the method~\cite{lowe_2004_sift} for the description of these parameters.
 
 \section{Initial Matching}
 
 Now that the features can be computed, it is possible to perform some feature matching between a couple of frames, to get the initial matches. This is done through a nearest neighbour search, using the euclidian distance of these features.  
-The SIFT Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. 
+The \gls{SIFT} Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. 
 After this, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
 \begin{figure}[H]
@@ -338,7 +342,7 @@ After this, the depth information is used to keep the features that are close en
 \caption{Initial matching of SIFT features}
 \end{figure}
 
-\section{Compute the 3D transformation}
+\section{Estimation of the 3D transformation}
 
 From the matching pairs, it is possible to find a rigid transformation binding the two sets of points, ie the operation that transforms each feature point of a source frame to the corresponding point in the target frame. In our case, this transformation is a perspective projection for 6 degrees of freedom, composed by a rotation matrix and a translation vector in 3 dimensions. This transformation can be written by using a 4x4  matrix and homogeneous coordinates. We can then project a point P where $P = (x,y,z,1)^T$ simply by applying this transformation matrix to the point:
 
@@ -358,9 +362,9 @@ z: width,\:positive\:to\:the\:right\\
 \]
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{figures/coordinates}
-\caption{The two different coordinate systems, from the "screen" (as seen by the sensors RGB+D) to the 3D scene in the real world.}
+ \centering
+ \includegraphics[width=0.8\textwidth]{figures/coordinates}
+ \caption{The two different coordinate systems, from the "screen" (as seen by the sensors RGB-D) to the 3D scene in the real world.}
 \end{figure}
 
 From the depth value (given in mm by OpenNI) and the x and y screen coordinates (with RGB color and a resolution of 640x480 pixels), it is possible to compute the points coordinates in 3D :
@@ -376,7 +380,7 @@ z = (x_{screen} - 640/2) * depth / focal\_length \\
 \]
 
 \paragraph{}
-Considering the initial matches, the next step is then to find a transformation matrix that fits best to these points. Ideally we could simply compute a transformation by a least square method for all these points, each matching pair defining an equation. The minimum number of pairs required for this would be three, and the more points, the better defined the system would be. However, due to the uncertainty like the noise coming from the sensors, a single point which location is uncorrectly estimated could lead to a big error in the final transformation. Therefore, a better transformation can be found iteravely with the RANSAC method, as presented in the background. In this context, we keep a very low, we need to precise the algorithm:
+Considering the initial matches, the next step is then to find a transformation matrix that fits best to these points. Ideally we could simply compute a transformation by a least square method for all these points, each matching pair defining an equation. The minimum number of pairs required for this would be three, and the more points, the better defined the system would be. However, due to the uncertainty like the noise coming from the sensors, a single point which location is uncorrectly estimated could lead to a big error in the final transformation. Therefore, a better transformation can be found iteravely with the \gls{RANSAC} method, as presented in the background. In this context, we keep a very low, we need to precise the algorithm:
 
 \begin{verbatim}
 Define a number of iterations N.
@@ -393,10 +397,9 @@ Recompute transformation again with all the best inliers (final step *)
 (*) slight variation compared to standard RANSAC.
 \end{verbatim}
 
-As presented in the background, it is possible to estimate the optimal value of N to fulfill a target probability of having a desired number/ratio of inliers (or outliers). In this work we use a fixed value given by parameter of N=20. A deeper study of the RANSAC step could lead to tune more accurately this parameter.
+As presented in the background, it is possible to estimate the optimal value of N to fulfill a target probability of having a desired number/ratio of inliers (or outliers). In this work we use a fixed value given by parameter of N=20. A deeper study of the \gls{RANSAC} step could lead to tune more accurately this parameter.
 
 In the nominal case, the quantity of features is quite important and the probability of having an outlier is generally very low, as most of the mismatches are excluded by the initial matching round.
-
 
 %If we define that the mean number of features is 500 with 10 outliers (after different experiments) then we have:
 %\[
@@ -404,24 +407,28 @@ In the nominal case, the quantity of features is quite important and the probabi
 %N = \frac{log(1-p)}{log(1-(1-v)^k)} = \frac{log(1-0.99)}{log(1-(1-\frac{1}{50})^3)} = 
 %\]
 
-To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class \emph{pcl::TransformationFromCorrespondences} from the PCL library~\cite{Rusu_ICRA2011_PCL} and we use the minimal number of points necessary to solve this equation, hence k=3.
+To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class \emph{pcl::TransformationFromCorrespondences} from the \gls{PCL} library~\cite{Rusu_ICRA2011_PCL} and we use the minimal number of points necessary to solve this equation, hence k=3.
 
 To evaluate a transformation, each sample taken from the initial matches (source) is then projected according to this transformation. A 3D vector is computed from the difference between the projected point and the real point taken from the matching point (destination). The error is the norm of this vector.
 
+\section{Analysis}
+
+Some preliminar experiments were conducted to determine how to find a satisfying transformation between a couple of frames. In the context of \gls{VSLAM}, the local move between two frames should be generally low if we consider a limited move of the camera. The larger the move, the more difficult it becomes. To do this, a program was written to perform the feature extraction with the initial matching and the RANSAC iterations, taking a couple of RGB-D frames as an input.
+
 \begin{figure}[H]
-\centering$
-\begin{array}{cc}
-\subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}} &
-\subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}}
-\end{array}$
-\caption{Matching of SIFT features - \protect\subref{fig:sift_match_1} Initial matching \protect\subref{fig:sift_match_2} After a RANSAC loop. Note how the initial matches drawn in diagonal (green) in the left figure are excluded and become outliers (red) after the RANSAC loop.}
+ \centering$
+ \begin{array}{cc}
+  \subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}} &
+  \subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}}
+ \end{array}$
+ \caption{Matching of SIFT features - \protect\subref{fig:sift_match_1} Initial matching \protect\subref{fig:sift_match_2} After a RANSAC loop. Note how the initial matches drawn in diagonal (green) in the left figure are excluded and become outliers (red) after the RANSAC loop.}
 \end{figure}
 
 How to characterize a transformation? There are at least 3 parameters:
 \begin{itemize}
-\item Mean error: the norm of the error vector. Lower is better.
-\item Number of inliers: the absolute number of inliers. Higher is better.
-\item Rate of inliers: the relative number of inliers with respect to the initial matches. Higher is better.
+ \item Mean error: the norm of the error vector. Lower is better.
+ \item Number of inliers: the absolute number of inliers. Higher is better.
+ \item Rate of inliers: the relative number of inliers with respect to the initial matches. Higher is better.
 \end{itemize}
 
 The main difficulty here is to find the best balance among these 3 values, by putting some thresholds. Setting to high constraints would lead to the impossibility to find a transformation satisfying all the criterions. This can be a problem when there are not enough features available. Setting too low constraints helps to find a transformation even when there are less features or the measurements are noisy, but the resulting transformation will be less precise. The main risk here is to put so loose constraints that the inliers can be wrong.
@@ -429,12 +436,10 @@ The main difficulty here is to find the best balance among these 3 values, by pu
 If the criterions are too permissive, this could result in an invalid model, leading to errated assocations. 
 
 \begin{figure}[H]
-\centering$
-\includegraphics[width=0.4\textwidth]{pictures/bad_inliers1}$
-\caption{Example of bad model (during a check for loop closure) - the matches are semantically incorrect, as the scenes are different. But the green lines are still considered to be inliers. Here, the threshold defining the minimum ratio of inliers with respect to the initial matches is too low.}
+ \centering$
+ \includegraphics[width=0.8\textwidth]{pictures/bad_inliers1}$
+ \caption{Example of bad model - the matches are semantically incorrect, as the scenes are different. But the green lines are still considered to be inliers. Here, the threshold defining the minimum ratio of inliers with respect to the initial matches is too low.}
 \end{figure}
-
-\clearpage
 
 How to measure the quality of a transformation?
 
@@ -449,44 +454,44 @@ Let N be the number of inliers and $p_i$ be the i-th inlier vector. We can then 
 \]
 
 \begin{figure}[H]
-\centering$
-\begin{array}{cccc}
-\includegraphics[width=0.3\textwidth]{pictures/bad_transform1} &
-\includegraphics[width=0.3\textwidth]{pictures/bad_transform2} &
-\includegraphics[width=0.3\textwidth]{pictures/bad_transform3}
-\end{array}$
-\caption{Sequence showing different distributions of the inliers. Note how the inliers are grouped in the picture 2.}
+ \centering$
+ \begin{array}{ccc}
+  \includegraphics[width=0.33\textwidth]{pictures/bad_transform1} &
+  \includegraphics[width=0.33\textwidth]{pictures/bad_transform2} &
+  \includegraphics[width=0.33\textwidth]{pictures/bad_transform3}
+ \end{array}$
+ \caption{Sequence showing different distributions of the inliers. Note how the inliers are grouped in the picture 2.}
 \end{figure}
 
 The corresponding values can be used to measure and detect this kind of situations.
 
 \begin{tabular}{ccll}
-inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
-\hline
-93/114 &	81\% &	0.345409 &	1.2232\\
-34/119 &	28\% &	0.0203726 &	0.0519737\\
-91/135 &	67\% &	0.476902 &	1.42809\\
-%90/140 &	64\% &	0.682466 &	1.56629\\
+ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
+ \hline
+ 93/114 &	81\% &	0.345409 &	1.2232\\
+ 34/119 &	28\% &	0.0203726 &	0.0519737\\
+ 91/135 &	67\% &	0.476902 &	1.42809\\
+ %90/140 &	64\% &	0.682466 &	1.56629\\
 \end{tabular}
 
 Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. For example, the initial elements would have above a minimal distance from the mean, set by a threshold.
 
 \section{Type of features}
-After testing and getting good results with the SIFT feature, the SURF features~\cite{surf} were tested. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features, which also depends on the parameters such as the number of octaves and the variance of the Gaussian. For a scene requiring about 1000ms with SIFT, the extraction of the SURF feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
+After testing and getting good results with the \gls{SIFT} feature, the \gls{SURF} features~\cite{surf} were tested. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features, which also depends on the parameters such as the number of octaves and the variance of the Gaussian. For a scene requiring about 1000ms with \gls{SIFT}, the extraction of the \gls{SURF} feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
 
 \section{Summary}
 
-This chapter presented a method to define a rigid transformation from a couple of frames given their RGB+D data.
+This chapter presented a method to define a rigid transformation from a couple of frames given their RGB-D data.
 \begin{enumerate}
-\item The SIFT/SURF features are first extracted in 2D from each RGB frame.
-\item An initial matching is performed with the use of a kd-tree, and the depth information is integrated to compute the feature positions in 3D.
-\item From this set of pairs (of features), a transformation is computed by running a RANSAC algorithm.
+ \item The \gls{SIFT}/\gls{SURF} features are first extracted in 2D from each RGB frame.
+ \item An initial matching is performed with the use of a kd-tree, and the depth information is integrated to compute the feature positions in 3D.
+ \item From this set of pairs (of features), a transformation is computed by running a \gls{RANSAC} algorithm.
 \end{enumerate}
 
 This transformation evaluates how the camera has moved between two consecutive frames, for the 6 degrees of freedom.
 
-\chapter{Pose graph}
-\label{chap:graph}
+\chapter{Building a map}
+\label{chap:map}
 
 In the previous chapter, we saw how to determine a rigid transformation between a couple of frames. From each single transformation, an estimation of the poses of the camera can be computed. Now we can combine them to follow a sequence of frames. Each pose is then inserted into the graph by translating the camera matrix into a graph node. From the loop closures, new constraints can be inserted in the graph. The graph can then be optimized to globally reduce the error, and the poses updated according to the new vertices given by the graph after optimization.
 
@@ -517,214 +522,210 @@ P_0 = I_4 = \left[ \begin{array}{cccc}
 0 & 0 & 0 & 1 \end{array} \right] 
 \]
 
-\section{Building the graph}
+\section{Initializing the graph}
 
 The equation \ref{eqn:pose_estimation} gives an estimation of the pose that can be inserted into the $g^2o$ graph.
 
 The video sequence can lead to an important number of poses, especially if the robot slows down, or even stops. Inserting a node for each transformation would not be very efficient, as the same pose would be repeated in the graph. To distinguish these poses among all the others that can potentially be inserted in the graph, these poses are called the \emph{key poses}. 
 
-A simple solution is to define a key pose only after having achieved a move, with a given amplitude defined by a threshold. Here we consider the cumulated move in 3D in translation and rotation with respect to the last key pose. The thresholds are set by parameters, here 0.1m for the distance and 5\textdegree for the rotation (both values are defined for the 3 axis).
+A simple solution is to define a key pose only after having achieved a move, with a given amplitude defined by a threshold. Here we consider the cumulated move in 3D in translation and rotation with respect to the last key pose. The thresholds are set by parameters, here 0.1m for the distance and 5\textdegree for the rotation (both values are defined for the 3 axis). Another way could be to compare the points between the frames and trigger the creation of a new node when the number of points in common falls below a given threshold. This would be a more general solution but this would lead to additional processing.
 
-Another way could be to compare the points between the frames and trigger the creation of a new node when the number of points in common falls below a given threshold. This would be a more general solution but this would lead to additional processing.
-
-\section{Solving the graph}
-
-Various methods are available in $g^2o$, for the optimization process and the solving problem. The method used here is Levenberg-Marquardt with a linear Cholmod solver. The optimization is done with a predefined number of steps. Once the graph has been optimized, the vertices have been updated and give the new estimations of the camera poses. The inverse operation is done to convert the information from the graph vertices to 4x4 matrices.
-
-[TODO - COMPLETE DESCRIPTION]
+For each keypose, a node is inserted in the graph with an edge linking to the previous node. A standard edge represents the rigid transformation between the two keyposes. Between each keypose, they may be a more than a couple of frames. To compute the corresponding transformation, the resulting matrix is found by multiplying the matrices of each couple of frames.
 
 \section{Loop closures}
 
-To detect a loop closure, it is necessary to compare recent frames with previous ones. The naive approach would be to compare the current frame with all the previous frames. Generally, this is not realistic for reasons of performance, as the time necessary for the current frame would grow exponentially, especially if the matching verification is time consuming, especially if the features of the past frames have to be recomputed each time. However, a preliminar check exclusively done on the RGB data, for example with color histograms, could be used to discard most of the negative candidates. Then, a more accurate verification with features could be done on the remaining candidates.
+The next step is to insert additional constraints into the graph with the loop closure detection. Each time a loop closure is triggered between two keyposes, a new edge is inserted into the graph. To detect a loop closure, it is necessary to compare recent frames with previous ones. The naive approach would be to compare the current frame with all the previous frames. Generally, this is not realistic for reasons of performance, as the time necessary for the current frame would grow exponentially, especially if the matching verification is time consuming, especially if the features of the past frames have to be recomputed each time. However, a preliminar check exclusively done on the RGB data, for example with color histograms, could be used to discard most of the negative candidates. Then, a more accurate verification with features could be done on the remaining candidates.
 
 Without making any assumption of the past frames, the first idea would then be to define a window with a fixed size of n frames in the past. The most naive way is to select these frames randomly without any criterion.
 
 Another approach would be to select the past frames that are more likely to match with the current frame. One solution could be to give a higher priority to the oldest frames. This could be done by defining a probability density function that would result in a higher probability for the oldest frames. Another approach would also involve a knowledge of the context of the frames, in terms of features, or in terms of estimated position.
 
-[TODO - for example, curves representing the probability to check a loop closure. Case linear, quadratic, threshold... ]
-[TODO - explain sliding window ]
+%[TODO - for example, curves representing the probability to check a loop closure. Case linear, quadratic, threshold... ]
+%[TODO - explain sliding window ]
 
-\section{Example of graph optimization}
+\section{Optimizing the graph}
+
+Once the graph has been initialized with the poses and the constraints from the loop closures, it can be optimized. Various methods are available in $g^2o$, for the optimization process and the solving problem. The method used here is Levenberg-Marquardt with a linear Cholmod solver. The optimization is done with a predefined number of steps. Once the graph has been optimized, the vertices have been updated and give the new estimations of the camera poses. The inverse operation is done to convert the information from the graph vertices to 4x4 matrices.
+
 In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 
 \begin{figure}[H]
-\centering$
-\begin{array}{cc}
-\includegraphics[width=0.4\textwidth]{pictures/graph4_base} &
-\includegraphics[width=0.4\textwidth]{pictures/graph4_initial_guess}
-\end{array}$
-\caption{Graph with 4 rooms: non optimized - initial guess}
+ \centering$
+ \begin{array}{ccc}
+  \includegraphics[width=0.3\textwidth]{pictures/graph4_base} &
+  \includegraphics[width=0.3\textwidth]{pictures/graph4_initial_guess} &
+  \includegraphics[width=0.3\textwidth]{pictures/graph4_optimized}
+ \end{array}$
+ \caption{Graph with 4 rooms: non optimized - initial guess - after 10 iterations}
 \end{figure}
-\begin{figure}[H]
-\centering$
-\begin{array}{cc}
-\includegraphics[width=0.4\textwidth]{pictures/graph4_initial_guess} &
-\includegraphics[width=0.4\textwidth]{pictures/graph4_optimized}
-\end{array}$
-\caption{Graph with 4 rooms: initial guess - after 10 iterations}
-\end{figure}
+
+\section{Scene reconstruction}
+
+Finally, once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. This process is called the point cloud \emph{registration}. Once the relative camera positions are known, one simple method is to transform each point cloud by reprojecting all its points according to the corresponding camera position, and concatenate together all the transformed point clouds.
+
+This method remains simple, but the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done in the work of Peter~Henry~\cite{Intel_RGBD_2010}, but this would require some intensive processing and is out of the scope of this work.
 
 \section{Summary}
 
-[TODO conclusions about g2o]
+We presented how the poses can be estimated, first by cumulating each transformation between a couple of frames. Through the use of a pose graph and the loop closures, their positions can be corrected over time. Finally, the map can be built through a scene reconstruction, by registration of the point clouds with the given positions of the cameras.
 
-\clearpage
+%[TODO conclusions]
 
 \chapter{Experiments}
 \label{chap:experiments}
 
-Now that the main aspects concerning the graph have been studied a software was developed, which goal is to acquire data from the Kinect, and from this compute the camera poses and produce a map. In order to repeat the experiments, the program is able to replay a given sequence from a list of RGB+D files.
+Now that the main aspects concerning the graph and the reconstruction have been studied a software was developed, which goal is to acquire data from the Kinect, and from this compute the camera poses and produce a map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files.
 
-[TODO SYSTEM OVERVIEW]
+With the given program, it is possible to build a map with the camera positions representing the trajectory and orientation of the robot. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from \gls{KTH}, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
 
-\section{Software project}
+\section{Software implementation}
 
-The code is available as an open source project \footnote{\url{http://code.google.com/p/kth-rgbd/}}. It is released with a LGPL v3 license.
-
-The program built does the following tasks:
+The code is available as an open source project\footnote{\url{http://code.google.com/p/kth-rgbd/}}. It is released with a LGPL v3 license.
+The program does the following tasks:
 \begin{itemize}
-\item Acquire RGB+depth data from the Kinect
-\item Perform features extraction and matching on a sequence of frames and compute the relative transformations with RANSAC
-\item Compute the positions of the camera poses and translate them into graph nodes and edges
-\item Compute the loop closures and insert the corresponding edges into the graph
-\item Optimize the graph and extract the updated camera poses
-\item Reconstruct the global scene by generating PCD file
+ \item Acquire RGB-D data from the Kinect
+ \item Perform features extraction and matching on a sequence of frames and compute the relative transformations with \gls{RANSAC}
+ \item Compute the positions of the camera poses and translate them into graph nodes and edges
+ \item Compute the loop closures and insert the corresponding edges into the graph
+ \item Optimize the graph and extract the updated camera poses
+ \item Reconstruct the global scene by generating a point cloud datafile (*.pcd)
 \end{itemize}
 
-$g^2o$ provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion.
-
-Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
-
-The number of dependencies has been limited as much as possible, using preferably open-source libraries. At the difference with the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop} it is not based on ROS framework, but it only PCL for the reconstruction at the final step. Here are the main dependencies:
+The number of dependencies has been limited as much as possible, using preferably open-source libraries. At the difference with the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop} it is not based on \gls{ROS} framework, but only \gls{PCL} for the reconstruction at the final step. The main dependencies are the following:
 \begin{itemize}
-\item OpenNI: to acquire the Kinect data
-\item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching) and compute the SURF features
-\item SIFT Library by Rob Hess~\cite{hess_sift}: for the SIFT extraction and initial matching
-\item Eigen3: for the geometric support with transformations and matrices
-\item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to Point Cloud Datafiles (*.pcd)
-\item Boost: support library especially for the filesystem access
+ \item g2o: the graph optimization
+ \item OpenNI: to acquire the Kinect data
+ \item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching) and compute the \gls {SURF} features
+ \item SIFT Library by Rob Hess~\cite{hess_sift}: for the \gls{SIFT} extraction and initial matching
+ \item Eigen3: for the geometric support with transformations and matrices
+ \item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to point cloud datafiles
+ \item Boost: support library, used here to access the filesystem
 \end{itemize}
 
-\section{Data collection}
+%$g^2o$ provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion. Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
 
-Two types of experiments were conducted: online moving the Kinect sensor by hand, and offline with the help of the DORA robot at KTH.
-%Experiments were carried out on a Pioneer III wheeled robot, equipped with a Hokuyo URG laser scanner, and a camera mounted at 1.4 m above the ﬂoor. Experiments at KTH took place in environment with 4 different rooms connected by a corridor.
-Other universities could provide data with a similar robot. 
+\section{Data acquisition}
 
-\section{Reconstruction}
+Two types of experiments were conducted: online, by moving the Kinect sensor by hand, and offline with the help of the robot in the \glsreset{CVAP}\gls{CVAP} at \gls{KTH}. Experiments were carried out on a Pioneer III wheeled robot, Dora the explorer, with the Kinect camera mounted at 1.4 m above the floor and Hokuyo URG laser scanner. Each frame saved by the Kinect leads to a couple of RGB and Depth files taken at the same time. Additionally, the data from the laser scans and the odometry were saved. The acquisition of the data by the robot is not part of the program built in this work, this was done with the tools developed at \gls{CVAP}.
 
-Once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. This process is called the point cloud \emph{registration}. Once the relative camera positions are known, one simple method is to transform each point cloud by reprojecting all its points according to the corresponding camera position, and concatenate together all the transformed point clouds. This transformation can be done with standard functions provided by the PCL Library~\cite{Rusu_ICRA2011_PCL}. For the visualization, the standard viewer is used.
-
-For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. Theorically, each point cloud can be composed of $640\times480 = 307,200$ points. In reality, this is less, as the depth information is not available for each point (due mainly to the range limit and to the occlusions considering the difference of point of view between the IR and RGB sensors). A standard point cloud is composed of about 200,000 points. For each pixel, 24 bits are used for the positions (x,y,z) and 24 bits for the colors R,G,B ($3\times8$ bits), padded to 8 bytes for alignment in memory. Therefore, a colored cloud point occupies around $200k\times8$ = 1.6MB in memory. For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled simply by removing points taken randomly with a given probability (according to a fixed ratio, set as a parameter depending on the global size of the scene).
-
-Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition.
-
-This method remains simple, but the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done in the work of Peter~Henry~\cite{Intel_RGBD_2010}, but this would require some intensive processing and is out of the scope of this work.
-
-The next sections present the maps obtained from different datasets. The first section presents the results with data from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The next section shows the results obtained with data from other universities.
-
-\section{Map CVAP (KTH)}
-
-\subsection{Map with 1 room, without graph optimization}
-
-This map is built from a sequence containing 1 room without loop closure (no graph optimization). 
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{pictures/room1_initial}
-\caption{Map with 1 room, without optimization (initial). Note how the corner of the table and the chair appears to be doubled.}
+\begin{figure}[h]
+ \begin{center}
+  \includegraphics[width=0.3\textwidth]{pictures/Dora_small_2108}
+ \end{center}
+ \caption{Dora the explorer (without the Kinect mounted)}
 \end{figure}
 
-\subsection{Map with 1 room, graph optimized with 1 loop closure}
-This map is built from a sequence containing 1 room with 1 loop closure, which is triggered after having gone through the room and back to a position close to the initial position. 
+At \gls{KTH}, the main dataset took place in environment with 4 different rooms connected by a corridor, resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. 
+
+Other universities participating on common projects (CogX) could provide data with a similar robot. This allowed to test the system with external data. We used the data provided by the universities of Birmingham and Ljubljana.
+
+\begin{table}[H]
+ \begin{center}
+  \begin{tabular}{|c|c|c|c|}
+  \hline
+  University & Dataset & Rooms & Frames \\
+  \hline
+  KTH & 7th floor & 1 & 3082 \\
+  KTH & 7th floor & 2 & 2697 \\
+  KTH & 7th floor & 4 & 6474 \\
+  Birmingham & Lab3 & 1 & 1342 \\
+  Birmingham & Robot Lab & 1 & 2878 \\
+  Ljubljana & Office1 & 1 & 2088 \\
+  %TODO Office23 fails
+  \hline
+  \end{tabular}
+ \end{center}
+ \caption{Origin and size of the different datasets. Note that the KTH set of 1 room contains more frames than for 2 rooms, this is due to the robot moving at a slower speed.}
+\end{table}
+
+\section{Data output}
+
+The result are the positions of the cameras, and the map represented by a point cloud. For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. Theorically, each point cloud can be composed of $640\times480 = 307,200$ points. In reality, this is less, as the depth information is not available for each point (due mainly to the range limit and to the occlusions considering the difference of point of view between the \gls{IR} and RGB sensors). A standard point cloud is composed of about 200,000 points. For each pixel, 24 bits are used for the positions (x,y,z) and 24 bits for the colors R,G,B ($3\times8$ bits), padded to 8 bytes for alignment in memory. Therefore, a colored cloud point occupies around $200k\times8$ = 1.6MB in memory. For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled simply by removing points taken randomly with a given probability (according to a fixed ratio, set as a parameter depending on the global size of the scene).
+
+Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition. For the visualization of the point clouds, the standard viewer provided in \gls{PCL} is used.
+
+\section{Map CVAP, one room}
+
+\subsection{Without loop closures}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{pictures/room1_1}
-\caption{Map with 1 room, optimized with 1 loop closure. Note how the corner of the table and the chair are now correctly "merged" compared to the previous figure.}
+ \centering
+ \includegraphics[width=0.8\textwidth]{pictures/room1_initial}
+ \caption{Map with 1 room, without graph optimization. Note how the corner of the table and the chair appears to be doubled.}
+\end{figure}
+
+\subsection{With loop closure}
+This map is built from a sequence containing one room, the graph is optimized with one loop closure, which is triggered after having gone through the room and back to a position close to the initial position. 
+
+\begin{figure}[H]
+ \centering
+ \includegraphics[width=0.8\textwidth]{pictures/room1_1}
+ \caption{Map with 1 room, optimized with one loop closure. Note how the corner of the table and the chair are now correctly "merged" compared to the previous figure.}
+\end{figure}
+
+\section{Map CVAP, two rooms and corridor}
+
+\begin{figure}[H]
+ \centering$
+ \begin{array}{c}
+  \includegraphics[width=0.8\textwidth]{pictures/room2_1}\\
+  \includegraphics[width=0.8\textwidth]{pictures/room2_2}
+ \end{array}$
+ \caption{Map with 2 rooms, optimized with two loop closures}
+\end{figure}
+
+\section{Map CVAP, four rooms and corridor}
+
+\subsection{Without loop closure}
+
+\begin{figure}[H]
+ \centering$
+ \begin{array}{c}
+  \includegraphics[width=0.8\textwidth]{pictures/room4_new_init1}\\
+  \includegraphics[width=0.8\textwidth]{pictures/room4_new_init2}
+ \end{array}$
+ \caption{Map with 4 rooms and corridor, not optimized. The main problem can be seen in the living room, see the double chair.}
+\end{figure}
+
+\begin{figure}[H]
+ \centering$
+ \begin{array}{cc}
+  \subfloat[]{\label{fig:poses_4r_1} \includegraphics[width=0.4\textwidth]{figures/poses_4r_odometry_raw}} &
+  \subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.4\textwidth]{figures/poses_4r_initial}}
+ \end{array}$
+ \caption{Estimation of the poses - \protect\subref{fig:poses_4r_1} From standard odometry, raw data. Note the drift. \protect\subref{fig:poses_4r_2} With this system, initial graph. Note the similarity of the angular drift with the standard odometry, while the two sources are different. }
+\end{figure}
+
+\subsection{With loop closure}
+
+\begin{figure}[H]
+ \centering$
+ \begin{array}{c}
+  \includegraphics[width=0.8\textwidth]{pictures/room4_new_optim1}\\
+  \includegraphics[width=0.8\textwidth]{pictures/room4_new_optim2}
+ \end{array}$
+ \caption{Map with 4 rooms and corridor, optimized with several loop closures. It looks a bit worse than the initial one. The double chair corrected in the living room but corridor and room alignments are worse.}
+\end{figure}
+
+\begin{figure}[H]
+ \centering$
+ \begin{array}{cc}
+  \subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.4\textwidth]{figures/poses_4r_initial}} &
+  \subfloat[]{\label{fig:poses_4r_3} \includegraphics[width=0.4\textwidth]{figures/poses_4r_optimized}}
+ \end{array}$
+ \caption{Estimation of the poses - \protect\subref{fig:poses_4r_2} With the initial graph.  \protect\subref{fig:poses_4r_3} With the optimized graph. }
 \end{figure}
 
 \clearpage
-
-\subsection{Map with 2 rooms and corridor}
-Map with 2 rooms, optimized with 2 loop closures.
+\section{Map from other universities}
 
 \begin{figure}[H]
-\centering$
-\begin{array}{c}
-\includegraphics[width=0.8\textwidth]{pictures/room2_1}\\
-\includegraphics[width=0.8\textwidth]{pictures/room2_2}
-\end{array}$
-\caption{Map with 2 rooms}
-\end{figure}
-
-\clearpage
-
-\subsection{Map with 4 rooms and corridor}
-Map with 4 rooms, optimized with 4 loop closures.
-
-\begin{figure}[H]
-\centering$
-\begin{array}{c}
-\includegraphics[width=0.8\textwidth]{pictures/room4_1}\\
-\includegraphics[width=0.8\textwidth]{pictures/room4_2}
-\end{array}$
-\caption{Map with 4 rooms and corridor}
-\end{figure}
-
-\clearpage
-
-Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputing final transfo with best inliers.
-
-\begin{figure}[H]
-\centering$
-\begin{array}{c}
-\includegraphics[width=0.8\textwidth]{pictures/room4_new_init1}\\
-\includegraphics[width=0.8\textwidth]{pictures/room4_new_init2}
-\end{array}$
-\caption{Map with 4 rooms and corridor, not optimized (alternative RANSAC). Almost better than optimized version with previous RANSAC! Main problem in the living room, double chair.}
-\end{figure}
-
-\clearpage
-
-\begin{figure}[H]
-\centering$
-\begin{array}{c}
-\includegraphics[width=0.8\textwidth]{pictures/room4_new_optim1}\\
-\includegraphics[width=0.8\textwidth]{pictures/room4_new_optim2}
-\end{array}$
-\caption{Map with 4 rooms and corridor, optimized (alternative RANSAC). However the optimized graph with loop closure looks a bit worse than the initial one!. Double chair corrected in the living room but corridor and room alignments are worse.}
-\end{figure}
-
-\clearpage
-
-\begin{figure}[H]
-\centering$
-\begin{array}{cc}
-\subfloat[]{\label{fig:poses_4r_1} \includegraphics[width=0.4\textwidth]{figures/poses_4r_odometry_raw}} &
-\subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.4\textwidth]{figures/poses_4r_initial}}
-\end{array}$
-\caption{Estimation of the poses - \protect\subref{fig:poses_4r_1} From standard odometry, raw data. Notice the drift. \protect\subref{fig:poses_4r_2} With this system, initial graph. Note the similarity with the standard odometry. }
-\end{figure}
-
-\begin{figure}[H]
-\centering$
-\begin{array}{cc}
-\subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.4\textwidth]{figures/poses_4r_initial}} &
-\subfloat[]{\label{fig:poses_4r_3} \includegraphics[width=0.4\textwidth]{figures/poses_4r_optimized}}
-\end{array}$
-\caption{Estimation of the poses - \protect\subref{fig:poses_4r_2} With the initial graph.  \protect\subref{fig:poses_4r_3} With the optimized graph. }
-\end{figure}
-
-\section{Other universities}
-
-\begin{figure}[H]
-\centering$
-\begin{array}{c}
-\includegraphics[width=0.5\textwidth]{pictures/bham_lab3_1}
-\includegraphics[width=0.5\textwidth]{pictures/bham_lab3_2}
-\end{array}$
-\caption{Birmingham Lab3}
+ \centering$
+ \begin{array}{c}
+  \includegraphics[width=0.5\textwidth]{pictures/bham_lab3_1}
+  \includegraphics[width=0.5\textwidth]{pictures/bham_lab3_2}
+ \end{array}$
+ \caption{Birmingham Lab3}
 \end{figure}
 
 %\begin{figure}[H]
@@ -737,59 +738,63 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 %\end{figure}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{pictures/bham}
-\caption{Birmingham office}
+ \centering
+ \includegraphics[width=0.8\textwidth]{pictures/bham}
+ \caption{Birmingham office}
 \end{figure}
 
 \begin{figure}[H]
-\centering$
-\begin{array}{cc}
-\subfloat[]{\label{fig:ljub1_1} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1}} &
-\subfloat[]{\label{fig:ljub1_2} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1_feature}}
-\end{array}$
-\caption{Ljubljana office1 - \protect\subref{fig:ljub1_1} Map without closure loop. \protect\subref{fig:ljub1_2} Not enough features could be extracted at this point.}
+ \centering$
+ \begin{array}{cc}
+  \subfloat[]{\label{fig:ljub1_1} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1}} &
+  \subfloat[]{\label{fig:ljub1_2} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1_feature}}
+ \end{array}$
+ \caption{Ljubljana office1 - \protect\subref{fig:ljub1_1} Map without closure loop. \protect\subref{fig:ljub1_2} Not enough features could be extracted at this point.}
 \end{figure}
 
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{pictures/ljub_office2and3}
-\caption{Ljubljana office2 - map without closure loop}
+ \centering
+ \includegraphics[width=0.8\textwidth]{pictures/ljub_office2and3}
+ \caption{Ljubljana office2 - map without closure loop}
 \end{figure}
+
+\section{Summary}
+
+These results mainly shows that maps can be built with this system and the interest of the loop closure to get a good correction. But it does not necessarily  give the optimal result, and there can be a drift as soon as the scale becomes big. This also shows that the process can be interrupted as soon as there are not enough visual features to detect a valid transformation.
 
 \chapter{Conclusions and Future Works}
 \label{chap:conclusion}
 
-This work gave a good insight into the general problem SLAM, and more specifically about Visual SLAM with feature extraction and matching. The approach can be described in the following steps:
+This work gave a good insight into the general problem \gls{SLAM}, and more specifically about \gls{VSLAM} with feature extraction and matching. The approach can be described in the following steps:
 \begin{enumerate}
-\item Feature extraction: SIFT/SURF extraction in 2D
-\item Feature matching: kd-tree on the feature space with depth criterion
-\item Transformation: RANSAC in 3D
-\item Graph optimization: based on the $g^2o$ framework
-\item Loop Closures: add some constraints in the graph by detecting scenes already seen in the past
-\item Scene reconstruction: compute 3D point clouds from RGB+D data, project them accordingly to the estimations of the camera positions, and concatenate them to build the global map.
+ \item Feature extraction: \gls{SIFT}/\gls{SURF} extraction in 2D
+ \item Feature matching: kd-tree on the feature space with depth criterion
+ \item Transformation: \gls{RANSAC} in 3D
+ \item Graph optimization: based on the $g^2o$ framework
+ \item Loop Closures: add some constraints in the graph by detecting scenes already seen in the past
+ \item Scene reconstruction: registrate the points clouds accordingly to the estimation of the keyposes, and concatenate them to build the global map.
 \end{enumerate}
 
-Given the big picture, it is now possible to imagine some improvements of the current work, in terms of performance and quality of the results.
+Given this, it is now possible to imagine some improvements of the current work, in terms of performance and quality of the results.
 
 \section{Performance improvements}
 
 Currently, most of the time is passed on the feature extraction. Remaining very close to the given method, the overall performance would significantly be improved by lowering the time spent for this step. This could be done through the use of new features:
 \begin{itemize}
-\item BRIEF: combined with a keypoint detector such as SURF or SIFT, the BRIEF descriptors\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute. However, this would imply to rewrite the matching code, by doing binary string comparison. See also the PhD thesis of the author\cite{Calonder10_PhD}.
-\item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
+ \item BRIEF: combined with a keypoint detector such as \gls{SURF} or \gls{SIFT}, the \gls{BRIEF} descriptors\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute. However, this would imply to rewrite the matching code, by doing binary string comparison. See also the PhD thesis of the author\cite{Calonder10_PhD}.
+ \item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
 \end{itemize}
 
 \section{Quality improvements}
 
 The quality can be improved at different levels:
 \begin{itemize}
-\item Finding a better transformation: the RANSAC method gives a rigid transformation that is not necessarily the best. The parameters may be tuned in a more efficient way to give more accurate results. This concerns the parameters of the RANSAC iterations, but also the initial matching done with the SIFT/SURF features. Other solutions could be still based on RANSAC with a finer tuning of the parameters or variants such as MLESAC \cite{TorrZ00}. Then, the ICP \cite{zhang_92_icp} method should give a refined solution. The output of the RANSAC loop could be used as an initial guess for ICP. 
-\item Graph optimization: by defining properly the optimization problem and studying the most appropriate method, possibly with $g^2o$, deriving new classes and defining error function, working with different scales (hierarchical levels for bigger maps). New criterions could be defined for loop closures, by introducing some knowledge about the past frames (features or estimated position more likely to give a loop closure with the current frame) or by detecting the same scene, and object or a portion of scene that does not give a valid transformation in the current system.
-\item Additional sensors: in this work, the only sensor used was the Kinect providing RGB+D data. One possibility would be to use others sensors and combine them to get a better result. This is particularly true when the transformations computed by the method presented in this work are less reliable. For example, when the quality of the transformations is not good, the odometry could be used assuming this is done for a short period of time.
+ \item Finding a better transformation: the \gls{RANSAC} method gives a rigid transformation that is not necessarily the best. The parameters may be tuned in a more efficient way to give more accurate results, or using a variant like MLESAC \cite{TorrZ00}. The tuning also concerns the initial matching done with the \gls{SIFT}/\gls{SURF} features. The \gls{ICP} \cite{zhang_92_icp} method should give a refined solution. The output of the \gls{RANSAC} loop could be used as an initial guess for \gls{ICP}. 
+ \item Graph optimization: by defining properly the optimization problem and studying the most appropriate method, possibly with $g^2o$, deriving new classes and defining error function, working with different scales (hierarchical levels for bigger maps). New criterions could be defined for loop closures, by introducing some knowledge about the past frames (features or estimated position more likely to give a loop closure with the current frame) or by detecting the same scene, and object or a portion of scene that does not give a valid transformation in the current system.
+ \item Additional sensors: in this work, the only sensor used was the Kinect providing RGB-D data. One possibility would be to use others sensors and combine them to get a better result. This is particularly true when the transformations computed by the method presented in this work are less reliable. For example, when the quality of the transformations is not good, the odometry could be used assuming this is done for a short period of time.
 \end{itemize}
 
 \section{Other approach}
 
-With the KinectFusion project~\cite{MSFusion}, Microsoft presents a solution performing reconstruction without any feature, though it achieves real-time performance as demostrated\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ}} at SIGGRAPH~2011. Based on ICP, directly run on the point clouds from the depth data. However, the details of the method are not published yet. Some indications can be found in the paper about live dense reconstruction written by Newcombe~\cite{Newcombe_2010}, who participated to the KinectFusion project. The article describes how an accurate dense reconstruction can be performed real-time, which could be promising in the future for many applications related to computer vision, not only mapping but also segmentation and object recognition.
+With the KinectFusion project~\cite{MSFusion}, Microsoft presents a solution performing reconstruction without any feature, though it achieves real-time performance as demostrated\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ}} at SIGGRAPH~2011. Based on \gls{ICP}, directly run on the point clouds from the depth data. However, the details of the method are not published yet. Some indications can be found in the paper about live dense reconstruction written by Newcombe~\cite{Newcombe_2010}, who participated to the KinectFusion project. The article describes how an accurate dense reconstruction can be performed real-time, which could be promising in the future for many applications related to computer vision, not only mapping but also segmentation and object recognition.
