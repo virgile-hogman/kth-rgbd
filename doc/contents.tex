@@ -14,6 +14,8 @@ The goal of this work is to build a 3D map from RGB \& depth information provide
 
 The Visual SLAM process can be described as estimating the poses of the camera in order to reconstruct the entire environment while the camera is moving. As the sensor noise lead to deviations in the estimations of each camera poses with respect to the the real motion, the goal is to build a 3D map which is close to the real environment as much as possible.
 
+In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the project were using techniques such as EKF (Extended Kalman Filtering) or particle filters, at the cost of computational time. Recently, some projects ~\cite{Intel_RGBD_2010}~\cite{engelhard11euron-workshop} make use of pose graphs, that seem to be an interesting alternative to study.
+
 \section{Thesis outline}
 
 The rest of the document is structured as follows:
@@ -187,7 +189,7 @@ The NARF feature is presented by Bastian Steder in~\cite{steder10irosws}. It is 
 
 \subsection{BRIEF descriptor}
 
-BRIEF Features\cite{Calonder10-brief}: Binary Robust Independent Elementary Features present an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a BRIEF descriptor supposes the keypoints are already known, which can be done with a detector such as SIFT or SURF.
+BRIEF Features\cite{Calonder10-brief}: Binary Robust Independent Elementary Features present an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a BRIEF descriptor supposes the keypoints are already known, which can be done with a detector such as SIFT or SURF. A deeper study is available in the PhD thesis of Calonder\cite{Calonder10_PhD}, which is the main author of the BRIEF features. This document presents comparative evaluation of BRIEF, SIFT and SURF.
 
 \section{Computing a transformation}
 
@@ -216,7 +218,7 @@ For each iteration:
 \subfloat[]{\label{fig:exransac2} \includegraphics[width=0.3\textwidth]{figures/ransac2}} 
 \subfloat[]{\label{fig:exransac3} \includegraphics[width=0.3\textwidth]{figures/ransac3}}
 %\end{array}$
-\caption{Illustration of a RANSAC iteration. \subref{fig:exransac1}First, k items are chosen randomly among the set (here k=3). \subref{fig:exransac2}From these points, a model is defined. \subref{fig:exransac3}The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
+\caption{Illustration of a RANSAC iteration. \protect\subref{fig:exransac1}First, k items are chosen randomly among the set (here k=3). \protect\subref{fig:exransac2}From these points, a model is defined. \protect\subref{fig:exransac3}The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
 \end{figure}
 
 
@@ -280,8 +282,8 @@ Here we present different approaches:
 
 \begin{description}
 \item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background. [TODO complete...]
-\item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error, by taking steps proportional to the negative of the gradient (or its approximation).
-\item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping~\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps.
+\item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error, by taking steps proportional to the negative of the gradient (or its approximation). It is used in the 3D dense modeling project led by Peter~Henry~\cite{Intel_RGBD_2010}.
+\item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping~\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps. It is used in the RGBD-6D-SLAM~project~\cite{engelhard11euron-workshop}.
 \item[$g^2o$] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. $g^2o$ is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D SLAM or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in $g^2o$. This is the method chosen to solve the graph problem in this work.
 \end{description}
 
@@ -412,7 +414,7 @@ To evaluate a transformation, each sample taken from the initial matches (source
 \subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}} &
 \subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}}
 \end{array}$
-\caption{Matching of SIFT features - \subref{fig:sift_match_1} Initial matching \subref{fig:sift_match_2} After a RANSAC loop. Note how the initial matches drawn in diagonal (green) in the left figure are excluded and become outliers (red) after the RANSAC loop.}
+\caption{Matching of SIFT features - \protect\subref{fig:sift_match_1} Initial matching \protect\subref{fig:sift_match_2} After a RANSAC loop. Note how the initial matches drawn in diagonal (green) in the left figure are excluded and become outliers (red) after the RANSAC loop.}
 \end{figure}
 
 How to characterize a transformation? There are at least 3 parameters:
@@ -466,8 +468,6 @@ inliers/matches & ratio & $\sigma^2(2D)$ & $\sigma^2(3D)$\\
 91/135 &	67\% &	0.476902 &	1.42809\\
 %90/140 &	64\% &	0.682466 &	1.56629\\
 \end{tabular}
-
-[NOTE: not really a very good example here are the number of inliers is much too low :-/]
 
 Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. For example, the initial elements would have above a minimal distance from the mean, set by a threshold.
 
@@ -579,9 +579,7 @@ Now that the main aspects concerning the graph have been studied a software was 
 
 \section{Software project}
 
-The code is available as an open source project \footnote{\url{http://code.google.com/p/kth-rgbd/}}.
-
-There are some similarities with the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop} that use SURF features, RANSAC and HOG-Man graph optimization. It is based on ROS framework unlike this project which is stand alone and there are less dependencies, as it uses PCL for the reconstruction at the final step.
+The code is available as an open source project \footnote{\url{http://code.google.com/p/kth-rgbd/}}. It is released with a LGPL v3 license.
 
 The program built does the following tasks:
 \begin{itemize}
@@ -597,18 +595,15 @@ $g^2o$ provides the class SE3Quat which implies the transformation of the rotati
 
 Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
 
-The number of dependencies has been limited as much as possible, using preferably open-source libraries.
-Here are the main dependencies:
+The number of dependencies has been limited as much as possible, using preferably open-source libraries. At the difference with the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop} it is not based on ROS framework, but it only PCL for the reconstruction at the final step. Here are the main dependencies:
 \begin{itemize}
 \item OpenNI: to acquire the Kinect data
-\item Eigen3: for the geometric support with transformations and matrices
+\item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching) and compute the SURF features
 \item SIFT Library by Rob Hess~\cite{hess_sift}: for the SIFT extraction and initial matching
-\item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching)
+\item Eigen3: for the geometric support with transformations and matrices
 \item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to Point Cloud Datafiles (*.pcd)
 \item Boost: support library especially for the filesystem access
-\item ConfigFile: open source class to easily define configuration files
 \end{itemize}
-
 
 \section{Data collection}
 
@@ -705,12 +700,20 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 
 \begin{figure}[H]
 \centering$
-\begin{array}{ccc}
-\subfloat[]{\label{fig:poses_4r_1} \includegraphics[width=0.3\textwidth]{figures/poses_4r_odometry_raw}} &
-\subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.3\textwidth]{figures/poses_4r_initial}} &
-\subfloat[]{\label{fig:poses_4r_3} \includegraphics[width=0.3\textwidth]{figures/poses_4r_optimized}}
+\begin{array}{cc}
+\subfloat[]{\label{fig:poses_4r_1} \includegraphics[width=0.4\textwidth]{figures/poses_4r_odometry_raw}} &
+\subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.4\textwidth]{figures/poses_4r_initial}}
 \end{array}$
-\caption{Estimation of the poses - \subref{fig:poses_4r_1} From standard odometry, raw data. Notice the drift. \subref{fig:poses_4r_2} From this system, initial graph. Note the similarity with the standard odometry. \subref{fig:poses_4r_3} From this system, optimized graph. }
+\caption{Estimation of the poses - \protect\subref{fig:poses_4r_1} From standard odometry, raw data. Notice the drift. \protect\subref{fig:poses_4r_2} With this system, initial graph. Note the similarity with the standard odometry. }
+\end{figure}
+
+\begin{figure}[H]
+\centering$
+\begin{array}{cc}
+\subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.4\textwidth]{figures/poses_4r_initial}} &
+\subfloat[]{\label{fig:poses_4r_3} \includegraphics[width=0.4\textwidth]{figures/poses_4r_optimized}}
+\end{array}$
+\caption{Estimation of the poses - \protect\subref{fig:poses_4r_2} With the initial graph.  \protect\subref{fig:poses_4r_3} With the optimized graph. }
 \end{figure}
 
 \section{Other universities}
@@ -745,7 +748,7 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 \subfloat[]{\label{fig:ljub1_1} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1}} &
 \subfloat[]{\label{fig:ljub1_2} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1_feature}}
 \end{array}$
-\caption{Ljubljana office1 - \subref{fig:ljub1_1} Map without closure loop. \subref{fig:ljub1_2} Not enough features could be extracted at this point.}
+\caption{Ljubljana office1 - \protect\subref{fig:ljub1_1} Map without closure loop. \protect\subref{fig:ljub1_2} Not enough features could be extracted at this point.}
 \end{figure}
 
 
@@ -758,16 +761,14 @@ Map with 4 rooms, initial without loop closure - alternative RANSAC by recomputi
 \chapter{Conclusions and Future Works}
 \label{chap:conclusion}
 
-This work gave a good insight into the general problem SLAM, and more specifically about Visual SLAM with feature extraction and matching.
-
-The approach can be described in the following steps:
+This work gave a good insight into the general problem SLAM, and more specifically about Visual SLAM with feature extraction and matching. The approach can be described in the following steps:
 \begin{enumerate}
 \item Feature extraction: SIFT/SURF extraction in 2D
 \item Feature matching: kd-tree on the feature space with depth criterion
 \item Transformation: RANSAC in 3D
-\item Graph optimization: Based on the $g^2o$ framework
-\item Loop Closures: Add some constraints in the graph
-\item Scene reconstruction: Compute 3D point clouds from RGB+D data, project them accordingly to the estimations of the camera positions, and concatenate them to build the global map.
+\item Graph optimization: based on the $g^2o$ framework
+\item Loop Closures: add some constraints in the graph by detecting scenes already seen in the past
+\item Scene reconstruction: compute 3D point clouds from RGB+D data, project them accordingly to the estimations of the camera positions, and concatenate them to build the global map.
 \end{enumerate}
 
 Given the big picture, it is now possible to imagine some improvements of the current work, in terms of performance and quality of the results.
@@ -776,27 +777,19 @@ Given the big picture, it is now possible to imagine some improvements of the cu
 
 Currently, most of the time is passed on the feature extraction. Remaining very close to the given method, the overall performance would significantly be improved by lowering the time spent for this step. This could be done through the use of new features:
 \begin{itemize}
-\item BRIEF: these features would probably give a result close to the SIFT/SURF features, with a lower computational time. However, this would imply to rewrite the matching code, by doing binary string comparison (the nearest neighbour based on the kd-tree was provided by the SIFT library~\cite{hess_sift}).
+\item BRIEF: combined with a keypoint detector such as SURF or SIFT, the BRIEF descriptors\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute. However, this would imply to rewrite the matching code, by doing binary string comparison. See also the PhD thesis of the author\cite{Calonder10_PhD}.
 \item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
-\item BRIEF: combined with a keypoint detector such as SURF or SIFT, the BRIEF descriptors\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute.
 \end{itemize}
 
 \section{Quality improvements}
 
 The quality can be improved at different levels:
 \begin{itemize}
-\item Additional sensors: In this work, the only sensor used was the Kinect providing RGB+D data. One possibility would be to use others sensors and combine them to get a better result. This is particularly true when the transformations computed by the method presented in this work are less reliable. For example, when the quality of the transformations is not good, the odometry could be used assuming this is done for a short period of time.
-\item Matching: the RANSAC method gives a transformation that is not necessarily the best. The ICP \cite{zhang_92_icp} method could give a better result. The output of the RANSAC loop could be used as an initial guess for ICP. Other solutions could be still based on RANSAC with a finer tuning of the parameters or variants such as MLESAC \cite{TorrZ00}.
-\item Graph optimization: by defining properly the optimization problem and studying the most appropriate method, possibly with $g^2o$, deriving new classes and defining error function, working with different scales (hierarchical levels for bigger maps).
-\item Loop closures: define new criterions for loop closures, by introducing some knowledge about the past frames (features or estimated position more likely to give a loop closure with the current frame).
+\item Finding a better transformation: the RANSAC method gives a rigid transformation that is not necessarily the best. The parameters may be tuned in a more efficient way to give more accurate results. This concerns the parameters of the RANSAC iterations, but also the initial matching done with the SIFT/SURF features. Other solutions could be still based on RANSAC with a finer tuning of the parameters or variants such as MLESAC \cite{TorrZ00}. Then, the ICP \cite{zhang_92_icp} method should give a refined solution. The output of the RANSAC loop could be used as an initial guess for ICP. 
+\item Graph optimization: by defining properly the optimization problem and studying the most appropriate method, possibly with $g^2o$, deriving new classes and defining error function, working with different scales (hierarchical levels for bigger maps). New criterions could be defined for loop closures, by introducing some knowledge about the past frames (features or estimated position more likely to give a loop closure with the current frame) or by detecting the same scene, and object or a portion of scene that does not give a valid transformation in the current system.
+\item Additional sensors: in this work, the only sensor used was the Kinect providing RGB+D data. One possibility would be to use others sensors and combine them to get a better result. This is particularly true when the transformations computed by the method presented in this work are less reliable. For example, when the quality of the transformations is not good, the odometry could be used assuming this is done for a short period of time.
 \end{itemize}
 
 \section{Other approach}
 
-Microsoft KinectFusion~\cite{MSFusion}\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ}}: a solution without any feature though it achieves real-time performance. Based on ICP, directly run on the point clouds from the depth data. However, the details of the method are not published yet. But the shown results seem to be very promising for the future.
-
-%\begin{appendices}
-%\chapter{Annex - Software implementation}
-%\end{appendices}
-
-
+With the KinectFusion project~\cite{MSFusion}, Microsoft presents a solution performing reconstruction without any feature, though it achieves real-time performance as demostrated\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ}} at SIGGRAPH~2011. Based on ICP, directly run on the point clouds from the depth data. However, the details of the method are not published yet. Some indications can be found in the paper about live dense reconstruction written by Newcombe~\cite{Newcombe_2010}, who participated to the KinectFusion project. The article describes how an accurate dense reconstruction can be performed real-time, which could be promising in the future for many applications related to computer vision, not only mapping but also segmentation and object recognition.
