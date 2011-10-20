@@ -34,9 +34,6 @@
 \usepackage{natbib}
 \usepackage{url}
 
-%\usepackage[acronym]{glossaries}
-%\makeglossaries
-
 \hypersetup{
    plainpages=false,
    pdfpagelayout=SinglePage,
@@ -52,6 +49,11 @@
    backref,
    pdfborder=0 0 0
 }
+
+%glossaries after hyperref
+\usepackage[acronym]{glossaries}
+\makeglossaries
+
 
 %--------------------------------------------------------
 \title{Building a 3D map from RGB-D sensors}
@@ -79,11 +81,14 @@
 \clearpage
 \tableofcontents
 
-%\clearpage
-%\pdfbookmark[0]{Glossary}{glossary}
-%\printglossaries
+\hypersetup{
+   colorlinks=false
+}
+\clearpage
+\pdfbookmark[0]{Glossary}{glossary}
+\printglossaries
 
-%\input{glossary}
+\input{glossary}
 %--------------------------------------------------------
 \mainmatter
 
