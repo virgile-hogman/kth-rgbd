@@ -54,7 +54,6 @@
 \usepackage[acronym]{glossaries}
 \makeglossaries
 
-
 %--------------------------------------------------------
 \title{Building a 3D map from RGB-D sensors}
 \author{Virgile H\"{o}gman}
@@ -63,21 +62,22 @@
 \trita{TRITA xxx yyyy-nn}
 %--------------------------------------------------------
 
-
 %--------------------------------------------------------
 \begin{document}
 %--------------------------------------------------------
 \frontmatter
 \maketitle
-\input{kth-abs}
-\clearpage
-\selectlanguage{swedish}
+%\clearpage
+%\selectlanguage{swedish}
 %\begin{abstract}
 %  Denna fil ger ett avhandlingsskelett.
 %  Mer information om \LaTeX-mallen finns i
 %  dokumentationen till paketet.
 %\end{abstract}
 \selectlanguage{english}
+\begin {abstract}
+\input{abstract}
+\end{abstract}
 \clearpage
 \tableofcontents
 
@@ -87,8 +87,8 @@
 \clearpage
 \pdfbookmark[0]{Glossary}{glossary}
 \printglossaries
-
 \input{glossary}
+
 %--------------------------------------------------------
 \mainmatter
 
