@@ -124,13 +124,16 @@ void recordSequence(Map &map)
 
 void printUsage(const char *name)
 {
-	printf("Usage: %s <options>\n", name);
-	printf(" -record: acquire data from camera, match and build map\n");
-	printf(" -match <from> <to>: build transformations and map");
-	printf(" -map <from> <to>: build map (with loop closure) from existing transformation (transfo.dat)\n");
-	printf(" -pcd: generate PCD file from existing positions (poses.dat)\n");
-	printf(" -feature <from> <to>: compute features for image data in given range\n");
-	printf(" -transfo <from> <to>: compute transformations for image data in given range\n");
+	printf("\nUsage: %s <options>\n", name);
+	printf("\nStandard options:\n");
+	printf(" -r:\t record data from camera, run sequence and build map\n");
+	printf(" -s <idFrom> <idTo> [ratio]:\t run a sequence of frames (RGB-D files), compute transformations and build map\n");
+	printf(" -b <idFrom> <idTo>:\t build map from existing transformations (transfo.dat), generate poses and PCD\n");
+	printf(" -p:\t regenerate PCD file from existing positions (poses.dat)\n");
+	printf("\nMore options:\n");
+	printf(" -f <idFrom> <idTo>:\t compute features for each frame in given range\n");
+	printf(" -m <id1> <id2>:\t match and compute transformation for couple of frames\n");
+	printf("\n");
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -142,7 +145,7 @@ int main(int argc, char** argv)
 	Map map;
 	TimeTracker tm;
     
-	if (argc<1)
+	if (argc<2)
 	{
 		printUsage(argv[0]);
 		return -1;
@@ -157,7 +160,7 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  regenerate PCD files from archive
     // ---------------------------------------------------------------------------------------------------
-    if (strcmp(argv[1], "-pcd") == 0)
+    if (strcmp(argv[1], "-p") == 0)
     {
         printf("-Regenerate PCD files from graph archive-\n");
 
@@ -171,9 +174,9 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  map reconstruction from transformations archive
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-map") == 0)
+    else if (strcmp(argv[1], "-b") == 0)
     {
-        printf("-Reconstruct map from transformations archive, with loop closure-\n");
+        printf("-Build map from transformations archive, with loop closure-\n");
 
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
     		return -1;
@@ -192,9 +195,9 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  load sequence from RGB+D input datafiles
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-match") == 0)
+    else if (strcmp(argv[1], "-s") == 0)
     {
-        printf("-Match and map a sequence of frames-\n");
+        printf("-Run all from a sequence of frames-\n");
     	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
     		return -1;
 
@@ -204,6 +207,11 @@ int main(int argc, char** argv)
     	if (argc>2)
     		min = atoi(argv[2]);
     	
+    	if (argc>4) {
+    		Config::_DataInRatioFrame = atoi(argv[4]);	// override ratio frame
+    		printf("Override ratio frame: ratio=%d\n", Config::_DataInRatioFrame);
+    	}
+
      	loadSequence(Config::_DataDirectory.c_str(), min, max, sequenceFramesID);
     	
         boost::filesystem::create_directories(Config::_ResultDirectory);       
@@ -219,7 +227,7 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  acquire data from camera and build map
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-record") == 0)
+    else if (strcmp(argv[1], "-r") == 0)
     {
         printf("-Record sequence from camera-\n");
         
@@ -235,13 +243,18 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  compute feature for a single frame
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-feature") == 0)
+    else if (strcmp(argv[1], "-f") == 0)
     {
     	TimeTracker tm;
     	FrameData frameData;
     	int frameID1, frameID2;
 
         boost::filesystem::create_directories(Config::_ResultDirectory);
+
+    	std::ofstream fileStats;
+    	char buf[256];
+    	sprintf(buf, "%s/stats_features.log", Config::_ResultDirectory.c_str());
+    	fileStats.open(buf);
 
     	if (argc>2)	{
     		frameID1 = atoi(argv[2]);
@@ -250,6 +263,12 @@ int main(int argc, char** argv)
         	else
         		frameID2 = frameID1;
 
+        	bool saveImage = true;
+        	if (argc>4)	{
+        		// override export (read boolean)
+        		saveImage = (atoi(argv[4])!=0);
+        	}
+
         	for (int id=frameID1; id<=frameID2; id++) {
 
 				if (frameData.loadImage(id) && frameData.loadDepthData()) {
@@ -257,18 +276,25 @@ int main(int argc, char** argv)
 					tm.start();
 					frameData.computeFeatures();
 					tm.stop();
-					frameData.drawFeatures();
-					printf("%d features.\t(%dms)\n", frameData.getNbFeatures(), tm.duration());
-					frameData.saveImage();
+					printf("Id=%d %d features.\t(%dms)\n", id, frameData.getNbFeatures(), tm.duration());
+					fileStats << frameData.getFrameID() << "\t";
+					fileStats << frameData.getNbFeatures() << "\t";
+					fileStats << tm.duration() << "\n";
+					if (saveImage) {
+						frameData.drawFeatures();
+						frameData.saveImage();
+					}
 				}
+				else
+					printf("Failed to load data ID=%d\n", id);
 				frameData.releaseData();
         	}
     	}
     }
     // ---------------------------------------------------------------------------------------------------
-    //  compute transfo for a single pair of frames
+    //  match frames and compute transformation 2 by 2 for given range of data
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-transfo") == 0)
+    else if (strcmp(argv[1], "-m") == 0)
     {
     	TimeTracker tm;
     	FrameData frameData1, frameData2;
@@ -276,8 +302,13 @@ int main(int argc, char** argv)
     	Transformation transform;
 
         boost::filesystem::create_directories(Config::_ResultDirectory);
+
         // force matching export
         Config::_SaveImageInitialPairs = true;
+    	if (argc>4)	{
+    		// override export (read boolean)
+            Config::_SaveImageInitialPairs = (atoi(argv[4])!=0);
+    	}
 
     	if (argc>3)	{
     		frameID1 = atoi(argv[2]);

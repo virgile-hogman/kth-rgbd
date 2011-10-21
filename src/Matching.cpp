@@ -339,6 +339,7 @@ bool findTransformRANSAC(
 		sprintf(buf, "%s/stats.log", Config::_ResultDirectory.c_str());
 		std::ofstream fileStats(buf, ios_base::app);
 		fileStats << frameData1.getFrameID() << "-" << frameData2.getFrameID();
+		fileStats << "\t" << frameData1.getNbFeatures() << "\t" << frameData2.getNbFeatures() ;
 		fileStats << "\t" << indexBestInliers.size() << "\t" << nbValidMatches;
 		fileStats << "\t" << indexBestInliers.size()*100/nbValidMatches;
 		fileStats << "\t" << variance2d << "\t" << variance3d << "\n"  ;
