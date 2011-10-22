@@ -410,7 +410,7 @@ In the nominal case, the quantity of features is quite important and the probabi
 %N = \frac{log(1-p)}{log(1-(1-v)^k)} = \frac{log(1-0.99)}{log(1-(1-\frac{1}{50})^3)} = 
 %\]
 
-To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. Here, this is done through the class \emph{pcl::TransformationFromCorrespondences} from the \gls{PCL} library~\cite{Rusu_ICRA2011_PCL} and we use the minimal number of points necessary to solve this equation, hence k=3.
+To compute a transformation (an hypothesis), only the k samples from the initial matches are used each time. The 3D points are converted to homogeneous coordinates and the transformation is given by solving the corresponding equation from the known constraints which are defined by the chosen points. This is can be done through a \gls{SVD} of the covariance data. The \gls{PCL} library~\cite{Rusu_ICRA2011_PCL} provides the class \emph{pcl::TransformationFromCorrespondences} to perform this, and we use the minimal number of points to solve this equation, k=3.
 
 To evaluate a transformation, each sample taken from the initial matches (source) is then projected according to this transformation. A 3D vector is computed from the difference between the projected point and the real point taken from the matching point (destination). The error is the norm of this vector.
 
@@ -623,7 +623,7 @@ At \gls{KTH}, the main dataset took place in environment with 4 different rooms 
 \begin{figure}[H]
 \centering
 \includegraphics[width=1\textwidth]{figures/cvap_7th}
-\caption{Reference map of the environment explored at CVAP. The visited rooms are marked.}
+\caption{Reference map of the environment explored at CVAP. The visited rooms are labelled.}
 \end{figure}
 
 Other universities participating on common projects could provide data with a similar robot. This allowed to test the system with external data. We used the data provided by the universities of Birmingham and Ljubljana.
@@ -727,8 +727,14 @@ This map is built from a sequence containing one room, the graph is optimized wi
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=1\textwidth]{figures/cvap_7th_4r_optimized}
-\caption{Trajectory overlayed on the reference map of the 7th floor}
+\includegraphics[width=1\textwidth]{figures/cvap_7th_4r_sift}
+\caption{Trajectory overlayed on the reference map of the 7th floor, with SIFT features.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{figures/cvap_7th_4r_surf}
+\caption{Trajectory overlayed on the reference map of the 7th floor, with SURF features.}
 \end{figure}
 
 \clearpage
@@ -777,6 +783,24 @@ This map is built from a sequence containing one room, the graph is optimized wi
 \section{Summary}
 
 These results mainly shows that maps can be built with this system and the interest of the loop closure to get a good correction. But it does not necessarily  give the optimal result, and there can be a drift as soon as the scale becomes big. This also shows that the process can be interrupted as soon as there are not enough visual features to detect a valid transformation.
+
+%In terms of performance, we compared SIFT and SURF on the largest dataset.
+%
+%\begin{table}[H]
+% \begin{center}
+%  \begin{tabular}{llcc|cc}
+%  \hline
+%  University & Dataset & Rooms & Frames & SIFT & SURF \\
+%  \hline
+%  KTH & 7th floor & 4 & 6474 & 2h24mn & 0h54mn \\
+%
+%  \hline
+%  \end{tabular}
+% \end{center}
+% \caption{Performance using SIFT and SURF.}
+%\end{table}
+
+
 
 \chapter{Conclusions and Future Works}
 \label{chap:conclusion}

@@ -38,6 +38,8 @@ float		Config::_MatchingMinRatioInlier = 0.3;
 float		Config::_MatchingMaxDistanceInlier = 0.05;
 bool		Config::_MatchingRunICP = false;
 
+float		Config::_MapInitialAngle[3] = {0,0,0};
+float		Config::_MapInitialCoord[3] = {0,0,0};
 float		Config::_MapNodeDistance = 0.1;
 float		Config::_MapNodeAngle = 5.0;
 
@@ -76,6 +78,12 @@ void Config::LoadConfig(std::string filename)
 	Config::_MatchingMaxDistanceInlier = config.read<float>("MatchingMaxDistanceInlier", 0.05);
 	Config::_MatchingRunICP = config.read<bool>("MatchingRunICP",false);
 
+	Config::_MapInitialAngle[0] = config.read<float>("MapInitialAngleX", 0);
+	Config::_MapInitialAngle[1] = config.read<float>("MapInitialAngleY", 0);
+	Config::_MapInitialAngle[2] = config.read<float>("MapInitialAngleZ", 0);
+	Config::_MapInitialCoord[0] = config.read<float>("MapInitialCoordX", 0);
+	Config::_MapInitialCoord[1] = config.read<float>("MapInitialCoordY", 0);
+	Config::_MapInitialCoord[2] = config.read<float>("MapInitialCoordZ", 0);
 	Config::_MapNodeDistance = config.read<float>("MapNodeDistance", 0.1);
 	Config::_MapNodeAngle = config.read<float>("MapNodeAngle", 5.0);
 

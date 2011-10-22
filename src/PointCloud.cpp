@@ -225,6 +225,7 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 		cout << "----------------------------------------------------------------------------\n";
 		cout << "Append point cloud frame #" << cameraPoses[iPose]._id;
 		cout << " (pose " << iPose+1 << "/" << cameraPoses.size() << ") ";
+		cout << " ratio=" << Config::_PcdRatioFrame << " ";
 		cout << " (point cloud " << (iPose/Config::_PcdRatioFrame)+1 << "/" << ((cameraPoses.size()-1)/Config::_PcdRatioFrame)+1 << ")\n";
 		cout << cameraPoses[iPose]._matrix << std::endl;
 

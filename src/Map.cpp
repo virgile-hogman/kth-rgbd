@@ -452,16 +452,25 @@ void Map::build()
 	TransformationVector sequenceKeyTransform;
 	Transformation keyTransform;
 	double totalDistance = 0.0;
+    Eigen::Matrix3f initialRotation = Eigen::Matrix3f::Identity();
 
 	// initialize the graph
     _graphOptimizer.initialize();
-    
+
     if (_sequenceTransform.size()>0)
     {
 		// -------------------------------------------------------------------------------------------
 		//  origin
 		// -------------------------------------------------------------------------------------------
+    	initialRotation = Eigen::AngleAxisf(Config::_MapInitialAngle[0] * M_PI/180.0, Eigen::Vector3f::UnitX())
+				* Eigen::AngleAxisf(Config::_MapInitialAngle[1] * M_PI/180.0, Eigen::Vector3f::UnitY())
+				* Eigen::AngleAxisf(Config::_MapInitialAngle[2] * M_PI/180.0, Eigen::Vector3f::UnitZ());
     	currentPose._matrix = Eigen::Matrix4f::Identity();
+    	currentPose._matrix.block(0,0,3,3) = initialRotation;
+    	currentPose._matrix(0,3) = Config::_MapInitialCoord[0];
+    	currentPose._matrix(1,3) = Config::_MapInitialCoord[1];
+    	currentPose._matrix(2,3) = Config::_MapInitialCoord[2];
+    	cout << "Initial pose:\n" << currentPose._matrix << "\n";
     	currentPose._id = _sequenceTransform[0]._idOrig;
     	cameraPoses.push_back(currentPose);
 		// add vertex for the initial pose
@@ -513,6 +522,7 @@ void Map::build()
 
 		_graphOptimizer.save("graph_initial.g2o");
 		savePoses(cameraPoses, "poses_initial.dat");
+		_graphOptimizer.extractAllPoses(cameraPoses);
 
 		// build initial point cloud
 		if (Config::_PcdGenerateInitial)

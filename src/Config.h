@@ -49,6 +49,8 @@ public:
 	static bool				_MatchingRunICP;
 
 	// mapping
+	static float			_MapInitialAngle[3];
+	static float			_MapInitialCoord[3];
 	static float			_MapNodeDistance;
 	static float			_MapNodeAngle;
 
@@ -62,6 +64,7 @@ public:
 	static int				_PcdRatioKeepSubsample;
 	static int				_PcdMaxNbPoints;
 	static int				_PcdRatioFrame;
+
 };
 
 #endif //CONFIG_H

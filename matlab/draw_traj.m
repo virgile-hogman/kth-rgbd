@@ -1,63 +1,81 @@
 clc
 clear all
+close all
 d=load('cvap_tr14_floor7-rlm.txt');
-a=load('~/data_out/poses.dat');
+C=load('cureslampose-set4.tdf');
+
+sPathData = '~/data_out/set4_surf/';
+sLegend1 = 'kth-rgbd (SURF)';
+sLegend2 = 'cure';
+
+% Initial poses
+Poses=load(strcat(sPathData,'poses_optimized.dat'));
+
 %a=[0 0];
+% read x,y coord as z,x
+X = Poses(:,5);
+Y = Poses(:,9);
+Z = Poses(:,13);
+Poses = [X -Z];
+% correct initial pose and orientation
+angle = -11;
+offx = 2.5;
+offy = 4.0;
+
+%start at same origin as Cure
+offx = C(1,9);
+offy = C(1,10);
+
+figure
+plot( Y,'--r');
+title('Vertical drift');
+figure;
 
 clf, hold on
 title('CVAP 7th floor');
 xlabel('x (meters)');
 ylabel('y (meters)');
 
-text(2,0.5,'R1', 'FontSize',10)
-text(8,0.5,'R2', 'FontSize',10)
-text(13.5,11.8,'R3', 'FontSize',10)
-text(16.5,0.5,'R4', 'FontSize',10)
+%label rooms
+%text(2,0.5,'R1', 'FontSize',10)
+%text(8,0.5,'R2', 'FontSize',10)
+%text(13.5,11.8,'R3', 'FontSize',10)
+%text(16.5,0.5,'R4', 'FontSize',10)
+text(0.2,1.5,'R1', 'FontSize',10)
+text(0.2,7.5,'R2', 'FontSize',10)
+text(11.8,13,'R3', 'FontSize',10)
+text(0.2,16,'R4', 'FontSize',10)
 
-%figure
-% plot( -a(:,9),'--r');
-% title('Vertical drift');
-
-% read x,y coord as z,x
-a = [a(:,13) a(:,5)];
-
-% correct initial pose and orientation
-angle = -6;
-offx = -3.9;
-offy = 3;
+%set(gca,'xdir','reverse');
+%xlim([-5 45]);
+ylim([-5 45]);
 
 %rotation
-R = [cosd(angle) -sind(angle); sind(angle) cosd(angle)];
-a = (R * a')';
-
+Rot = [cosd(angle) -sind(angle); sind(angle) cosd(angle)];
+Poses = (Rot * Poses')';
 %translation
-T = [offx*ones(size(a,1),1) offy*ones(size(a,1),1)] ;
-a = a + T;
-
- for k=1:size(d,1)
-     plot(d(k,[2 4]), d(k,[1 3]))
- end
- %for k=1:size(a,1)-1
- %     p = scatter(-a(k,1), a(k,2), 'filled');
- %end
- for k=1:size(a,1)
-     plot( -a(k,1), a(k,2),':r', 'LineWidth', 25);
- end
- %plot( -a(:,1), a(:,2),'.r', 'MarkerSize',5);
-      
- set(gca,'xdir','reverse');
- xlim([-5 45]);
- ylim([-5 14]);
+Tra = [offx*ones(size(Poses,1),1) offy*ones(size(Poses,1),1)] ;
+Poses = Poses + Tra;
  
- total = 0;
-  for k=1:size(a,1)-1
-      total = total +  sqrt((a(k,1) - a(k+1,1))^2 + (a(k,2) -a(k+1,2))^2);
-  end
-  
-  if (total > 0)
-    dist = sprintf('Total Distance = %.2f m', total);
-    text(30,-3, dist, 'FontSize',10)
-    %text('\leftarrowend', 'FontSize',10)
-  end
-  
-  
+plot( Poses(:,1), Poses(:,2),'r', 'LineWidth',1);
+
+total = compute_distance(Poses(:,1:2));
+if (total > 0)
+    sDist = sprintf('Total Distance = %.2f m', total);
+    text(8,0, sDist, 'FontSize',10,'Color',[1 0 0])
+end
+
+plot(C(:,9),C(:,10),'k--')
+legend(sLegend1, sLegend2);
+
+total = compute_distance(C(:,9:10));
+if (total > 0)
+    sDist = sprintf('Total Distance = %.2f m', total);
+    text(8,-2, sDist, 'FontSize',10)
+end
+
+% map
+for k=1:size(d,1)
+     plot(d(k,[1 3]), d(k,[2 4]),'b')
+ end
+ 
