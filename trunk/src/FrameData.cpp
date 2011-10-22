@@ -308,7 +308,7 @@ int FrameData::computeFeaturesSURF()
 
 		// extended descriptor = 128 elements as SIFT default
 		CvSURFParams params = cvSURFParams(500,1);
-		//params.nOctaves=3;
+		params.nOctaves=3;
 
 		// convert to grayscale (opencv SURF only works with this format)
 		cvCvtColor(_pImage, pImgGray, CV_RGB2GRAY);
@@ -382,7 +382,7 @@ void FrameData::drawFeatures()
 	int    lineWidth=1;
 	char buf[256];
 
-	sprintf(buf,"Frame%d [%d feat.]", _frameID, _nbFeatures);
+	sprintf(buf,"Frame%d [%d %s]", _frameID, _nbFeatures, (_featureType==FEATURE_SURF)?"SURF":"SIFT");
 
 	// draw SIFT features 
 	draw_features(_pImage, _pFeatures, _nbFeatures);

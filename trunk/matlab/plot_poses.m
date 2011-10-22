@@ -7,7 +7,7 @@ hold on
 plot_matrix(M);
 title('Poses - initial graph');
 
-M = dlmread('~/data_out/poses.dat','\t');
+M = dlmread('~/data_out/poses_optimized.dat','\t');
 figure
 hold on
 plot_matrix(M);

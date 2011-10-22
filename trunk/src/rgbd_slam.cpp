@@ -127,12 +127,12 @@ void printUsage(const char *name)
 	printf("\nUsage: %s <options>\n", name);
 	printf("\nStandard options:\n");
 	printf(" -r:\t record data from camera, run sequence and build map\n");
-	printf(" -s <idFrom> <idTo> [ratio]:\t run a sequence of frames (RGB-D files), compute transformations and build map\n");
-	printf(" -b <idFrom> <idTo>:\t build map from existing transformations (transfo.dat), generate poses and PCD\n");
-	printf(" -p:\t regenerate PCD file from existing positions (poses.dat)\n");
+	printf(" -s <idFrom> <idTo> [ratio_frame]:\t run a sequence of frames (RGB-D files), compute transformations and build map\n");
+	printf(" -m <idFrom> <idTo>:\t build map from existing transformations (transfo.dat), generate poses, graph and PCD\n");
+	printf(" -p [ratio_pcd]:\t regenerate PCD file from existing positions (poses_optimized.g2o)\n");
 	printf("\nMore options:\n");
 	printf(" -f <idFrom> <idTo>:\t compute features for each frame in given range\n");
-	printf(" -m <id1> <id2>:\t match and compute transformation for couple of frames\n");
+	printf(" -t <id1> <id2>:\t match and compute transformation for couple of frames\n");
 	printf("\n");
 }
 
@@ -144,7 +144,7 @@ int main(int argc, char** argv)
 	vector<int> sequenceFramesID;
 	Map map;
 	TimeTracker tm;
-    
+
 	if (argc<2)
 	{
 		printUsage(argv[0]);
@@ -169,12 +169,20 @@ int main(int argc, char** argv)
     	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
     		return -1;
 
+    	if (argc>2) {
+    		int param = atoi(argv[2]);
+    		if (param != 0) {
+    			Config::_PcdRatioFrame = param;	// override PCD ratio
+    			printf("Override ratio frame: ratio=%d\n", Config::_PcdRatioFrame);
+    		}
+    	}
+
     	map.regeneratePCD();
     }
     // ---------------------------------------------------------------------------------------------------
     //  map reconstruction from transformations archive
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-b") == 0)
+    else if (strcmp(argv[1], "-m") == 0)
     {
         printf("-Build map from transformations archive, with loop closure-\n");
 
@@ -208,8 +216,11 @@ int main(int argc, char** argv)
     		min = atoi(argv[2]);
     	
     	if (argc>4) {
-    		Config::_DataInRatioFrame = atoi(argv[4]);	// override ratio frame
-    		printf("Override ratio frame: ratio=%d\n", Config::_DataInRatioFrame);
+    		int param = atoi(argv[4]);
+			if (param != 0) {
+				Config::_DataInRatioFrame = param;	// override ratio frame
+				printf("Override ratio frame: ratio=%d\n", Config::_DataInRatioFrame);
+			}
     	}
 
      	loadSequence(Config::_DataDirectory.c_str(), min, max, sequenceFramesID);
@@ -294,7 +305,7 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     //  match frames and compute transformation 2 by 2 for given range of data
     // ---------------------------------------------------------------------------------------------------
-    else if (strcmp(argv[1], "-m") == 0)
+    else if (strcmp(argv[1], "-t") == 0)
     {
     	TimeTracker tm;
     	FrameData frameData1, frameData2;
