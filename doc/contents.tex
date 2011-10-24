@@ -4,6 +4,13 @@ To navigate in an unknown environment, a mobile robot needs to build a map of th
 
 Generally, the main problem raised with \gls{SLAM} comes from the measurement errors, due to the sensors noise. Probablistic models are widely used to reduce these errors and provide satisfying estimations. While this process is generally based on data provided by sensors such as laser scanners, or odometry data, \gls{VSLAM} focuses on the use of camera. 
 
+\begin{figure}[h!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{figures/visual_slam}
+\caption{General idea of Visual SLAM - the poses of the camera (and therefore of the robot) are determined by the information given by the video. The estimations can lead to a drift with respect to the real trajectory.}
+\end{center}
+\end{figure}
+
 \section{Context}
 
 Currently, most of robotic mapping is performed using sensors that offers only a 2D cross section of the environment around them. The reason for this is ways of acquiring high quality 3D data were either very expensive or had hard constraints on the robot movements. However, recently there has been a great interest in processing data acquired using depth measuring sensors due to the availability of cheap and high performance RGB-D cameras. For instance, the Kinect Camera developed by Prime Sense and Microsoft has considerably changed the situation, providing a 3D camera at a very affordable price, with a particular interest for the research projects in robotics.
@@ -96,16 +103,21 @@ This is a method to detect distinctive, invariant image feature points, which ea
 The main idea of the \gls{SIFT} method is to define a cascade of operations following an increasing complexity, so that the most expensive operations are only performed to the most probable candidates.
 \begin{enumerate}
 \item The first step relies on a pyramid of \gls{DoG} in order to be invariant to scale and orientation.
-\item From this, stable  keypoints are determined with a more accurate model.
+\item From this, stable keypoints are determined with a more accurate model.
 \item The image gradient directions is then used to assign one or more orientations to the keypoints.
 \item The local image gradients are then transformed to be stable against distortion and changes in illumination.
 \end{enumerate}
 
-\emph{Difference-of-Gaussian}
+\emph{Detector}
 
-Most of these concepts concerning the study of the scale space are based on the works of Lindeberg~\cite{Lindeberg_1994}. First off, the scale space is defined as the convolution of an image $I$ with a Gaussian $G$ with variance $\sigma$.
+Most of these concepts concerning the study of the scale space are based on the works of Lindeberg~\cite{Lindeberg_1994}. The general concept is shown in \ref{fig:sift_dog}. First off, the scale space is defined as the convolution of an image $I$ with a Gaussian $G$ with variance $\sigma$.
 
 \[ L(x,y,\sigma) = G(x,y,\sigma) * I(x,y) \]
+
+where
+
+\[ G(x,y,\sigma) = \frac{1}{2\pi\sigma^2}e^{-{(x^2+y^2)/2\sigma^2}} \]
+
 
 The \gls{DoG} is the difference between two layers in scale space along the $\sigma$ axis:
 
@@ -116,7 +128,7 @@ D(x,y,\sigma) & = & (G(x,y, k\sigma) - G(x,y,\sigma)) * I(x,y) \\
 \end{array}
 \] 
 
-This provides a close approximation to the scale-normalized laplacian of Gaussian:
+This provides a close approximation to the scale-normalized Laplacian of Gaussian $\sigma^2\nabla^2G$, as shown by Lindeberg ~\cite{Lindeberg_1994}:
 
 \[ \sigma\nabla^2G = \frac{\partial G}{\partial \sigma} \approx \frac{G(x,y,k\sigma)-G(x,y,\sigma)}{k\sigma - \sigma} \]
 
@@ -124,22 +136,30 @@ and therefore:
 
 \[ G(x,y,k\sigma) - G(x,y,\sigma) \approx (k-1)\sigma^2\nabla^2G \]
 
-Then the localization of the keypoints is done by finding the extrema in the \gls{DoG}. 
+The $\sigma^2$ factor allows the scale invariance. Then, the localization of the keypoints is done by finding the extrema in the \gls{DoG}, which approximates the Laplacian $\sigma^2\nabla^2G$. Lowe shows that the remaining factor $(k-1)$ does not influence the location. 
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/sift_dog}
+\caption{Difference of Gaussians at different scales (courtesy of David Lowe) - For each octave of the scale space, the image is convolved with a Gaussian, which variance $\sigma$ is multiplied each time by a constant factor. Two consecutive results are substracted to give the DoG which approximates the Laplacian of Gaussian. After each octave, the image is downsampled by two, and the process is repeated doubling the variance $\sigma$. The initial value of $\sigma$ can be changed accordingly to the type of application. }
+\label{fig:sift_dog}
+\end{figure}
 
+\paragraph{}
 \emph{Descriptor}
 
-In order to provide a good basis for the matching, the descriptor has to be highly distinctive and invariant to remaining variations such as change in illumination or 3D viewpoint. The \gls{SIFT} descriptor is based on a \gls{HoG} around the keypoint. It is stored as a 128 dimensional feature vector (with 8 orientation bins for each of 4x4 subregion).
+In order to provide a good basis for the matching, the descriptor has to be highly distinctive and invariant to remaining variations such as change in illumination or 3D viewpoint. The \gls{SIFT} descriptor is based on a \gls{HoG} around the keypoint. It is stored as a 128 dimensional feature vector (4x4 descriptor with 8 orientation bins). The figure \ref{fig:sift_descriptor} illustrates this concept with a smaller 2x2 descriptor.
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{figures/sift_descriptor}
-\caption{SIFT descriptor (courtesy of David Lowe) - illustration of how the gradient directions are accumulated into orientation histograms around the center of the region defined by the keypoint. The gradients are first weighted by a Gaussian window represented by the circle. From the 8x8 sample, a 2x2 descriptor is computed this way.}
+\caption{SIFT descriptor (courtesy of David Lowe) - illustration of how the gradient directions are accumulated into orientation histograms around the center of the region defined by the keypoint. The gradients are first weighted by a Gaussian window represented by the circle. From the 8x8 sample, a 2x2 descriptor is computed this way, where each bin covers a 4x4 subregion.}
+\label{fig:sift_descriptor}
 \end{figure}
 
 Once the keypoints are found and the descriptors computed, the next step is to be able to perform fast searches on the features in order to identify candidate matching. Refer to the method described in~\cite{lowe_2004_sift} for further details.
 
-\begin{figure}[H]
+\begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/sift_matches_robhess}
 \caption{SIFT features matched between the two images}
@@ -150,7 +170,7 @@ For this work, we use the \gls{SIFT} library developed by Rob Hess~\cite{hess_si
 \subsection{SURF feature}
 
 \glsreset{SURF}
-The \gls{SURF} is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the \gls{SIFT} descriptor, both are using local gradient histograms. The main difference concerns the performance, lowering the computational time through an efficient use of integral images for the image convolutions, hessian matrix-based detector (optimized through approximations of the second order Gaussian partial derivatives), and sums of approximated 2D Haar wavelet responses for the descriptor. The standard version of \gls{SURF} is several times faster than \gls{SIFT} and claimed by its authors to be more robust against different image transformations than \gls{SIFT}. A comparison is done in this work.
+The \gls{SURF} is a robust image detector \& descriptor~\cite{surf}, that can be used in computer vision tasks like object recognition or 3D reconstruction. It is partly inspired by the \gls{SIFT} descriptor, both are using local gradient histograms. The main difference concerns the performance, lowering the computational time through an efficient use of integral images for the image convolutions, hessian matrix-based detector (optimized through approximations of the second order Gaussian partial derivatives), and sums of approximated 2D Haar wavelet responses for the descriptor. The standard version of \gls{SURF} is several times faster than \gls{SIFT} and claimed by its authors to be more robust against different image transformations than \gls{SIFT}.
 
 \begin{figure}[H]
 \centering
@@ -196,7 +216,7 @@ The \gls{NARF} is presented by Bastian Steder in~\cite{steder10irosws}. It is me
 \subsection{BRIEF feature}
 
 \glsreset{BRIEF}
-The \glspl{BRIEF} presented in~\cite{Calonder10-brief} are an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a \gls{BRIEF} descriptor supposes the keypoints are already known, which can be done with a detector such as \gls{SIFT} or \gls{SURF}. A deeper study is available in the PhD thesis of Calonder~\cite{Calonder10_PhD}, which is the main author of the \gls{BRIEF} features. This document presents comparative evaluation of \gls{BRIEF}, \gls{SIFT} and \gls{SURF}.
+The \gls{BRIEF} presented in~\cite{Calonder10-brief} is an efficient alternative for the descriptor by computing  binary strings directly from image patches and using Hamming distance instead of the $L_2$ norm commonly used on higher dimension descriptors. This gain of performance concerns the extraction of the descriptor and also the matching. The use of a \gls{BRIEF} descriptor supposes the keypoints are already known, which can be done with a detector such as \gls{SIFT} or \gls{SURF}. A deeper study is available in the PhD thesis of Calonder~\cite{Calonder10_PhD}, which is the main author of the \gls{BRIEF} features. This document presents comparative evaluation of \gls{BRIEF}, \gls{SIFT} and \gls{SURF}.
 
 \section{Computing a transformation}
 
@@ -336,7 +356,7 @@ Practically, there are many parameters to define how the \gls{SIFT} features are
 \section{Initial Matching}
 
 Now that the features can be computed, it is possible to perform some feature matching between a couple of frames, to get the initial matches. This is done through a nearest neighbour search, using the euclidian distance of these features.  
-The \gls{SIFT} Library~\cite{hess_sift} proposes an implementation based on kd-tree search. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. 
+The \gls{SIFT} Library~\cite{hess_sift} proposes an implementation of the Best Bin Search described by Lowe~\cite{lowe_2004_sift}, based on kd-tree. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. 
 After this, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
 \begin{figure}[H]
@@ -370,14 +390,14 @@ z: width,\:positive\:to\:the\:right\\
 \caption{The two different coordinate systems, from the "screen" (as seen by the sensors RGB-D) to the 3D scene in the real world.}
 \end{figure}
 
-From the depth value (given in mm by OpenNI) and the x and y screen coordinates (with RGB color and a resolution of 640x480 pixels), it is possible to compute the points coordinates in 3D :
+From the depth value (given in mm by OpenNI) and the screen coordinates (with RGB color and a resolution of 640x480 pixels), it is possible to compute the points coordinates in 3D. Let (u,v) be the point coordinates in pixels, we have then:
 
 \[
 P(x,y,z)\left\{
 \begin{array}{l}
 x = depth \\
-y = (480/2 - y_{screen}) * depth / focal\_length \\
-z = (x_{screen} - 640/2) * depth / focal\_length \\
+y = -(v - 480/2) * depth / focal\_length \\
+z = (u - 640/2) * depth / focal\_length \\
 \end{array}
 \right.
 \]
@@ -479,8 +499,44 @@ The corresponding values can be used to measure and detect this kind of situatio
 
 Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. For example, the initial elements would have above a minimal distance from the mean, set by a threshold.
 
-\section{Type of features}
-After testing and getting good results with the \gls{SIFT} feature, the \gls{SURF} features~\cite{surf} were tested. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features, which also depends on the parameters such as the number of octaves and the variance of the Gaussian. For a scene requiring about 1000ms with \gls{SIFT}, the extraction of the \gls{SURF} feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
+\section{Comparison of SIFT/SURF features}
+After testing and getting good results with the \gls{SIFT} feature, the \gls{SURF} features~\cite{surf} were tested. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features. Globally, for a scene requiring about 1000ms with \gls{SIFT}, the extraction of the \gls{SURF} feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
+However, both algorithms have various parameters that will result in more or less features at the cost of computional time. These parameters are for example the number of octaves, and the Hessian threshold for SURF. In order to compare both methods, we first tried to find a configuration of parameters giving similar number of features, using a dataset of 6474 frames described in chapter \ref{chap:experiments}. For an image of 640x480 pixels, the number of octaves set in the SIFT Library is 6. By setting the same number of octaves at 6 and a Hessian threshold of 300 for \gls{SURF}, we get a very close number of features. We then compare with the default settings which implies a number of octaves of 3 and a Hessian threshold of 500. The results are summarized in \ref{tab:stats_features}.
+
+\begin{table}[h!]
+ \begin{tabular}{r|lll}
+ & SIFT 6 & SURF 6/300 &  SURF 3/500 \\
+ \hline
+ Number of features (ratio) & 745 & 711 (x0.95) & 384 (x0.51) \\
+ Time, in ms (gain) & 894 & 345 (x2.6) & 178 (x5) \\
+ Time by feature, in ms (gain) & 1.407 & 0.582 (x2.4) & 0.586 (x2.4) \\
+ \end{tabular}
+\caption{Comparison of SIFT and SURF features, averaged for 6474 frames. For a similar number of features, SURF is about 3 times faster than SIFT. For half number of features, the gain is a factor 5. For various settings of SURF, the time by feature remains constant.}
+\label{tab:stats_features}
+\end{table}
+
+\begin{figure}[h!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{figures/stats_features_nb}
+\caption{Comparison of SIFT/SURF - Number of features. Default SIFT and SURF 6/300 are similar. Parameters SURF 3/500 give half number of features.}
+\end{center}
+\end{figure}
+
+\begin{figure}[h!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{figures/stats_features_time}
+\caption{Comparison of SIFT/SURF - Time for computing features. SURF is fastest than SIFT for similar number of features. For different SURF parameters, the time is linearly proportional to the number of features (x2 faster for x2 less features).}
+\end{center}
+\end{figure}
+
+\begin{figure}[h!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{figures/stats_features_tbf}
+\caption{Comparison of SIFT/SURF - Average time by feature. SURF is fastest and it does not depend on the given parameters.}
+\end{center}
+\end{figure}
+
+\clearpage
 
 \section{Summary}
 
@@ -579,6 +635,13 @@ We presented how the poses can be estimated, first by cumulating each transforma
 
 Now that the main aspects concerning the graph and the reconstruction have been studied a software was developed, which goal is to acquire data from the Kinect, and from this compute the camera poses and produce a map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files.
 
+\begin{figure}[h!]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{figures/overview}
+\caption{Overview of the system}
+\end{center}
+\end{figure}
+
 With the given program, it is possible to build a map with the camera positions representing the trajectory and orientation of the robot. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from \gls{KTH}, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
 
 \section{Software implementation}
@@ -653,6 +716,8 @@ The result are the positions of the cameras, and the map represented by a point 
 
 Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition. For the visualization of the point clouds, the standard viewer provided in \gls{PCL} is used.
 
+\clearpage
+
 \section{Map CVAP, one room}
 
 \subsection{Without loop closures}
@@ -702,7 +767,7 @@ This map is built from a sequence containing one room, the graph is optimized wi
  \subfloat[]{\label{fig:poses_4r_1_1} \includegraphics[width=0.6\textwidth]{figures/poses_4r_odometry_raw}} \\
  \subfloat[]{\label{fig:poses_4r_1_2} \includegraphics[width=0.6\textwidth]{figures/poses_4r_initial}}
  \end{array}$
-\caption{Estimation of the poses - \protect\subref{fig:poses_4r_1_1} From standard odometry, raw data. Note the drift. \protect\subref{fig:poses_4r_1_2} With this system, initial graph. Note the similarity of the angular drift with the standard odometry, while the two sources are different. }
+\caption{Estimation of the poses - \protect\subref{fig:poses_4r_1_1} From standard odometry, raw data. Note the drift, as the start and end points should be pretty close. \protect\subref{fig:poses_4r_1_2} With this system, initial graph. }
 \end{figure}
 
 \subsection{With loop closure}
@@ -722,7 +787,7 @@ This map is built from a sequence containing one room, the graph is optimized wi
  \subfloat[]{\label{fig:poses_4r_2_1} \includegraphics[width=0.6\textwidth]{figures/poses_4r_initial}} \\
  \subfloat[]{\label{fig:poses_4r_2_2} \includegraphics[width=0.6\textwidth]{figures/poses_4r_optimized}}
  \end{array}$
-\caption{Estimation of the poses - \protect\subref{fig:poses_4r_2_1} With the initial graph.  \protect\subref{fig:poses_4r_2_2} With the optimized graph. }
+\caption{Estimation of the poses - \protect\subref{fig:poses_4r_2_1} With the initial graph.  \protect\subref{fig:poses_4r_2_2} With the optimized graph. There is a slight variation. }
 \end{figure}
 
 \begin{figure}[H]
@@ -735,6 +800,15 @@ This map is built from a sequence containing one room, the graph is optimized wi
 \centering
 \includegraphics[width=1\textwidth]{figures/cvap_7th_4r_surf}
 \caption{Trajectory overlayed on the reference map of the 7th floor, with SURF features.}
+\end{figure}
+
+\begin{figure}[H]
+\centering$
+ \begin{array}{c}
+ \includegraphics[width=1.0\textwidth]{figures/drift_y_sift} \\
+ \includegraphics[width=1.0\textwidth]{figures/drift_y_surf}
+ \end{array}$
+\caption{Analysis of the vertical drift. Coordinate Y has been rescaled to origin. Considering the camera is fixed on a support, the value should stay close to zero.}
 \end{figure}
 
 \clearpage
