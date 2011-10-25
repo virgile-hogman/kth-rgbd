@@ -279,6 +279,10 @@ int main(int argc, char** argv)
         		// override export (read boolean)
         		saveImage = (atoi(argv[4])!=0);
         	}
+        	if (argc>5)	{
+        		// override type
+        		Config::_FeatureType = atoi(argv[5]);
+        	}
 
         	for (int id=frameID1; id<=frameID2; id++) {
 

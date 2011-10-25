@@ -46,6 +46,7 @@ float		Config::_MapNodeAngle = 5.0;
 float		Config::_LoopClosureDistance = 6.0;
 float		Config::_LoopClosureAngle = 300.0;
 int			Config::_LoopClosureWindowSize = 5;
+int			Config::_LoopClosureExcludeLast = 5;
 
 bool		Config::_PcdGenerateInitial = true;
 bool		Config::_PcdGenerateOptimized = true;
@@ -90,6 +91,7 @@ void Config::LoadConfig(std::string filename)
 	Config::_LoopClosureDistance = config.read<float>("LoopClosureDistance", 6.0);
 	Config::_LoopClosureAngle = config.read<float>("LoopClosureAngle", 300.0);
 	Config::_LoopClosureWindowSize = config.read<int>("LoopClosureWindowSize", 5);
+	Config::_LoopClosureExcludeLast = config.read<int>("LoopClosureExcluseLast", 5);
 
 	Config::_PcdGenerateInitial = config.read<bool>("PcdGenerateInitial", true);
 	Config::_PcdGenerateOptimized = config.read<bool>("PcdGenerateOptimized", true);
