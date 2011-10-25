@@ -308,7 +308,9 @@ int FrameData::computeFeaturesSURF()
 
 		// extended descriptor = 128 elements as SIFT default
 		CvSURFParams params = cvSURFParams(500,1);
-		params.nOctaves=3;
+		/*params.nOctaves=6;
+		params.nOctaveLayers=4;
+		params.hessianThreshold=300;*/
 
 		// convert to grayscale (opencv SURF only works with this format)
 		cvCvtColor(_pImage, pImgGray, CV_RGB2GRAY);

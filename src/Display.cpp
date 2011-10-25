@@ -26,8 +26,14 @@
 #define SCORE_WIDTH 280
 #define SCORE_HEIGHT 10
 
+#define INFO_POSX 640
+#define INFO_POSY 0
 #define INFO_WIDTH 350
 #define INFO_HEIGHT 80
+
+#define FEAT_POSX 0
+#define FEAT_POSY 0
+
 
 CvScalar getColorScore(float score)
 {
@@ -73,9 +79,9 @@ void Display::showFeatures(FrameData &frameData1, FrameData &frameData2, float s
 		if (! _displayingFeatures) {
 			cvNamedWindow("Features", CV_WINDOW_NORMAL);
 			cvResizeWindow("Features", NBPIXELS_WIDTH, NBPIXELS_HEIGHT*2);
-			cvMoveWindow("Features", 0, 0); // offset from the UL corner of the screen
+			cvMoveWindow("Features", FEAT_POSX, FEAT_POSY); // offset from the UL corner of the screen
 			cvNamedWindow("Quality", CV_WINDOW_AUTOSIZE);
-			cvMoveWindow("Quality", 200, 0); // offset from the UL corner of the screen
+			cvMoveWindow("Quality", INFO_POSX, INFO_POSY); // offset from the UL corner of the screen
 
 			_displayingFeatures = true;
 		}
@@ -128,7 +134,7 @@ void Display::showOutOfSync(FrameData &frameData1, FrameData &frameData2)
 		// create feature windows
 		cvNamedWindow("Features", CV_WINDOW_NORMAL);
 		cvResizeWindow("Features", NBPIXELS_WIDTH, NBPIXELS_HEIGHT*2);
-		cvMoveWindow("Features", 0, 0); // offset from the UL corner of the screen
+		cvMoveWindow("Features", FEAT_POSX, FEAT_POSY); // offset from the UL corner of the screen
 		_displayingFeatures = true;
 	}
 	IplImage* img1=frameData1.getImage();

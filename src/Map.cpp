@@ -310,8 +310,8 @@ bool Map::detectLoopClosure(const PoseVector	&cameraPoses)
 			nbSamples = Config::_LoopClosureWindowSize;
 			if (idCandidateLC.size() < Config::_LoopClosureWindowSize)
 				nbSamples = idCandidateLC.size();
-			// generate list of indexes where samples will be pickup once
-			int sizeLC = idCandidateLC.size()-5;	// ignore last n poses
+			// generate list of indexes where samples will be taken from
+			int sizeLC = idCandidateLC.size() - Config::_LoopClosureExcludeLast;	// ignore last n poses
 			for (int i=0; i<sizeLC; i++)
 				randomSamples.push_back(i);
 			if (nbSamples>randomSamples.size())

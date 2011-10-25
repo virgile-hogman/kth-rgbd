@@ -54,10 +54,11 @@ public:
 	static float			_MapNodeDistance;
 	static float			_MapNodeAngle;
 
-	// triggering loop closure
+	// loop closure
 	static float			_LoopClosureDistance;
 	static float			_LoopClosureAngle;
 	static int				_LoopClosureWindowSize;
+	static int				_LoopClosureExcludeLast;
 
 	static bool				_PcdGenerateInitial;
 	static bool				_PcdGenerateOptimized;
