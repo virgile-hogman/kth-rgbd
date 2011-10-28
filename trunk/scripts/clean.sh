@@ -1,11 +1,18 @@
 #!/bin/sh
 
-read -p " All output data will be erased. Are you sure? (y/[n]) " ans
+. ./varenv.sh
+
+if [ ! -d $DIR_PROD ]; then
+	echo "Directory [$DIR_PROD] not found."
+	exit
+fi
+
+read -p "All data in [$DIR_PROD] will be erased. Are you sure? (y/[n]) " ans
 if [ "$ans" != "y" ]
 then
      exit 
 fi
 
-cd ~
-sudo rm -f data_out/*.*
-cd --
+rm -vf $DIR_PROD/*.*
+
+echo "Clean complete."
