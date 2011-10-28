@@ -67,26 +67,19 @@
 %--------------------------------------------------------
 \frontmatter
 \maketitle
-%\clearpage
-%\selectlanguage{swedish}
-%\begin{abstract}
-%  Denna fil ger ett avhandlingsskelett.
-%  Mer information om \LaTeX-mallen finns i
-%  dokumentationen till paketet.
-%\end{abstract}
+\clearpage
 \selectlanguage{english}
 \begin {abstract}
 \input{abstract}
 \end{abstract}
+\selectlanguage{swedish}
+\begin{abstract}
+\input{sammanfattning}
+\end{abstract}
+\selectlanguage{english}
 \clearpage
 \tableofcontents
 
-\hypersetup{
-   colorlinks=false
-}
-\clearpage
-\pdfbookmark[0]{Glossary}{glossary}
-\printglossaries
 \input{glossary}
 
 %--------------------------------------------------------
@@ -95,6 +88,11 @@
 \input{contents}
 
 %--------------------------------------------------------
+\clearpage
+\pdfbookmark[0]{Glossary}{glossary}
+\printglossaries
+
+
 %\begin{appendices}
 %\chapter{Annex - Software implementation}
 %\end{appendices}
