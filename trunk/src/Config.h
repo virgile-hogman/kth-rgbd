@@ -25,9 +25,8 @@ public:
 	static void LoadConfig(std::string filename);
 
 	// data and files
-	static std::string		_DataDirectory;
-	static std::string		_GenDirectory;
-	static std::string		_ResultDirectory;
+	static std::string		_PathFrameSequence;
+	static std::string		_PathDataProd;
 	static std::string		_PathKinectXmlFile;
 	static int				_DataInRatioFrame;
 	static bool				_SaveImageInitialPairs;
@@ -55,8 +54,6 @@ public:
 	static float			_MapNodeAngle;
 
 	// loop closure
-	static float			_LoopClosureDistance;
-	static float			_LoopClosureAngle;
 	static int				_LoopClosureWindowSize;
 	static int				_LoopClosureExcludeLast;
 
@@ -66,6 +63,7 @@ public:
 	static int				_PcdMaxNbPoints;
 	static int				_PcdRatioFrame;
 
+	static float			_FocalLength;
 };
 
 #endif //CONFIG_H

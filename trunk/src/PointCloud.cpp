@@ -27,55 +27,6 @@
 
 using namespace std;
 
-bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZ> &pointCloud)
-{
-	FrameData frameData;
-	if (!frameData.loadImage(frameID))
-	{
-		pointCloud.points.clear();
-		return false;
-	}
-	if (!frameData.loadDepthData())
-	{
-		pointCloud.points.clear();
-		return false;
-	}
-
-	// allocate the point cloud buffer
-	pointCloud.width = NBPIXELS_WIDTH;
-	pointCloud.height = NBPIXELS_HEIGHT;
-	pointCloud.points.clear();
-	pointCloud.points.reserve(NBPIXELS_WIDTH*NBPIXELS_HEIGHT);	// memory preallocation
-	//pointCloud.points.resize(NBPIXELS_WIDTH*NBPIXELS_HEIGHT);
-
-	//printf("Generating point cloud frame %d\n", frameID);
-
-	float constant = 0.001 / CameraDevice::_FocalLength;
-	unsigned int rgb;
-	int depth_index = 0;
-	IplImage *img = frameData.getImage();
-	for (int ind_y =0; ind_y < NBPIXELS_HEIGHT; ind_y++)
-	{
-		for (int ind_x=0; ind_x < NBPIXELS_WIDTH; ind_x++, depth_index++)
-		{
-			//pcl::PointXYZRGB& pt = pointCloud(ind_x,ind_y);
-			TDepthPixel depth = frameData.getDepthData()[depth_index];
-			if (depth != 0)
-			{
-				pcl::PointXYZ pt;
-
-				// locate point in meters
-				pt.z = (ind_x - NBPIXELS_X_HALF) * depth * constant;
-				pt.y = (NBPIXELS_Y_HALF - ind_y) * depth * constant;
-				pt.x = depth * 0.001 ; // given depth values are in mm
-
-				pointCloud.push_back(pt);
-			}
-		}
-	}
-
-	return true;
-}
 
 bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
 {
@@ -100,7 +51,7 @@ bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 
 	//printf("Generating point cloud frame %d\n", frameID);
 
-	float constant = 0.001 / CameraDevice::_FocalLength;
+	float focalInv = 0.001 / Config::_FocalLength;
 	unsigned int rgb;
 	int depth_index = 0;
 	IplImage *img = frameData.getImage();
@@ -115,9 +66,9 @@ bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 				pcl::PointXYZRGB pt;
 
 				// locate point in meters
-				pt.z = (ind_x - NBPIXELS_X_HALF) * depth * constant;
-				pt.y = (NBPIXELS_Y_HALF - ind_y) * depth * constant;
-				pt.x = depth * 0.001 ; // given depth values are in mm
+				pt.z = (ind_x - NBPIXELS_X_HALF) * depth * focalInv;
+				pt.y = (NBPIXELS_Y_HALF - ind_y) * depth * focalInv;
+				pt.x = depth * 0.001 ; // depth values are given in mm
 
 				// reinterpret color bytes
 				unsigned char b = ((uchar *)(img->imageData + ind_y*img->widthStep))[ind_x*img->nChannels + 0];
@@ -136,21 +87,34 @@ bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointClo
 // -----------------------------------------------------------------------------------------------------
 //  getTransformICP
 // -----------------------------------------------------------------------------------------------------
-bool PointCloud::getTransformICP(const FrameData &frameData1, const FrameData &frameData2, Eigen::Matrix4f& transformation)
+bool PointCloud::getTransformICP(
+		const FrameData &frameData1,
+		const FrameData &frameData2,
+		const vector<Eigen::Vector3f> &source,
+		const vector<Eigen::Vector3f> &target,
+		Eigen::Matrix4f& transformation)
 {
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudSource (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudTarget (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ> cloudFinal;
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
 
-	// load the point clouds
-	// TODO: optimize method, very low performance as the RGB+D data is reloaded (just for ICP test)
-	// TODO: optimize memory management by keeping at least the last frame
-	// we want to align the frame2 (source) on the frame1 (target)
-	getFramePointCloud(frameData1.getFrameID(), *cloudTarget);
-	getFramePointCloud(frameData2.getFrameID(), *cloudSource);
+	pcl::PointXYZ pt;
+	for (int i=0; i<source.size(); i++) {
+		pt.x = source[i][0];
+		pt.y = source[i][1];
+		pt.z = source[i][2];
+		cloudSource->push_back(pt);
+	}
+	for (int i=0; i<target.size(); i++) {
+		pt.x = target[i][0];
+		pt.y = target[i][1];
+		pt.z = target[i][2];
+		cloudTarget->push_back(pt);
+	}
 
 	// define the inputs
+	// we invert here in the sense we want the transfo from frameTarget to frameSource
 	icp.setInputCloud(cloudSource);
 	icp.setInputTarget(cloudTarget);
 
@@ -163,8 +127,7 @@ bool PointCloud::getTransformICP(const FrameData &frameData1, const FrameData &f
 	// Set the transformation epsilon (criterion 2)
 	icp.setTransformationEpsilon (1e-8);
 	// Set the euclidean distance difference epsilon (criterion 3)
-	icp.setEuclideanFitnessEpsilon (1);
-	*/
+	// icp.setEuclideanFitnessEpsilon (1);*/
 
 	std::cout << "Running ICP...";
 	fflush(stdout);
@@ -197,13 +160,6 @@ void subsamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB> &pointCloud, int rati
 			cloudTemp.push_back(pointCloud.points[i]);
 	}
 	pointCloud = cloudTemp;
-	/*
-	const float voxel_grid_size = 0.005;
-	pcl::VoxelGrid<pcl::PointXYZRGB> vox_grid;
-	vox_grid.setLeafSize (voxel_grid_size, voxel_grid_size, voxel_grid_size);
-	vox_grid.setInputCloud (pointCloud());
-	vox_grid.filter(pointCloud);*/
-	//cout << "Size: " << pointCloud.size() << " points after subsampling " << ratioKeep << "%" << std::endl;
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -223,10 +179,10 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 			continue;	// skip frame
 
 		cout << "----------------------------------------------------------------------------\n";
-		cout << "Append point cloud frame #" << cameraPoses[iPose]._id;
-		cout << " (pose " << iPose+1 << "/" << cameraPoses.size() << ") ";
-		cout << " ratio=" << Config::_PcdRatioFrame << " ";
-		cout << " (point cloud " << (iPose/Config::_PcdRatioFrame)+1 << "/" << ((cameraPoses.size()-1)/Config::_PcdRatioFrame)+1 << ")\n";
+		cout << "Append point cloud frame=#" << cameraPoses[iPose]._id;
+		cout << " pose=" << iPose+1 << "/" << cameraPoses.size();
+		cout << " ratio_pcd=1/" << Config::_PcdRatioFrame;
+		cout << " cloud=" << (iPose/Config::_PcdRatioFrame)+1 << "/" << ((cameraPoses.size()-1)/Config::_PcdRatioFrame)+1 << "\n";
 		cout << cameraPoses[iPose]._matrix << std::endl;
 
 		getFramePointCloud(cameraPoses[iPose]._id, cloudFrame);
@@ -249,10 +205,10 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 		{
 			// max size reached
 			cout << "Saving global point cloud binary...\n";
-			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_ResultDirectory.c_str(), filenamePCD, nbPCD++);
+			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_PathDataProd.c_str(), filenamePCD, nbPCD++);
 			cout << "File: " << buf_full << "\n";
 			pcl::io::savePCDFile(buf_full, cloudFull, true);
-			// bug in PCL - the binary file is not created with the good rights!
+			// bug in PCL - the binary file is not created with the good permissions!
 			char bufsys[256];
 			sprintf(bufsys, "chmod a+rw %s", buf_full);
 			system(bufsys);
@@ -266,12 +222,12 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 
 		cout << "Saving global point cloud binary...\n";
 		if (nbPCD>0)
-			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_ResultDirectory.c_str(), filenamePCD, nbPCD);
+			sprintf(buf_full, "%s/%s_%02d.pcd", Config::_PathDataProd.c_str(), filenamePCD, nbPCD);
 		else
-			sprintf(buf_full, "%s/%s.pcd", Config::_ResultDirectory.c_str(), filenamePCD);
+			sprintf(buf_full, "%s/%s.pcd", Config::_PathDataProd.c_str(), filenamePCD);
 		cout << "File: " << buf_full << "\n";
 		pcl::io::savePCDFile(buf_full, cloudFull, true);
-		// bug in PCL - the binary file is not created with the good rights!
+		// bug in PCL - the binary file is not created with the good permissions!
 		char bufsys[256];
 		sprintf(bufsys, "chmod a+rw %s", buf_full);
 		system(bufsys);

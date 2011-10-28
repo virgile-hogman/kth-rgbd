@@ -41,8 +41,8 @@ ImageGenerator g_image;
 DepthMetaData g_depthMD;
 ImageMetaData g_imageMD;
 Context g_context;
-XnFPSData xnFPS;
-XnUInt64 no_sample_value, shadow_value;
+XnFPSData g_xnFPS;
+XnUInt64 g_noSampleValue, g_shadowValue;
 
 // working buffers reused for each frame (just to avoid reallocate the arrays each time) 
 IplImage* g_imgRGB = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
@@ -50,10 +50,6 @@ IplImage* g_imgDepth = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
 
 // PCL
 pcl::PointCloud<pcl::PointXYZRGB> g_cloudPointSave;
-
-float CameraDevice::_FocalLength = 525;
-
-
 
 // -----------------------------------------------------------------------------------------------------
 //  common data types
@@ -82,7 +78,8 @@ bool CameraDevice::connect()
 	fflush(stdout);
 	XnStatus nRetVal = XN_STATUS_OK;
 	EnumerationErrors errors;
-	nRetVal = g_context.InitFromXmlFile(Config::_PathKinectXmlFile.c_str(), &errors);
+	ScriptNode script;
+	nRetVal = g_context.InitFromXmlFile(Config::_PathKinectXmlFile.c_str(), script, &errors);
 	if (nRetVal == XN_STATUS_NO_NODE_PRESENT)
 	{
 		XnChar strError[1024];
@@ -108,16 +105,16 @@ bool CameraDevice::connect()
 	nRetVal = g_context.FindExistingNode(XN_NODE_TYPE_IMAGE, g_image);
 	CHECK_RC(nRetVal, "Find image generator");
 
-	nRetVal = xnFPSInit(&xnFPS, 180);
+	nRetVal = xnFPSInit(&g_xnFPS, 180);
 	CHECK_RC(nRetVal, "FPS Init");
 
-	g_context.SetGlobalMirror(false); //mirror image
+	g_context.SetGlobalMirror(false); // mirror image horizontally
 
 	g_depth.GetAlternativeViewPointCap().SetViewPoint(g_image);
-	if (g_depth.GetIntProperty ("ShadowValue", shadow_value) != XN_STATUS_OK)
+	if (g_depth.GetIntProperty ("ShadowValue", g_shadowValue) != XN_STATUS_OK)
 		printf ("[OpenNIDriver] Could not read shadow value!");
 
-	if (g_depth.GetIntProperty ("NoSampleValue", no_sample_value) != XN_STATUS_OK)
+	if (g_depth.GetIntProperty ("NoSampleValue", g_noSampleValue) != XN_STATUS_OK)
 		printf ("[OpenNIDriver] Could not read no sample value!");
 
     return (nRetVal == XN_STATUS_OK);
@@ -128,13 +125,13 @@ bool CameraDevice::connect()
 // -----------------------------------------------------------------------------------------------------
 void CameraDevice::disconnect()
 {
-	g_context.Shutdown();
+	g_context.Release();
 }
 
 // -----------------------------------------------------------------------------------------------------
 //  saveRGBImage
 // -----------------------------------------------------------------------------------------------------
-void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img, int frameID)
+void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* imgRGB, int frameID)
 {
 	if (frameID<0)
 		frameID = g_imageMD.FrameID();	// use ID given by Kinect
@@ -142,14 +139,14 @@ void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* tmp_img, int frameID)
 	// Convert to IplImage 24 bit, 3 channels
 	for(unsigned int i = 0; i < g_imageMD.XRes()*g_imageMD.YRes();i++)
 	{
-		tmp_img->imageData[3*i+0]=pImageMap[i].nBlue;
-		tmp_img->imageData[3*i+1]=pImageMap[i].nGreen;
-		tmp_img->imageData[3*i+2]=pImageMap[i].nRed;
+		imgRGB->imageData[3*i+0]=pImageMap[i].nBlue;
+		imgRGB->imageData[3*i+1]=pImageMap[i].nGreen;
+		imgRGB->imageData[3*i+2]=pImageMap[i].nRed;
 	}
 
 	char buf[256];
-	sprintf(buf, "%s/frame_%d_rgb.bmp", Config::_DataDirectory.c_str(), frameID);
-	cvSaveImage(buf, tmp_img);
+	sprintf(buf, "%s/frame_%d_rgb.bmp", Config::_PathFrameSequence.c_str(), frameID);
+	cvSaveImage(buf, imgRGB);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -216,7 +213,7 @@ int saveHistogramImage(
 
 	
 	char bufFilename[256];
-	sprintf(bufFilename,"%s/frame_%d_histo.bmp", Config::_DataDirectory.c_str(), frameID);
+	sprintf(bufFilename,"%s/frame_%d_histo.bmp", Config::_PathFrameSequence.c_str(), frameID);
 	cvSaveImage(bufFilename, pImgDepth);
 }
 
@@ -247,13 +244,13 @@ int saveDepthImage(
 	
 	// save the depth image
 	char bufFilename[256];
-	sprintf(bufFilename, "%s/frame_%d_depth.bmp", Config::_DataDirectory.c_str(), frameID);
+	sprintf(bufFilename, "%s/frame_%d_depth.bmp", Config::_PathFrameSequence.c_str(), frameID);
 	cvSaveImage(bufFilename, pImgDepth);
     
 	// point cloud
     if (savePointCloud)
     {
-		float constant = 0.001 / CameraDevice::_FocalLength;    
+		float focalInv = 0.001 / Config::_FocalLength;
 		unsigned int rgb; 
 		int depth_index = 0;
 		int ImageCenterX = g_depthMD.XRes() >> 1;
@@ -264,8 +261,8 @@ int saveDepthImage(
 			{
 				pcl::PointXYZRGB& pt = g_cloudPointSave(ind_x,ind_y);
 		
-				if (pDepthMap[depth_index] == no_sample_value ||
-					pDepthMap[depth_index] == shadow_value ||
+				if (pDepthMap[depth_index] == g_noSampleValue ||
+					pDepthMap[depth_index] == g_shadowValue ||
 					pDepthMap[depth_index] == 0 ){
 		
 					pt.x = bad_point;
@@ -275,9 +272,9 @@ int saveDepthImage(
 				else 
 				{
 					// locate point in meters
-					pt.x = (ind_x - ImageCenterX) * pDepthMap[depth_index] * constant;
-					pt.y = (ImageCenterY - ind_y) * pDepthMap[depth_index] * constant;
-					pt.z = pDepthMap[depth_index] * 0.001 ; // given depth values are in mm
+					pt.x = (ind_x - ImageCenterX) * pDepthMap[depth_index] * focalInv;
+					pt.y = (ImageCenterY - ind_y) * pDepthMap[depth_index] * focalInv;
+					pt.z = pDepthMap[depth_index] * 0.001 ; // depth values are given in mm
 					rgb = (((unsigned int)pImageMap[depth_index].nRed) << 16) |
 						  (((unsigned int)pImageMap[depth_index].nGreen) << 8) |
 						  ((unsigned int)pImageMap[depth_index].nBlue);
@@ -287,9 +284,9 @@ int saveDepthImage(
 		}
 		
 		char buf[256];
-		sprintf(buf, "%s/cloud%d.pcd", Config::_ResultDirectory.c_str(), frameID);
+		sprintf(buf, "%s/cloud%d.pcd", Config::_PathDataProd.c_str(), frameID);
 		pcl::io::savePCDFile(buf, g_cloudPointSave, true);
-		// bug in PCL - the binary file is not created with the good rights!
+		// bug in PCL - the binary file is not created with the good permissions!
 		char bufsys[256];
 		sprintf(bufsys, "chmod a+rw %s", buf);
 		system(bufsys);
@@ -311,7 +308,7 @@ bool CameraDevice::generateFrame(int frameID)
 	
 	while(true)
 	{
-		xnFPSMarkFrame(&xnFPS);
+		xnFPSMarkFrame(&g_xnFPS);
 		nRetVal = g_context.WaitAndUpdateAll();
 		if (nRetVal==XN_STATUS_OK)
 		{
@@ -326,7 +323,7 @@ bool CameraDevice::generateFrame(int frameID)
 					g_depthMD.XRes(),
 					g_depthMD.YRes(),
 					g_depthMD(g_depthMD.XRes()/2, g_depthMD.YRes()/2),
-					xnFPSCalc(&xnFPS),
+					xnFPSCalc(&g_xnFPS),
 					(saveData? "" : "* PRESS KEY *"));
 		}
 		if (xnOSWasKeyboardHit())
@@ -364,3 +361,42 @@ bool CameraDevice::generateFrame(int frameID)
 	}
 	return false;
 }
+
+/*
+void getFocalLength()
+{
+	// retro-engineering to read focal length from lib
+	XnPoint3D in,out;
+	in.X = 300;
+	in.Y = 200;
+	in.Z = 350;
+	g_depth.ConvertProjectiveToRealWorld(1, &in, &out);
+	printf("In \t= %f %f %f\n", in.X, in.Y, in.Z);
+	printf("Out \t= %f %f %f\n", out.X, out.Y, out.Z);
+
+	float focalInv = 1/525;
+	float depth1 = in.Z;
+	float x1 = (in.X - NBPIXELS_X_HALF) * depth1 * focalInv;
+	float y1 = (NBPIXELS_Y_HALF - in.Y) * depth1 * focalInv;
+	float z1 = depth1 ; // given depth values are in mm
+	printf("Out \t= %f %f %f\n", x1, y1, z1);
+
+	double focalx = 640  / (out.X / ((in.X/640 - 0.5)*depth1));
+	double focaly = 480  / (out.Y / ((in.Y/480 - 0.5)*depth1));
+	printf("fx \t= %lf\n", focalx);
+	printf("fy \t= %lf\n", focaly);
+
+	//in.X = 432;
+	//in.Y = 129;
+	//in.Z = 378;
+	g_depth.ConvertProjectiveToRealWorld(1, &in, &out);
+	printf("In \t= %f %f %f\n", in.X, in.Y, in.Z);
+	printf("Out \t= %f %f %f\n", out.X, out.Y, out.Z);
+
+	depth1 = in.Z;
+	x1 = (in.X - NBPIXELS_X_HALF) * depth1 * (1/focalx);
+	y1 = (NBPIXELS_Y_HALF - in.Y) * depth1 * (1/focaly);
+	z1 = depth1 ; // given depth values are in mm
+	printf("Out \t= %f %f %f\n", x1, y1, z1);
+}
+*/

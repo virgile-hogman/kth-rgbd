@@ -17,10 +17,12 @@
 #include "Config.h"
 #include "ConfigFile.h"
 
-std::string Config::_DataDirectory = "data_in";
-std::string Config::_GenDirectory = "data_gen";
-std::string Config::_ResultDirectory = "data_out";
-std::string	Config::_PathKinectXmlFile = "SamplesConfig.xml";
+// presets
+#define		FOCAL_LENGTH_KINECT		575.815735
+
+std::string Config::_PathFrameSequence = "rgbd_frames";
+std::string Config::_PathDataProd = "rgbd_prod";
+std::string	Config::_PathKinectXmlFile = "KinectConfig.xml";
 int			Config::_DataInRatioFrame = 1;
 bool		Config::_SaveImageInitialPairs = false;
 
@@ -43,8 +45,6 @@ float		Config::_MapInitialCoord[3] = {0,0,0};
 float		Config::_MapNodeDistance = 0.1;
 float		Config::_MapNodeAngle = 5.0;
 
-float		Config::_LoopClosureDistance = 6.0;
-float		Config::_LoopClosureAngle = 300.0;
 int			Config::_LoopClosureWindowSize = 5;
 int			Config::_LoopClosureExcludeLast = 5;
 
@@ -54,14 +54,16 @@ int			Config::_PcdRatioKeepSubsample = 80;
 int			Config::_PcdMaxNbPoints = 2E6;
 int			Config::_PcdRatioFrame = 1;
 
+float		Config::_FocalLength = FOCAL_LENGTH_KINECT;
+
 void Config::LoadConfig(std::string filename)
 {
 	ConfigFile config(filename);
 
-	Config::_DataDirectory = config.read<string>("DirDataIn", "data_in");
-	Config::_GenDirectory = config.read<string>("DirDataGen", "data_gen");
-	Config::_ResultDirectory = config.read<string>("DirDataOut", "data_out");
-	Config::_PathKinectXmlFile = config.read<string>("PathKinectXmlFile", "SamplesConfig.xml");
+	Config::_PathFrameSequence = config.read<string>("PathFrameSequence", "rgbd_frames");
+	Config::_PathDataProd = config.read<string>("PathDataProd", "rgbd_prod");
+	Config::_PathKinectXmlFile = config.read<string>("PathKinectXmlFile", "KinectConfig.xml");
+
 	Config::_DataInRatioFrame = config.read<int>("DataInRatioFrame", 0);
 	Config::_SaveImageInitialPairs = config.read<bool>("SaveImageInitialPairs", false);
 
@@ -88,8 +90,6 @@ void Config::LoadConfig(std::string filename)
 	Config::_MapNodeDistance = config.read<float>("MapNodeDistance", 0.1);
 	Config::_MapNodeAngle = config.read<float>("MapNodeAngle", 5.0);
 
-	Config::_LoopClosureDistance = config.read<float>("LoopClosureDistance", 6.0);
-	Config::_LoopClosureAngle = config.read<float>("LoopClosureAngle", 300.0);
 	Config::_LoopClosureWindowSize = config.read<int>("LoopClosureWindowSize", 5);
 	Config::_LoopClosureExcludeLast = config.read<int>("LoopClosureExcluseLast", 5);
 
@@ -98,4 +98,6 @@ void Config::LoadConfig(std::string filename)
 	Config::_PcdRatioKeepSubsample = config.read<int>("PcdRatioKeepSubsample", 80);
 	Config::_PcdMaxNbPoints = config.read<int>("PcdMaxNbPoints", 2E6);
 	Config::_PcdRatioFrame = config.read<int>("PcdRatioFrame", 1);
+
+	Config::_FocalLength = config.read<float>("FocalLength", FOCAL_LENGTH_KINECT);
 }

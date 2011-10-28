@@ -32,6 +32,9 @@
 
 using namespace std;
 
+// name of the configuration file where all the parameters are set
+#define CONFIG_FILENAME	"rgbd_params.cfg"
+
 // -----------------------------------------------------------------------------------------------------
 //  loadSequence
 // -----------------------------------------------------------------------------------------------------
@@ -82,18 +85,15 @@ void recordSequence(Map &map)
     	int frameID = 0;
     	Transformation transform;
 
-        boost::filesystem::create_directories(Config::_ResultDirectory);
-
         tm.start();
 
     	// generate 1st frame
         if (cameraKinect.generateFrame(frameID))
         {
 			frameID++;
+			map.startSequence();
 
-			map.initSequence();
-
-        	// generate new frame
+			// generate new frame
 			while (cameraKinect.generateFrame(frameID))
 			{
 				// associate with previous
@@ -110,6 +110,7 @@ void recordSequence(Map &map)
 
 			tm.stop();
 			printf("Acquisition and matching duration time: %d(ms)\n", tm.duration());
+			map.stopSequence();
 
 	    	// build map
 			if (!cameraKinect.aborted())
@@ -145,15 +146,15 @@ int main(int argc, char** argv)
 	Map map;
 	TimeTracker tm;
 
-	if (argc<2)
+    if (argc<2)
 	{
 		printUsage(argv[0]);
 		return -1;
 	}
 	
 	// load configuration
-	Config::LoadConfig("kth-rgbd.cfg");
-    FrameData::_DataPath = Config::_DataDirectory;
+	Config::LoadConfig(CONFIG_FILENAME);
+    FrameData::_DataPath = Config::_PathFrameSequence;
 
 	srand(time(NULL));
 
@@ -164,9 +165,9 @@ int main(int argc, char** argv)
     {
         printf("-Regenerate PCD files from graph archive-\n");
 
-    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
+    	if ( ! boost::filesystem::exists( Config::_PathFrameSequence ) )
     		return -1;
-    	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
+    	if ( ! boost::filesystem::exists( Config::_PathDataProd ) )
     		return -1;
 
     	if (argc>2) {
@@ -186,9 +187,9 @@ int main(int argc, char** argv)
     {
         printf("-Build map from transformations archive, with loop closure-\n");
 
-    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
+    	if ( ! boost::filesystem::exists( Config::_PathFrameSequence ) )
     		return -1;
-    	if ( ! boost::filesystem::exists( Config::_ResultDirectory ) )
+    	if ( ! boost::filesystem::exists( Config::_PathDataProd ) )
     		return -1;
 
     	int min=-1, max=-1;
@@ -205,8 +206,8 @@ int main(int argc, char** argv)
     // ---------------------------------------------------------------------------------------------------
     else if (strcmp(argv[1], "-s") == 0)
     {
-        printf("-Run all from a sequence of frames-\n");
-    	if ( ! boost::filesystem::exists( Config::_DataDirectory ) )
+        printf("-Replay a sequence of frames-\n");
+    	if ( ! boost::filesystem::exists( Config::_PathFrameSequence ) )
     		return -1;
 
     	int min=-1, max=-1;
@@ -223,15 +224,16 @@ int main(int argc, char** argv)
 			}
     	}
 
-     	loadSequence(Config::_DataDirectory.c_str(), min, max, sequenceFramesID);
+     	loadSequence(Config::_PathFrameSequence.c_str(), min, max, sequenceFramesID);
     	
-        boost::filesystem::create_directories(Config::_ResultDirectory);       
+        boost::filesystem::create_directories(Config::_PathDataProd);
 		
     	// build map 
-        map.initSequence();
+        map.startSequence();
         tm.start();
     	map.addSequence(sequenceFramesID);
     	tm.stop();
+    	map.stopSequence();
 		printf("Matching duration time: %d(ms)\n", tm.duration());
     	map.build();
 	}
@@ -242,12 +244,14 @@ int main(int argc, char** argv)
     {
         printf("-Record sequence from camera-\n");
         
-        // use the same directory to generate and reload the data
-        Config::_DataDirectory = Config::_GenDirectory;
-        FrameData::_DataPath = Config::_GenDirectory;
-    		
-        boost::filesystem::create_directories(Config::_DataDirectory);
-        boost::filesystem::create_directories(Config::_ResultDirectory);
+        boost::filesystem::create_directories(Config::_PathFrameSequence);
+        boost::filesystem::create_directories(Config::_PathDataProd);
+
+        // folder receiving frame sequence must be empty
+        if (! boost::filesystem::is_empty(Config::_PathFrameSequence)) {
+        	printf("Directory [%s] must be empty!\n", Config::_PathFrameSequence.c_str());
+        	return -1;
+        }
 
         recordSequence(map);
     }
@@ -260,11 +264,11 @@ int main(int argc, char** argv)
     	FrameData frameData;
     	int frameID1, frameID2;
 
-        boost::filesystem::create_directories(Config::_ResultDirectory);
+        boost::filesystem::create_directories(Config::_PathDataProd);
 
     	std::ofstream fileStats;
     	char buf[256];
-    	sprintf(buf, "%s/stats_features.log", Config::_ResultDirectory.c_str());
+    	sprintf(buf, "%s/stats_features.log", Config::_PathDataProd.c_str());
     	fileStats.open(buf);
 
     	if (argc>2)	{
@@ -316,7 +320,7 @@ int main(int argc, char** argv)
     	int frameID1, frameID2;
     	Transformation transform;
 
-        boost::filesystem::create_directories(Config::_ResultDirectory);
+        boost::filesystem::create_directories(Config::_PathDataProd);
 
         // force matching export
         Config::_SaveImageInitialPairs = true;

@@ -27,6 +27,8 @@ public:
 	Display();
 	~Display();
 
+	void close();
+	void processEvent(int delay);
 	void showFeatures(FrameData &frameData1, FrameData &frameData2, float score);
 	void showOutOfSync(FrameData &frameData1, FrameData &frameData2);
 

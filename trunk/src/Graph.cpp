@@ -148,7 +148,7 @@ void Graph::load(const char* filename)
 {
 	// save the graph
 	char buf_graph[256];
-	sprintf(buf_graph, "%s/%s", Config::_ResultDirectory.c_str(), filename);
+	sprintf(buf_graph, "%s/%s", Config::_PathDataProd.c_str(), filename);
 	std::ifstream file(buf_graph);
 
 	_optimizer.clear();
@@ -159,7 +159,7 @@ void Graph::save(const char* filename)
 {
 	// save the graph
 	char buf_graph[256];
-	sprintf(buf_graph, "%s/%s", Config::_ResultDirectory.c_str(), filename);
+	sprintf(buf_graph, "%s/%s", Config::_PathDataProd.c_str(), filename);
 	std::ofstream file(buf_graph);
 
 	_optimizer.save(file);

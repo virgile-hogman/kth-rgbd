@@ -27,8 +27,11 @@
 class Map
 {
 public:
-	// start a transformation sequence
-	void initSequence();
+	// start of a new transformation sequence
+	void startSequence();
+
+	// end of sequence updates display
+	void stopSequence();
 
 	// add a pair of frames to the transformation sequence
 	bool addFrames(int frameID1, int frameID2, Transformation &transform);

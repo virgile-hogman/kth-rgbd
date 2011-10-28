@@ -67,6 +67,19 @@ Display::~Display()
 		cvReleaseImage(&_pImgFeatures);
 }
 
+void Display::close()
+{
+	cvDestroyWindow("Features");
+	cvDestroyWindow("Quality");
+	cvWaitKey(100);	// will not close until handled, no guarantee here
+}
+
+void Display::processEvent(int delay)
+{
+	// this the only way with highgui... (sic)
+	cvWaitKey(delay);
+}
+
 void Display::showFeatures(FrameData &frameData1, FrameData &frameData2, float score)
 {
 	if (score < _minScore)
