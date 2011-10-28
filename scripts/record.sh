@@ -1,13 +1,33 @@
 #!/bin/sh
 
-read -p " All data will be erased in folder gen. Are you sure? (y/[n]) " ans
-if [ "$ans" != "y" ]
-then
-     exit 
+. ./varenv.sh
+
+echo "Recording new sequence..."
+
+if [ ! -d $DIR_PROD ]; then
+	echo $DIR_PROD "not found."
+	exit
+fi
+if [ ! -d $DIR_FRAMES ]; then
+        echo $DIR_FRAMES "not found."
+        exit
 fi
 
-cd ~
-sudo rm -f data_out/*.bmp
-sudo rm -f data_gen/*
-sudo ~/Projects/kth-rgbd/bin/rgbd_slam -r $@
+NFRAMES=`ls -1 $DIR_FRAMES | wc -l`
+
+echo "All data will be erased in [$DIR_PROD]"
+if [ "$NFRAMES" -gt "0" ]; then
+	echo "All FRAMES will be erased in [$DIR_FRAMES] : found $NFRAMES files"
+fi
+read -p "ARE YOU SURE? (y/[n]) " ans
+if [ "$ans" != "y" ]
+then
+     exit
+fi
+
+rm -f $DIR_PROD/*
+rm -f $DIR_FRAMES/*.bmp
+
+cd
+~/Projects/kth-rgbd/bin/rgbd_slam -r $@
 cd --
