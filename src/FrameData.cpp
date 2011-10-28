@@ -158,7 +158,7 @@ void FrameData::saveImage()
 {
 	char buf[256];
 	if (_pImage != NULL) {
-		sprintf(buf, "%s/image_%d.bmp", Config::_ResultDirectory.c_str(), getFrameID());
+		sprintf(buf, "%s/image_%d.bmp", Config::_PathDataProd.c_str(), getFrameID());
 		cvSaveImage(buf, _pImage);
 		printf("Generated file: %s\n", buf);
 	}

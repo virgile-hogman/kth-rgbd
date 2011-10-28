@@ -63,7 +63,7 @@ bool isKeyTransform(const Eigen::Matrix4f &transformMat)
 void loadPoses(PoseVector &poses, const char *filename)
 {
 	char buf[256];
-	sprintf(buf, "%s/%s", Config::_ResultDirectory.c_str(), filename);
+	sprintf(buf, "%s/%s", Config::_PathDataProd.c_str(), filename);
 	std::ifstream filePoses(buf);
 	Pose pose;
 
@@ -94,7 +94,7 @@ void loadPoses(PoseVector &poses, const char *filename)
 void savePoses(const PoseVector &poses, const char *filename)
 {
 	char buf[256];
-	sprintf(buf, "%s/%s", Config::_ResultDirectory.c_str(), filename);
+	sprintf(buf, "%s/%s", Config::_PathDataProd.c_str(), filename);
 	std::ofstream filePoses(buf);
 
 	//filePoses << "#Num\tFrameID\tMatrix rows,cols";
@@ -260,7 +260,7 @@ bool Map::detectLoopClosure(const PoseVector	&cameraPoses)
 	bool insertLoopClosure = false;
 
 	char bufLog[256];
-	sprintf(bufLog, "%s/%s", Config::_ResultDirectory.c_str(), "loop_closure.log");
+	sprintf(bufLog, "%s/%s", Config::_PathDataProd.c_str(), "loop_closure.log");
 	std::ofstream logLC(bufLog);
 
 	map<int,int> mapPresetLC;
@@ -518,6 +518,8 @@ void Map::build()
 				keyTransform._matrix = Eigen::Matrix4f::Identity();
 				keyTransform._idOrig = currentPose._id;
 			}
+
+			_display.processEvent(100);
 		}
 
 		_graphOptimizer.save("graph_initial.g2o");
@@ -556,21 +558,29 @@ void Map::build()
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  initSequence
+//  startSequence
 // -----------------------------------------------------------------------------------------------------
-void Map::initSequence()
+void Map::startSequence()
 {
 	char buf[256];
-	sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
+	sprintf(buf, "%s/transfo.dat", Config::_PathDataProd.c_str());
 	_fileTransformOut.open(buf);
 
 	_sequenceTransform.clear();
 
 	// reset stats log
-	sprintf(buf, "%s/stats.log", Config::_ResultDirectory.c_str());
+	sprintf(buf, "%s/stats.log", Config::_PathDataProd.c_str());
 	std::ofstream fileStats(buf);
 }
 
+// -----------------------------------------------------------------------------------------------------
+//  stopSequence
+// -----------------------------------------------------------------------------------------------------
+void Map::stopSequence()
+{
+	// update windows
+	_display.close();
+}
 
 // -----------------------------------------------------------------------------------------------------
 //  addFrames
@@ -685,7 +695,7 @@ void Map::restoreSequence(int minFrameID, int maxFrameID)
 {
 	Transformation transfo;
 	char buf[256];
-	sprintf(buf, "%s/transfo.dat", Config::_ResultDirectory.c_str());
+	sprintf(buf, "%s/transfo.dat", Config::_PathDataProd.c_str());
 	std::ifstream fileTransfo(buf);
 	int check=-1;
 	

@@ -21,9 +21,6 @@
 
 class CameraDevice
 {
-public:
-	static float _FocalLength;
-	
 private:
 	bool		_abort;
 

@@ -25,7 +25,12 @@ class PointCloud
 {
 public:
 	// start a transformation sequence
-	static bool getTransformICP(const FrameData &frameData1, const FrameData &frameData2, Eigen::Matrix4f& transformation);
+	static bool getTransformICP(
+			const FrameData &frameData1,
+			const FrameData &frameData2,
+			const std::vector<Eigen::Vector3f> &source,
+			const std::vector<Eigen::Vector3f> &target,
+			Eigen::Matrix4f& transformation);
 
 	static void generatePCD(const PoseVector &cameraPoses, const char *filenamePCD);
 };

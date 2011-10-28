@@ -53,10 +53,10 @@ using namespace std;
 // -----------------------------------------------------------------------------------------------------
 void evaluateTransform(
 		const Eigen::Matrix4f& transformation,
-        const std::vector<Eigen::Vector3f> &matchesSource,
-        const std::vector<Eigen::Vector3f> &matchesTarget,
+        const vector<Eigen::Vector3f> &matchesSource,
+        const vector<Eigen::Vector3f> &matchesTarget,
         double maxError,        
-        std::vector<int> &inliers,
+        vector<int> &inliers,
         double &meanError,
         float &ratio)
 {
@@ -101,7 +101,7 @@ void drawInliers(
 		FrameData &frameData1,
 		FrameData &frameData2,
 		const vector<int> &indexMatches,
-		const vector<int> &indexBestInliers,
+		const vector<int> &indexInliers,
 		const vector<int> &initialPairs,
 		bool forLoopClosure)
 {
@@ -133,10 +133,10 @@ void drawInliers(
 			// draw a green line
 			cvLine( imgStackedInliers, pt1, pt2, CV_RGB(255,0,0), 1, 8, 0 );
 		}
-		// draw green lines for the best inliers
-		for (int i=0; i<indexBestInliers.size(); i++)
+		// draw green lines for the inliers
+		for (int i=0; i<indexInliers.size(); i++)
 		{
-			int idInlier = indexBestInliers[i];
+			int idInlier = indexInliers[i];
 			int idMatch = indexMatches[idInlier];
 			const struct feature* feat1 = frameData1.getFeature(idMatch);
 			const struct feature* feat2 = frameData1.getFeatureMatch(idMatch);
@@ -165,12 +165,12 @@ void drawInliers(
 
 		// save stacked image
 		char buf[256];
-		sprintf(buf,"inliers:%d/%d (%d%%)", indexBestInliers.size(), indexMatches.size(), indexBestInliers.size()*100/indexMatches.size());
+		sprintf(buf,"inliers:%d/%d (%d%%)", indexInliers.size(), indexMatches.size(), indexInliers.size()*100/indexMatches.size());
 		cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 		if (forLoopClosure)
-			sprintf(buf, "%s/loopc_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+			sprintf(buf, "%s/loopc_%d_%d_inliers.bmp", Config::_PathDataProd.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 		else
-			sprintf(buf, "%s/matching_%d_%d_inliers.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+			sprintf(buf, "%s/matching_%d_%d_inliers.bmp", Config::_PathDataProd.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 		cvSaveImage(buf, imgStackedInliers);
 		cvReleaseImage(&imgStackedInliers);
 	}
@@ -186,13 +186,13 @@ bool findTransformRANSAC(
 		vector<Eigen::Vector3f>	&matchesSource,
 		vector<Eigen::Vector3f>	&matchesTarget,
 		Transformation &resultTransform,
+		vector<int> &indexBestInliers,
 		bool forLoopClosure)
 {
 	bool validTransformation = false;
 	// find transform pairs
 	pcl::TransformationFromCorrespondences tfc;
 	Eigen::Matrix4f bestTransformationMat;
-	std::vector<int> indexBestInliers;
 	vector<int>	initialPairs;	// to track the 3 first points
 	int nbValidMatches = indexMatches.size();
 	double bestError = 1E10;	// large value
@@ -200,6 +200,8 @@ bool findTransformRANSAC(
 
 	int k = 3;	// minimum number of points in a sample
 	// int k = nbValidMatches/10;	// minimum number of points in a sample
+
+	indexBestInliers.clear();
 
 	if (nbValidMatches < k)
 		return false;
@@ -219,7 +221,7 @@ bool findTransformRANSAC(
 		Eigen::Matrix4f transformation = tfc.getTransformation().matrix();
 
 		// compute error and keep only inliers
-		std::vector<int> indexInliers;
+		vector<int> indexInliers;
 		double maxInlierDistance = Config::_MatchingMaxDistanceInlier;
 		double meanError;
 		float ratio;
@@ -293,7 +295,7 @@ bool findTransformRANSAC(
 		//std::cout << bestTransformationMat << std::endl;
 
 		// ------------------------------------------------
-		// recompute (yes, again!) the final transformation from all the best inliers
+		// recompute (yes, again) the final transformation from all the best inliers
 		// ------------------------------------------------
 		tfc.reset();
 		for (int i=0; i<indexBestInliers.size(); i++)
@@ -336,8 +338,8 @@ bool findTransformRANSAC(
 
 		// stats
 		char buf[256];
-		sprintf(buf, "%s/stats.log", Config::_ResultDirectory.c_str());
-		std::ofstream fileStats(buf, ios_base::app);
+		sprintf(buf, "%s/stats.log", Config::_PathDataProd.c_str());
+		ofstream fileStats(buf, ios_base::app);
 		fileStats << frameData1.getFrameID() << "-" << frameData2.getFrameID();
 		fileStats << "\t" << frameData1.getNbFeatures() << "\t" << frameData2.getNbFeatures() ;
 		fileStats << "\t" << indexBestInliers.size() << "\t" << nbValidMatches;
@@ -384,7 +386,7 @@ void kdSearchFeatureMatches(
 	double d0, d1;
 	int k, i, nbInitialMatches = 0, nbValidMatches = 0;
 	char buf[256];
-	float constant = 0.001 / CameraDevice::_FocalLength;    // TODO - redefine this properly
+	float focalInv = 0.001 / Config::_FocalLength;
 	IplImage* imgStacked = NULL;
 
 	CvFont font;
@@ -425,7 +427,7 @@ void kdSearchFeatureMatches(
 			// the neighbours are ordered in increasing descriptor distance
 			d0 = descr_dist_sq( feat, neighbourFeatures[0] );
 			d1 = descr_dist_sq( feat, neighbourFeatures[1] );
-			// the 2d neighbour should be relatively close (robustness check - see D.Lowe paper)
+			// the 2d neighbour should be farther with given ratio (see D.Lowe paper)
 			if (d0 < d1 * Config::_MatchingDistanceRatioNN)
 			{
 				const struct feature* feat1 = frameData1.getFeature(i);
@@ -449,21 +451,22 @@ void kdSearchFeatureMatches(
 				// check if depth values are valid
 				if (depth1>0 && depth2>0) {
 					// convert pixels to metric
-					float z1 = (feat1->x - NBPIXELS_X_HALF) * depth1 * constant;
-					float y1 = (NBPIXELS_Y_HALF - feat1->y) * depth1 * constant;
+					float z1 = (feat1->x - NBPIXELS_X_HALF) * depth1 * focalInv;
+					float y1 = (NBPIXELS_Y_HALF - feat1->y) * depth1 * focalInv;
 					float x1 = depth1 * 0.001 ; // given depth values are in mm
 					
-					float z2 = (feat2->x - NBPIXELS_X_HALF) * depth2 * constant;
-					float y2 = (NBPIXELS_Y_HALF - feat2->y) * depth2 * constant;
+					float z2 = (feat2->x - NBPIXELS_X_HALF) * depth2 * focalInv;
+					float y2 = (NBPIXELS_Y_HALF - feat2->y) * depth2 * focalInv;
 					float x2 = depth2 * 0.001 ; // given depth values are in mm
 
 					Eigen::Vector3f orig(x1,y1,z1);
 					Eigen::Vector3f dest(x2,y2,z2);
 					
-					// compute the distance
+					// compute the distance between the 3D points
 					Eigen::Vector3f vectorDiff = dest-orig;
 					double distance = vectorDiff.squaredNorm();
 					
+					// they should not be too far (only smooth moves, no big jumps)
 					if (distance<Config::_MatchingMaxDistanceKeypoint) {
 						// draw a green line
 						if (imgStacked != NULL)
@@ -479,7 +482,6 @@ void kdSearchFeatureMatches(
 
 						bValidMatch = true;
 					}
-
 				}
 
 				// ignore the pairs without depth any info, but show the remaining outliers
@@ -514,9 +516,9 @@ void kdSearchFeatureMatches(
 	{
 		cvPutText(imgStacked, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 		if (forLoopClosure)
-			sprintf(buf, "%s/loopc_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+			sprintf(buf, "%s/loopc_%d_%d.bmp", Config::_PathDataProd.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 		else
-			sprintf(buf, "%s/matching_%d_%d.bmp", Config::_ResultDirectory.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
+			sprintf(buf, "%s/matching_%d_%d.bmp", Config::_PathDataProd.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
 
 		// save stacked image
 		cvSaveImage(buf, imgStacked);
@@ -542,6 +544,7 @@ bool computeTransformation(
 	TimeTracker tm;
 
 	vector<int> indexMatches;
+	vector<int> indexInliers;
 	vector<Eigen::Vector3f>	matchesSource;
 	vector<Eigen::Vector3f>	matchesTarget;
 	bool validTransform = false;
@@ -601,6 +604,7 @@ bool computeTransformation(
 				matchesSource,
 				matchesTarget,
 				resultingTransform,
+				indexInliers,
 				forLoopClosure);
 
 		// ---------------------------------------------------------------------------
@@ -608,11 +612,23 @@ bool computeTransformation(
 		// ---------------------------------------------------------------------------
 		if (validTransform && Config::_MatchingRunICP) {
 			Eigen::Matrix4f icpTransform;
+
+			vector<Eigen::Vector3f> inliersSource;
+			vector<Eigen::Vector3f> inliersTarget;
+
+			// generate the 3D vector lists of inliers
+			for (int i=0; i<indexInliers.size(); i++) {
+				int idInlier = indexInliers[i];
+				int idMatch = indexMatches[idInlier];
+				inliersSource.push_back(matchesSource[idMatch]);
+				inliersTarget.push_back(matchesTarget[idMatch]);
+			}
+
 			// initial guess
 			icpTransform = resultingTransform._matrix;
 			// before ICP
 			cout << resultingTransform._matrix << "\n";
-			if (PointCloud::getTransformICP(frameData1, frameData2, icpTransform)) 	{
+			if (PointCloud::getTransformICP(frameData1, frameData2, matchesSource, matchesTarget, icpTransform)) 	{
 				// update the transformation
 				resultingTransform._matrix= icpTransform;
 			}
