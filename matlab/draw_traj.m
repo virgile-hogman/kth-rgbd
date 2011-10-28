@@ -2,11 +2,11 @@ clc
 clear all
 close all
 d=load('cvap_tr14_floor7-rlm.txt');
-C=load('cureslampose-set4.tdf');
+L=load('cureslampose-set4.tdf');
 
-sPathData = '~/data_out/set4_surf/';
-sLegend1 = 'kth-rgbd (SURF)';
-sLegend2 = 'cure';
+sPathData = '~/results/set4_surf/';
+sLegend1 = 'rgbd (SURF)';
+sLegend2 = 'laser';
 
 % Initial poses
 Poses=load(strcat(sPathData,'poses_optimized.dat'));
@@ -22,15 +22,22 @@ angle = -11;
 offx = 2.5;
 offy = 4.0;
 
-%start at same origin as Cure
-offx = C(1,9);
-offy = C(1,10);
+%start at same origin as laser
+offx = L(1,9);
+offy = L(1,10);
 
 figure
-plot( Y,'--r');
-title('Vertical drift');
-figure;
+hold on
+plot( Y-Y(1),'r');
+%line( [0 size(Y,1)], [Y(1) Y(1)], 'Color', 'k', 'LineStyle','--');
+line( [0 size(Y,1)], [0 0], 'Color', 'k', 'LineStyle','--');
+title(strcat('Vertical drift - ',sLegend1));
+xlim([0 size(Y,1)]);
+ylabel('meters');
+xlabel('position');
 
+
+figure
 clf, hold on
 title('CVAP 7th floor');
 xlabel('x (meters)');
@@ -65,10 +72,10 @@ if (total > 0)
     text(8,0, sDist, 'FontSize',10,'Color',[1 0 0])
 end
 
-plot(C(:,9),C(:,10),'k--')
+plot(L(:,9),L(:,10),'k--')
 legend(sLegend1, sLegend2);
 
-total = compute_distance(C(:,9:10));
+total = compute_distance(L(:,9:10));
 if (total > 0)
     sDist = sprintf('Total Distance = %.2f m', total);
     text(8,-2, sDist, 'FontSize',10)
@@ -77,5 +84,7 @@ end
 % map
 for k=1:size(d,1)
      plot(d(k,[1 3]), d(k,[2 4]),'b')
- end
+end
+
+
  
