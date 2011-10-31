@@ -3,5 +3,5 @@
 . ./varenv.sh
 
 cd 
-~/Projects/kth-rgbd/bin/rgbd_slam $@
+~/Projects/kth-rgbd/bin/kth_rgbd $@
 cd --

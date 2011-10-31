@@ -5,12 +5,12 @@
 DIR_SOURCE=$DIR_ARCHIVE/$1
 DIR_TARGET=$DIR_PROD
 
-echo "Restoring results from [$DIR_SOURCE]"
+echo "Restoring results from '$DIR_SOURCE'"
 if [ ! -d $DIR_SOURCE ]; then
-	echo "Directory [$DIR_SOURCE] not found."
+	echo "Directory '$DIR_SOURCE' not found."
 	exit
 fi
-read -p "All data in [$DIR_TARGET] will be erased. Are you sure? (y/[n]) " ans
+read -p "All data in '$DIR_TARGET' will be erased. Are you sure? (y/[n]) " ans
 if [ "$ans" != "y" ]
 then
      exit 

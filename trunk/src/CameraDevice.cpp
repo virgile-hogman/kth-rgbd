@@ -45,8 +45,8 @@ XnFPSData g_xnFPS;
 XnUInt64 g_noSampleValue, g_shadowValue;
 
 // working buffers reused for each frame (just to avoid reallocate the arrays each time) 
-IplImage* g_imgRGB = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
-IplImage* g_imgDepth = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,3);
+IplImage* g_imgRGB = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
+IplImage* g_imgDepth = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
 
 // PCL
 pcl::PointCloud<pcl::PointXYZRGB> g_cloudPointSave;
@@ -95,9 +95,9 @@ bool CameraDevice::connect()
 	printf("OK\n");
 
 	// allocate the point cloud buffer
-	g_cloudPointSave.width = 640;
-    g_cloudPointSave.height = 480;
-    g_cloudPointSave.points.resize(640*480);
+	g_cloudPointSave.width = NBPIXELS_WIDTH;
+    g_cloudPointSave.height = NBPIXELS_HEIGHT;
+    g_cloudPointSave.points.resize(NBPIXELS_WIDTH*NBPIXELS_HEIGHT);
 
 	nRetVal = g_context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_depth);
 	CHECK_RC(nRetVal, "Find depth generator");
@@ -253,7 +253,7 @@ int saveDepthImage(
 		float focalInv = 0.001 / Config::_FocalLength;
 		unsigned int rgb; 
 		int depth_index = 0;
-		int ImageCenterX = g_depthMD.XRes() >> 1;
+		int ImageCenterX = g_depthMD.XRes() >> 1;	// divide by 2
 		int ImageCenterY = g_depthMD.YRes() >> 1;
 		for (int ind_y =0; ind_y < g_depthMD.YRes(); ind_y++)
 		{
@@ -381,8 +381,8 @@ void getFocalLength()
 	float z1 = depth1 ; // given depth values are in mm
 	printf("Out \t= %f %f %f\n", x1, y1, z1);
 
-	double focalx = 640  / (out.X / ((in.X/640 - 0.5)*depth1));
-	double focaly = 480  / (out.Y / ((in.Y/480 - 0.5)*depth1));
+	double focalx = NBPIXELS_WIDTH  / (out.X / ((in.X/NBPIXELS_WIDTH - 0.5)*depth1));
+	double focaly = NBPIXELS_HEIGHT  / (out.Y / ((in.Y/NBPIXELS_HEIGHT - 0.5)*depth1));
 	printf("fx \t= %lf\n", focalx);
 	printf("fy \t= %lf\n", focaly);
 

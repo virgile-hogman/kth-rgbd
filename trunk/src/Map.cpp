@@ -16,8 +16,6 @@
 
 #include <Eigen/Geometry>
 
-#include "highgui.h"
-
 #include "Config.h"
 #include "CommonTypes.h"
 #include "Matching.h"
@@ -58,7 +56,7 @@ bool isKeyTransform(const Eigen::Matrix4f &transformMat)
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  loadPoses (NOT TESTED!!!)
+//  loadPoses - !!!NOT TESTED YET!!! poses are restored via graph from g2o file -
 // -----------------------------------------------------------------------------------------------------
 void loadPoses(PoseVector &poses, const char *filename)
 {
