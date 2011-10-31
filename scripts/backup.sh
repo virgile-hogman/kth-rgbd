@@ -7,11 +7,11 @@ DIR_TARGET=$DIR_ARCHIVE/$1
 echo "Backup results..."
 
 if [ ! -d $DIR_PROD ]; then
-	echo "Directory [$DIR_PROD] not found."
+	echo "Directory '$DIR_PROD' not found."
 	exit
 fi
 if [ -d $DIR_TARGET ]; then
-	read -p "Directory [$DIR_TARGET] already exists. Overwrite? (y/[n])" ans
+	read -p "Directory '$DIR_TARGET' already exists. Overwrite? (y/[n])" ans
 	if [ "$ans" != "y" ]; then
      		exit 
 	fi
@@ -19,11 +19,11 @@ else
 	mkdir -p $DIR_TARGET
 fi
 if [ ! -d $DIR_ARCHIVE ]; then
-	echo "Directory [$DIR_TARGET] not found."
+	echo "Directory '$DIR_TARGET' not found."
 	exit
 fi
 
-echo "Saving results in [$DIR_TARGET]..."
+echo "Saving results in '$DIR_TARGET'..."
 cp -v $DIR_PROD/*.g2o $DIR_TARGET
 cp -v $DIR_PROD/*.dat $DIR_TARGET
 cp -v $DIR_PROD/*.pcd $DIR_TARGET

@@ -27,28 +27,30 @@
 
 std::string FrameData::_DataPath;
 
-bool FrameData::find_file(
-		const boost::filesystem::path & dir_path,   // in this directory,
-        const std::string & file_name,				// search for this name,
-        std::string & path_found )        			// placing path here if found
+const char *strFileExtension = "bmp";
+const char *strSearchExtension = ".bmp";
+
+bool FrameData::FindFile(
+		const boost::filesystem::path & pathSearch,	// in this directory,
+        const std::string & filename,				// search for this name,
+        std::string & filePathFound)				// placing path here if found
 {
-	if (! boost::filesystem::exists(dir_path))
+	int timestamp = 0;
+	if (! boost::filesystem::exists(pathSearch))
 		return false;
 
-	char bufPattern[256];
-	sprintf(bufPattern, "%s_%%d", file_name.c_str());
-	int timestamp;
-	//printf("Looking for file with pattern %s.bmp\n", bufPattern);
+	// looking for pattern <filename>_<timestamp>.<ext>
+	char filePattern[256];
+	sprintf(filePattern, "%s_%%d", filename.c_str());
 	fflush(stdout);
 
 	boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
-	for (boost::filesystem::directory_iterator itr( dir_path ); itr != end_itr; ++itr )
+	for (boost::filesystem::directory_iterator itr( pathSearch ); itr != end_itr; ++itr )
 	{
-		if (boost::filesystem::extension(*itr)==".bmp" &&
-			sscanf(itr->leaf().c_str(), bufPattern, &timestamp)==1)
+		if (boost::filesystem::extension(*itr)==strSearchExtension &&
+			sscanf(itr->leaf().c_str(), filePattern, &timestamp)==1)
 		{
-			// add frame
-			path_found = itr->path().string().c_str();
+			filePathFound = itr->path().string().c_str();
 			return true;
 		}
 	}
@@ -76,20 +78,17 @@ FrameData::~FrameData()
 
 bool FrameData::loadImage(int frameID)
 {
-	char buf[256];
-	
-	//printf("Loading RGB data for frame %d\n", frameID);
-	//fflush(stdout);
+	char filename[256];
 	
 	// load RGB data file
-	sprintf(buf, "%s/frame_%d_rgb.bmp", _DataPath.c_str(), frameID);    
-	_pImage  = cvLoadImage( buf, 1 );
+	sprintf(filename, "%s/frame_%d_rgb.%s", _DataPath.c_str(), frameID, strFileExtension);
+	_pImage  = cvLoadImage(filename, 1);
 	
 	if (_pImage == NULL)
 	{
 		std::string pathFile;
-		sprintf(buf, "frame_%d_rgb", frameID);   
-		if (find_file(_DataPath.c_str(), buf,  pathFile))
+		sprintf(filename, "frame_%d_rgb", frameID);
+		if (FindFile(_DataPath.c_str(), filename,  pathFile))
 			_pImage  = cvLoadImage( pathFile.c_str(), 1 );
 	}
 	
@@ -108,21 +107,18 @@ bool FrameData::isImageLoaded(int frameID) const
 
 bool FrameData::loadDepthData()
 {
-	char buf[256];
+	char filename[256];
 	IplImage *pImageDepth = NULL;
 	
-	//printf("Loading depth data for frame %d\n", _frameID);
-	//fflush(stdout);
-	
 	// load depth data file
-	sprintf(buf,"%s/frame_%d_depth.bmp", _DataPath.c_str(), _frameID);
-	pImageDepth = cvLoadImage( buf, -1 );	// read channels as defined in file
+	sprintf(filename,"%s/frame_%d_depth.%s", _DataPath.c_str(), _frameID, strFileExtension);
+	pImageDepth = cvLoadImage(filename, -1);	// read channels as defined in file
 	
 	if (pImageDepth == NULL)
 	{
 		std::string pathFile;
-		sprintf(buf, "frame_%d_depth", _frameID);   
-		if (find_file(_DataPath.c_str(), buf,  pathFile))
+		sprintf(filename, "frame_%d_depth", _frameID);
+		if (FindFile(_DataPath.c_str(), filename,  pathFile))
 			pImageDepth  = cvLoadImage( pathFile.c_str(), -1 );
 	}
 	
@@ -156,11 +152,11 @@ bool FrameData::loadDepthData()
 
 void FrameData::saveImage()
 {
-	char buf[256];
+	char filename[256];
 	if (_pImage != NULL) {
-		sprintf(buf, "%s/image_%d.bmp", Config::_PathDataProd.c_str(), getFrameID());
-		cvSaveImage(buf, _pImage);
-		printf("Generated file: %s\n", buf);
+		sprintf(filename, "%s/image_%d.%s", Config::_PathDataProd.c_str(), getFrameID(), strFileExtension);
+		cvSaveImage(filename, _pImage);
+		printf("Generated file: %s\n", filename);
 	}
 }
 

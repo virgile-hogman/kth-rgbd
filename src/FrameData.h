@@ -118,11 +118,11 @@ public:
 	// directory where to load/save the data files
 	static std::string _DataPath;
 	
-	// utility function to locate RGBD files
-	static bool find_file(
-			const boost::filesystem::path & dir_path,	// in this directory,
-            const std::string & file_name,				// search for this name,
-            std::string & path_found );					// placing path here if found
+	// utility function to locate RGBD files with the prefix but unknown timestamp
+	static bool FindFile(
+			const boost::filesystem::path & pathSearch,	// in this directory,
+            const std::string & fileName,				// search for this name,
+            std::string & fileFound);					// full path to file if found
 
 protected:
 	// SIFT features

@@ -13,11 +13,11 @@ if [ ! -d $DIR_FRAMES ]; then
         exit
 fi
 
-NFRAMES=`ls -1 $DIR_FRAMES | wc -l`
+echo "All data will be erased in '$DIR_PROD'"
 
-echo "All data will be erased in [$DIR_PROD]"
+NFRAMES=`ls -1 $DIR_FRAMES | wc -l`
 if [ "$NFRAMES" -gt "0" ]; then
-	echo "All FRAMES will be erased in [$DIR_FRAMES] : found $NFRAMES files"
+	echo "All FRAMES will be erased in '$DIR_FRAMES' : found $NFRAMES files!"
 fi
 read -p "ARE YOU SURE? (y/[n]) " ans
 if [ "$ans" != "y" ]
@@ -29,5 +29,5 @@ rm -f $DIR_PROD/*
 rm -f $DIR_FRAMES/*.bmp
 
 cd
-~/Projects/kth-rgbd/bin/rgbd_slam -r $@
+~/Projects/kth-rgbd/bin/kth_rgbd -r $@
 cd --

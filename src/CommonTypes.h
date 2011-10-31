@@ -35,7 +35,7 @@ typedef	unsigned short	TDepthPixel;	// 16 bits
 #define NBPIXELS_X_HALF 320
 #define NBPIXELS_Y_HALF 240
 
-#define MIDDLE_POINT	(640*240 + 320)	// just for debug
+#define MIDDLE_POINT	(640*240 + 320)	// only used for debug test
 
 #define PI 3.14159265
 #define PI180 0.017453292519943
