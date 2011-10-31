@@ -19,24 +19,25 @@
 
 #include "cv.h"
 
-#include "FrameData.h"
-
 class Display
 {
 public:
 	Display();
 	~Display();
 
-	void close();
+	void hide();
 	void processEvent(int delay);
-	void showFeatures(FrameData &frameData1, FrameData &frameData2, float score);
-	void showOutOfSync(FrameData &frameData1, FrameData &frameData2);
+
+	void showPreview(IplImage *pImage1, IplImage *pImage2);
+	void showFeatures(IplImage *pImage1, IplImage *pImage2, float score);
+	void showOutOfSync(IplImage *pImage1, IplImage *pImage2);
 
 protected:
 	void updateScore(float score);
 
 	// the feature windows will be displayed if out of sync -or- if config is set for permanent display
 	bool	_displayingFeatures;
+	bool	_displayingPreview;
 
 	IplImage *_pImgInfo;
 	IplImage *_pImgFeatures;

@@ -96,6 +96,11 @@ public:
 	// save RGB data (with features drawn)
 	void saveImage();
 
+	// copy given RGB image to internal RGB buffer
+	void copyImageRGB(IplImage *pImageRGB);
+	// copy given depth image to internal depth buffer
+	void copyImageDepth(IplImage *pImageDepth);
+
 	// loads RGBD data, computes and draws features only if necessary
 	bool fetchFeatures(int frameID);
 	// extract features keypoint and descriptors

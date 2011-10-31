@@ -80,6 +80,11 @@ bool FrameData::loadImage(int frameID)
 {
 	char filename[256];
 	
+	if (_pImage != NULL) {
+		cvReleaseImage(&_pImage);
+		_pImage = NULL;
+	}
+
 	// load RGB data file
 	sprintf(filename, "%s/frame_%d_rgb.%s", _DataPath.c_str(), frameID, strFileExtension);
 	_pImage  = cvLoadImage(filename, 1);
@@ -110,7 +115,11 @@ bool FrameData::loadDepthData()
 	char filename[256];
 	IplImage *pImageDepth = NULL;
 	
-	// load depth data file
+	if (_depthData != NULL)
+		delete[] _depthData;
+	_depthData = NULL;
+
+	// load depth data file, ID must previously be set
 	sprintf(filename,"%s/frame_%d_depth.%s", _DataPath.c_str(), _frameID, strFileExtension);
 	pImageDepth = cvLoadImage(filename, -1);	// read channels as defined in file
 	
@@ -160,8 +169,40 @@ void FrameData::saveImage()
 	}
 }
 
+
+void FrameData::copyImageRGB(IplImage *pImageRGB)
+{
+	if (_pImage != NULL) {
+		cvReleaseImage(&_pImage);
+		_pImage = NULL;
+	}
+
+	if (pImageRGB != NULL)
+		_pImage=cvCloneImage(pImageRGB);
+}
+
+void FrameData::copyImageDepth(IplImage *pImageDepth)
+{
+	if (_depthData != NULL)
+		delete[] _depthData;
+	_depthData = NULL;
+
+	if (pImageDepth != NULL)
+	{
+		_depthData = new TDepthPixel[pImageDepth->width * pImageDepth->height];
+		for(int i = 0; i < pImageDepth->width * pImageDepth->height; i++)
+		{
+			// depth pixels on 16 bits but it is splitted on 2 channels * 8U in the file
+			TDepthPixel depthByte1 = (unsigned char)(pImageDepth->imageData[3*i+0]);
+			TDepthPixel depthByte2 = (unsigned char)(pImageDepth->imageData[3*i+1]);
+			_depthData[i] = (depthByte1<<8) | depthByte2;
+		}
+	}
+}
+
 bool FrameData::fetchFeatures(int frameID)
 {
+	// loads data and compute features only if necessary
 	if (_frameID != frameID)
 	{
 		if (!loadImage(frameID))
