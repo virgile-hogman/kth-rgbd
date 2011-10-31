@@ -576,8 +576,8 @@ void Map::startSequence()
 // -----------------------------------------------------------------------------------------------------
 void Map::stopSequence()
 {
-	// update windows
-	_display.close();
+	// close windows
+	_display.hide();
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -619,7 +619,7 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 		}
 		cout << "\n";
 
-		_display.showFeatures(_bufferFrameData1, _bufferFrameData2, transform._qualityScore);
+		_display.showFeatures(_bufferFrameData1.getImage(), _bufferFrameData2.getImage(), transform._qualityScore);
 
 		// free data
 		_bufferFrameData1.releaseData();
@@ -627,7 +627,7 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 		_bufferFrameData1.assignData(_bufferFrameData2);
 	}
 	else { // out of sync !
-		_display.showOutOfSync(_bufferFrameData1, _bufferFrameData2);
+		_display.showOutOfSync(_bufferFrameData1.getImage(), _bufferFrameData2.getImage());
 
 		// invalid transformation
 		// empty buffers - data has to be reloaded

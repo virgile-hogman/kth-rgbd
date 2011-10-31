@@ -17,6 +17,7 @@
 #ifndef CAMERA_DEVICE_H
 #define CAMERA_DEVICE_H
 
+#include "Display.h"
 #include <vector>
 
 class CameraDevice
@@ -32,7 +33,7 @@ public:
 
 	bool aborted()		{ return _abort; }
 
-	bool generateFrame(int frameID);
+	bool generateFrame(int frameID, Display *display=NULL);
 };
 
 #endif // CAMERA_DEVICE_H

@@ -48,6 +48,8 @@ public:
 	// regenerate PCD files only from existing graph
 	void regeneratePCD();
 
+	Display *getDisplay()			{ return &_display; }
+
 private:
 	bool detectLoopClosure(const PoseVector	&cameraPoses);
 

@@ -129,24 +129,56 @@ void CameraDevice::disconnect()
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  saveRGBImage
+//  convertImageRGB
 // -----------------------------------------------------------------------------------------------------
-void saveRGBImage(const XnRGB24Pixel* pImageMap, IplImage* imgRGB, int frameID)
+void convertImageRGB(const XnRGB24Pixel* pImageMap, IplImage* pImgRGB)
 {
-	if (frameID<0)
-		frameID = g_imageMD.FrameID();	// use ID given by Kinect
-	
-	// Convert to IplImage 24 bit, 3 channels
-	for(unsigned int i = 0; i < g_imageMD.XRes()*g_imageMD.YRes();i++)
+	// Convert from OpenNI buffer to IplImage 24 bit, 3 channels
+	for(unsigned int i=0; i<g_imageMD.XRes()*g_imageMD.YRes(); i++)
 	{
-		imgRGB->imageData[3*i+0]=pImageMap[i].nBlue;
-		imgRGB->imageData[3*i+1]=pImageMap[i].nGreen;
-		imgRGB->imageData[3*i+2]=pImageMap[i].nRed;
+		pImgRGB->imageData[3*i+0]=pImageMap[i].nBlue;
+		pImgRGB->imageData[3*i+1]=pImageMap[i].nGreen;
+		pImgRGB->imageData[3*i+2]=pImageMap[i].nRed;
 	}
+}
 
+// -----------------------------------------------------------------------------------------------------
+//  convertImageDepth
+// -----------------------------------------------------------------------------------------------------
+void convertImageDepth(const XnDepthPixel* pDepthMap, IplImage* pImgDepth)
+{
+	// convert from OpenNI buffer to IplImage
+	// Save only the Z value per pixel as an image for quick visualization of depth
+	for(unsigned int i=0; i<g_depthMD.XRes()*g_depthMD.YRes(); i++)
+	{
+		// depth pixels on 16 bits (11 effective bits)
+		//short depthValue = pDepthMap[i]/16;	// for quick look only
+		pImgDepth->imageData[3*i+0]=(unsigned char)(pDepthMap[i]>>8);
+		pImgDepth->imageData[3*i+1]=(unsigned char)(pDepthMap[i] & 0xFF);
+		pImgDepth->imageData[3*i+2]=0;
+		//pImgDepth->imageData[i] = pDepthMap[i];
+	}
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  saveImageRGB
+// -----------------------------------------------------------------------------------------------------
+void saveImageRGB(IplImage* pImgRGB, int frameID)
+{
 	char buf[256];
 	sprintf(buf, "%s/frame_%d_rgb.bmp", Config::_PathFrameSequence.c_str(), frameID);
-	cvSaveImage(buf, imgRGB);
+	cvSaveImage(buf, pImgRGB);
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  saveImageDepth
+// -----------------------------------------------------------------------------------------------------
+void saveImageDepth(IplImage* pImgDepth, int frameID)
+{
+	// save the depth image
+	char bufFilename[256];
+	sprintf(bufFilename, "%s/frame_%d_depth.bmp", Config::_PathFrameSequence.c_str(), frameID);
+	cvSaveImage(bufFilename, pImgDepth);
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -211,94 +243,68 @@ int saveHistogramImage(
 	if (frameID<0)
 	frameID = g_depthMD.FrameID();	// use ID given by Kinect
 
-	
 	char bufFilename[256];
 	sprintf(bufFilename,"%s/frame_%d_histo.bmp", Config::_PathFrameSequence.c_str(), frameID);
 	cvSaveImage(bufFilename, pImgDepth);
 }
 
+
 // -----------------------------------------------------------------------------------------------------
-//  saveDepthImage
+//  savePointCloud
 // -----------------------------------------------------------------------------------------------------
-int saveDepthImage(
+int savePointCloud(
 		const XnRGB24Pixel* pImageMap,
 		const XnDepthPixel* pDepthMap,
 		IplImage* pImgDepth,
 		int frameID,
 		bool savePointCloud)
 {
-	if (frameID<0)
-		frameID = g_depthMD.FrameID();	// use ID given by Kinect
-	
-	// Save only the Z value per pixel as an image for quick visualization of depth
-	for(int i = 0; i < g_depthMD.XRes()*g_depthMD.YRes();i++)
+	float focalInv = 0.001 / Config::_FocalLength;
+	unsigned int rgb;
+	int depth_index = 0;
+	int ImageCenterX = g_depthMD.XRes() >> 1;	// divide by 2
+	int ImageCenterY = g_depthMD.YRes() >> 1;
+	for (int ind_y =0; ind_y < g_depthMD.YRes(); ind_y++)
 	{
-		// depth pixels on 16 bits
-		//short depthValue = pDepthMap[i]/16;	// for quick look only
-		pImgDepth->imageData[3*i+0]=(unsigned char)(pDepthMap[i]>>8);
-		pImgDepth->imageData[3*i+1]=(unsigned char)(pDepthMap[i] & 0xFF);
-		pImgDepth->imageData[3*i+2]=0;
-		//pImgDepth->imageData[i] = pDepthMap[i];
-	}
-	//printf("Depth value saved at (320,240):%x \t%x\n", pDepthMap[MIDDLE_POINT], (unsigned short)pImgDepth->imageData[MIDDLE_POINT]);	
-	
-	// save the depth image
-	char bufFilename[256];
-	sprintf(bufFilename, "%s/frame_%d_depth.bmp", Config::_PathFrameSequence.c_str(), frameID);
-	cvSaveImage(bufFilename, pImgDepth);
-    
-	// point cloud
-    if (savePointCloud)
-    {
-		float focalInv = 0.001 / Config::_FocalLength;
-		unsigned int rgb; 
-		int depth_index = 0;
-		int ImageCenterX = g_depthMD.XRes() >> 1;	// divide by 2
-		int ImageCenterY = g_depthMD.YRes() >> 1;
-		for (int ind_y =0; ind_y < g_depthMD.YRes(); ind_y++)
+		for (int ind_x=0; ind_x < g_depthMD.XRes(); ind_x++, depth_index++)
 		{
-			for (int ind_x=0; ind_x < g_depthMD.XRes(); ind_x++, depth_index++)
+			pcl::PointXYZRGB& pt = g_cloudPointSave(ind_x,ind_y);
+
+			if (pDepthMap[depth_index] == g_noSampleValue ||
+				pDepthMap[depth_index] == g_shadowValue ||
+				pDepthMap[depth_index] == 0 ){
+
+				pt.x = bad_point;
+				pt.y = bad_point;
+				pt.z = bad_point;
+			}
+			else
 			{
-				pcl::PointXYZRGB& pt = g_cloudPointSave(ind_x,ind_y);
-		
-				if (pDepthMap[depth_index] == g_noSampleValue ||
-					pDepthMap[depth_index] == g_shadowValue ||
-					pDepthMap[depth_index] == 0 ){
-		
-					pt.x = bad_point;
-					pt.y = bad_point;
-					pt.z = bad_point;
-				}
-				else 
-				{
-					// locate point in meters
-					pt.x = (ind_x - ImageCenterX) * pDepthMap[depth_index] * focalInv;
-					pt.y = (ImageCenterY - ind_y) * pDepthMap[depth_index] * focalInv;
-					pt.z = pDepthMap[depth_index] * 0.001 ; // depth values are given in mm
-					rgb = (((unsigned int)pImageMap[depth_index].nRed) << 16) |
-						  (((unsigned int)pImageMap[depth_index].nGreen) << 8) |
-						  ((unsigned int)pImageMap[depth_index].nBlue);
-					pt.rgb = *reinterpret_cast<float*>(&rgb);
-				}
+				// locate point in meters
+				pt.x = (ind_x - ImageCenterX) * pDepthMap[depth_index] * focalInv;
+				pt.y = (ImageCenterY - ind_y) * pDepthMap[depth_index] * focalInv;
+				pt.z = pDepthMap[depth_index] * 0.001 ; // depth values are given in mm
+				rgb = (((unsigned int)pImageMap[depth_index].nRed) << 16) |
+					  (((unsigned int)pImageMap[depth_index].nGreen) << 8) |
+					  ((unsigned int)pImageMap[depth_index].nBlue);
+				pt.rgb = *reinterpret_cast<float*>(&rgb);
 			}
 		}
-		
-		char buf[256];
-		sprintf(buf, "%s/cloud%d.pcd", Config::_PathDataProd.c_str(), frameID);
-		pcl::io::savePCDFile(buf, g_cloudPointSave, true);
-		// bug in PCL - the binary file is not created with the good permissions!
-		char bufsys[256];
-		sprintf(bufsys, "chmod a+rw %s", buf);
-		system(bufsys);
 	}
-	
-	return g_depthMD.FrameID();
+
+	char buf[256];
+	sprintf(buf, "%s/cloud%d.pcd", Config::_PathDataProd.c_str(), frameID);
+	pcl::io::savePCDFile(buf, g_cloudPointSave, true);
+	// bug in PCL - the binary file is not created with the good permissions!
+	char bufsys[256];
+	sprintf(bufsys, "chmod a+rw %s", buf);
+	system(bufsys);
 }
 
 // -----------------------------------------------------------------------------------------------------
 //  generateFrames
 // -----------------------------------------------------------------------------------------------------
-bool CameraDevice::generateFrame(int frameID)
+bool CameraDevice::generateFrame(int frameID, Display *pDisplay)
 {
     XnStatus nRetVal = XN_STATUS_OK;
     static bool saveData = false;
@@ -325,6 +331,21 @@ bool CameraDevice::generateFrame(int frameID)
 					g_depthMD(g_depthMD.XRes()/2, g_depthMD.YRes()/2),
 					xnFPSCalc(&g_xnFPS),
 					(saveData? "" : "* PRESS KEY *"));
+
+			if (pDisplay != NULL) {
+				FrameData previewFrame;
+				// recopy buffer only for preview display
+				convertImageRGB(pImageMap, g_imgRGB);
+				convertImageDepth(pDepthMap, g_imgDepth);
+				// recopy to data
+				previewFrame.copyImageRGB(g_imgRGB);
+				previewFrame.copyImageDepth(g_imgDepth);
+				// compute and draw features
+				previewFrame.computeFeatures();
+				previewFrame.drawFeatures();
+				// display RGB with features and depth
+				pDisplay->showPreview(previewFrame.getImage(), g_imgDepth);
+			}
 		}
 		if (xnOSWasKeyboardHit())
 		{
@@ -353,9 +374,12 @@ bool CameraDevice::generateFrame(int frameID)
 		}
 		if (nRetVal==XN_STATUS_OK && saveData)
 		{
-			saveRGBImage(pImageMap, g_imgRGB, frameID);
-			int kinectFrameID = saveDepthImage(pImageMap, pDepthMap, g_imgDepth, frameID, false);	// no PCD file
-			//usleep(100000);
+			// image
+			convertImageRGB(pImageMap, g_imgRGB);
+			saveImageRGB(g_imgRGB, frameID);
+			// depth
+			convertImageDepth(pDepthMap, g_imgDepth);
+			saveImageDepth(g_imgDepth, frameID);
 			return true;
 		}
 	}

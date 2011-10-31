@@ -88,7 +88,7 @@ void recordSequence(Map &map)
         tm.start();
 
     	// generate 1st frame
-        if (cameraKinect.generateFrame(frameID))
+        if (cameraKinect.generateFrame(frameID, map.getDisplay()))
         {
 			frameID++;
 			map.startSequence();
