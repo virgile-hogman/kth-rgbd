@@ -17,9 +17,8 @@
 #include <boost/filesystem.hpp>
 
 #include "Config.h"
-#include "CameraDevice.h"
 #include "FrameData.h"
-#include "Map.h"
+#include "Sequence.h"
 #include "Matching.h"
 #include "TimeTracker.h"
 
@@ -27,101 +26,10 @@
 #include <iostream>
 #include <stdio.h>
 
-#include <vector>
-#include <list>
-
 using namespace std;
 
 // name of the configuration file where all the parameters are set
 #define CONFIG_FILENAME	"rgbd_params.cfg"
-
-// -----------------------------------------------------------------------------------------------------
-//  loadSequence
-// -----------------------------------------------------------------------------------------------------
-void loadSequence(const char *dataDirectory, int min, int max, vector<int> &sequenceFramesID)
-{
-	int frameID;
-	list<int> listFramesID;
-	
-	sequenceFramesID.clear();
-	
-	boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
-	for ( boost::filesystem::directory_iterator itr( dataDirectory );
-		itr != end_itr;
-		++itr )
-	{
-		//	printf("%s\t%s\n", itr->leaf().c_str(), itr->path().string().c_str());
-		if (boost::filesystem::extension(*itr)==".bmp" &&
-			sscanf(itr->leaf().c_str(), "frame_%d", &frameID)==1 && frameID>=min && (frameID<=max || max<0))
-		{
-			// add frame
-			//printf("Add frame file #%i:\t%s\n", frameID, itr->path().string().c_str());
-			listFramesID.push_back(frameID);
-		}
-	}
-	// sort and keep only 1 element (remove duplicates because of rgb+depth)
-	listFramesID.sort();
-	listFramesID.unique();
-	
-	// build the sequence
-	while (!listFramesID.empty())
-	{
-		sequenceFramesID.push_back(listFramesID.front());
-		listFramesID.pop_front();
-	}
-
-	cout << "Sequence of " << sequenceFramesID.size() << " frames available.\n";
-	cout << "Sequence of " << sequenceFramesID.size()/Config::_DataInRatioFrame << " frames with ";
-	cout << "Frame ratio:" << Config::_DataInRatioFrame << "\n";
-}
-
-void recordSequence(Map &map)
-{
-	CameraDevice cameraKinect;
-	TimeTracker tm;
-
-    if (cameraKinect.connect())
-    {
-    	int frameID = 0;
-    	Transformation transform;
-
-        tm.start();
-
-    	// generate 1st frame
-        if (cameraKinect.generateFrame(frameID, map.getDisplay()))
-        {
-			frameID++;
-			map.startSequence();
-
-			// generate new frame
-			while (cameraKinect.generateFrame(frameID))
-			{
-				// associate with previous
-				if (! map.addFrames(frameID-1, frameID, transform))
-				{
-					printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-					printf("!!! LOW QUALITY !!! LOST SYNCHRO !!!\n");
-					printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-					printf("Last Frame (%d) rejected\n", frameID);
-				}
-				else
-					frameID++;
-			}
-
-			tm.stop();
-			printf("Acquisition and matching duration time: %d(ms)\n", tm.duration());
-			map.stopSequence();
-
-	    	// build map
-			if (!cameraKinect.aborted())
-				map.build();
-			else
-				printf("Aborted.\n");
-        }
-
-    	cameraKinect.disconnect();
-    }
-}
 
 void printUsage(const char *name)
 {
@@ -143,7 +51,7 @@ void printUsage(const char *name)
 int main(int argc, char** argv)
 {
 	vector<int> sequenceFramesID;
-	Map map;
+	Sequence sequence;
 	TimeTracker tm;
 
     if (argc<2)
@@ -178,7 +86,7 @@ int main(int argc, char** argv)
     		}
     	}
 
-    	map.regeneratePCD();
+    	sequence.regeneratePCD();
     }
     // ---------------------------------------------------------------------------------------------------
     //  map reconstruction from transformations archive
@@ -198,8 +106,8 @@ int main(int argc, char** argv)
     	if (argc>2)
     		min = atoi(argv[2]);
 
-    	map.restoreSequence(min, max);
-    	map.build();
+    	sequence.restoreTransformations(min, max);
+    	sequence.buildMap();
     }
     // ---------------------------------------------------------------------------------------------------
     //  load sequence from RGB+D input datafiles
@@ -224,18 +132,14 @@ int main(int argc, char** argv)
 			}
     	}
 
-     	loadSequence(Config::_PathFrameSequence.c_str(), min, max, sequenceFramesID);
-    	
         boost::filesystem::create_directories(Config::_PathDataProd);
 		
-    	// build map 
-        map.startSequence();
         tm.start();
-    	map.addSequence(sequenceFramesID);
+     	sequence.reloadFrames(min, max);
     	tm.stop();
-    	map.stopSequence();
 		printf("Matching duration time: %d(ms)\n", tm.duration());
-    	map.build();
+    	// build map
+    	sequence.buildMap();
 	}
     // ---------------------------------------------------------------------------------------------------
     //  acquire data from camera and build map
@@ -253,7 +157,8 @@ int main(int argc, char** argv)
         	return -1;
         }
 
-        recordSequence(map);
+        // record and build map
+        sequence.recordFrames(true);
     }
     // ---------------------------------------------------------------------------------------------------
     //  compute feature for a single frame
@@ -290,7 +195,7 @@ int main(int argc, char** argv)
 
         	for (int id=frameID1; id<=frameID2; id++) {
 
-				if (frameData.loadImage(id) && frameData.loadDepthData()) {
+				if (frameData.loadImageRGBD(id)) {
 					// save image with features
 					tm.start();
 					frameData.computeFeatures();
@@ -301,7 +206,7 @@ int main(int argc, char** argv)
 					fileStats << tm.duration() << "\n";
 					if (saveImage) {
 						frameData.drawFeatures();
-						frameData.saveImage();
+						frameData.saveImageRGB(Config::_PathDataProd.c_str());
 					}
 				}
 				else

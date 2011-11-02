@@ -24,7 +24,7 @@ include_directories(~/Projects/g2o/trunk/build/)
 
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-set(RGBD_SOURCES_CPP FrameData.cpp Graph.cpp Map.cpp Config.cpp ConfigFile.cpp CameraDevice.cpp Matching.cpp PointCloud.cpp Display.cpp)
+set(RGBD_SOURCES_CPP FrameData.cpp Graph.cpp Sequence.cpp Config.cpp ConfigFile.cpp CameraDevice.cpp Matching.cpp PointCloud.cpp Display.cpp)
 
 add_library(rgbd_slam ${RGBD_SOURCES_CPP}) 
 

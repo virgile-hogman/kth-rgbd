@@ -44,10 +44,6 @@ Context g_context;
 XnFPSData g_xnFPS;
 XnUInt64 g_noSampleValue, g_shadowValue;
 
-// working buffers reused for each frame (just to avoid reallocate the arrays each time) 
-IplImage* g_imgRGB = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
-IplImage* g_imgDepth = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
-
 // PCL
 pcl::PointCloud<pcl::PointXYZRGB> g_cloudPointSave;
 
@@ -65,7 +61,6 @@ float bad_point = std::numeric_limits<float>::quiet_NaN ();
 
 CameraDevice::CameraDevice()
 {
-	_abort = false;
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -163,7 +158,7 @@ void convertImageDepth(const XnDepthPixel* pDepthMap, IplImage* pImgDepth)
 // -----------------------------------------------------------------------------------------------------
 //  saveImageRGB
 // -----------------------------------------------------------------------------------------------------
-void saveImageRGB(IplImage* pImgRGB, int frameID)
+void CameraDevice::saveImageRGB(IplImage* pImgRGB, int frameID)
 {
 	char buf[256];
 	sprintf(buf, "%s/frame_%d_rgb.bmp", Config::_PathFrameSequence.c_str(), frameID);
@@ -173,7 +168,7 @@ void saveImageRGB(IplImage* pImgRGB, int frameID)
 // -----------------------------------------------------------------------------------------------------
 //  saveImageDepth
 // -----------------------------------------------------------------------------------------------------
-void saveImageDepth(IplImage* pImgDepth, int frameID)
+void CameraDevice::saveImageDepth(IplImage* pImgDepth, int frameID)
 {
 	// save the depth image
 	char bufFilename[256];
@@ -302,86 +297,48 @@ int savePointCloud(
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  generateFrames
+//  getUserInput
 // -----------------------------------------------------------------------------------------------------
-bool CameraDevice::generateFrame(int frameID, Display *pDisplay)
+bool CameraDevice::getUserInput(char &c)
+{
+	if (xnOSWasKeyboardHit()) {
+		c = xnOSReadCharFromInput();	// reset the keyboard hit
+		return true;
+	}
+	return false;
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  generateFrame
+// -----------------------------------------------------------------------------------------------------
+bool CameraDevice::generateFrame(IplImage* imgRGB, IplImage* imgDepth)
 {
     XnStatus nRetVal = XN_STATUS_OK;
-    static bool saveData = false;
-	
 	const XnDepthPixel* pDepthMap = NULL;
 	const XnRGB24Pixel* pImageMap = NULL;
 	
-	while(true)
+	xnFPSMarkFrame(&g_xnFPS);
+	nRetVal = g_context.WaitAndUpdateAll();
+	if (nRetVal==XN_STATUS_OK)
 	{
-		xnFPSMarkFrame(&g_xnFPS);
-		nRetVal = g_context.WaitAndUpdateAll();
-		if (nRetVal==XN_STATUS_OK)
-		{
-			g_depth.GetMetaData(g_depthMD);
-			g_image.GetMetaData(g_imageMD);
+		g_depth.GetMetaData(g_depthMD);
+		g_image.GetMetaData(g_imageMD);
 
-			pDepthMap = g_depthMD.Data();
-			pImageMap = g_image.GetRGB24ImageMap();
+		pDepthMap = g_depthMD.Data();
+		pImageMap = g_image.GetRGB24ImageMap();
 
-			printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f %s\r",
-					g_depthMD.FrameID(),
-					g_depthMD.XRes(),
-					g_depthMD.YRes(),
-					g_depthMD(g_depthMD.XRes()/2, g_depthMD.YRes()/2),
-					xnFPSCalc(&g_xnFPS),
-					(saveData? "" : "* PRESS KEY *"));
+		printf("Frame %02d (%dx%d) Depth at middle point: %u. FPS: %f\r",
+				g_depthMD.FrameID(),
+				g_depthMD.XRes(),
+				g_depthMD.YRes(),
+				g_depthMD(g_depthMD.XRes()/2, g_depthMD.YRes()/2),
+				xnFPSCalc(&g_xnFPS));
 
-			if (pDisplay != NULL) {
-				FrameData previewFrame;
-				// recopy buffer only for preview display
-				convertImageRGB(pImageMap, g_imgRGB);
-				convertImageDepth(pDepthMap, g_imgDepth);
-				// recopy to data
-				previewFrame.copyImageRGB(g_imgRGB);
-				previewFrame.copyImageDepth(g_imgDepth);
-				// compute and draw features
-				previewFrame.computeFeatures();
-				previewFrame.drawFeatures();
-				// display RGB with features and depth
-				pDisplay->showPreview(previewFrame.getImage(), g_imgDepth);
-			}
-		}
-		if (xnOSWasKeyboardHit())
-		{
-			char c = xnOSReadCharFromInput();	// reset the keyboard hit
-			printf("\n");
-			switch (c)
-			{
-			case 27:	// ESC
-				_abort = true;
-				return false;
-				break;
+		// convert to OpenCV buffers
+		convertImageRGB(pImageMap, imgRGB);
+		convertImageDepth(pDepthMap, imgDepth);
 
-			case 13:	// CR
-			case 10:	// LF
-				if (saveData) {
-					_abort = false;
-					return false;
-				}
-				saveData = true;
-				break;
-
-			default:
-				saveData = !saveData;	// start or pause each time for any other key hit
-				break;
-			}
-		}
-		if (nRetVal==XN_STATUS_OK && saveData)
-		{
-			// image
-			convertImageRGB(pImageMap, g_imgRGB);
-			saveImageRGB(g_imgRGB, frameID);
-			// depth
-			convertImageDepth(pDepthMap, g_imgDepth);
-			saveImageDepth(g_imgDepth, frameID);
-			return true;
-		}
+		return true;
 	}
 	return false;
 }

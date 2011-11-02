@@ -20,11 +20,13 @@
 #include "CommonTypes.h"
 #include "Matching.h"
 #include "FrameData.h"
-#include "CameraDevice.h"
-#include "Map.h"
 #include "PointCloud.h"
+#include "CameraDevice.h"
+#include "TimeTracker.h"
+#include "Sequence.h"
 
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
@@ -109,7 +111,7 @@ void savePoses(const PoseVector &poses, const char *filename)
 // -----------------------------------------------------------------------------------------------------
 //  regeneratePCD
 // -----------------------------------------------------------------------------------------------------
-void Map::regeneratePCD()
+void Sequence::regeneratePCD()
 {
 	PoseVector	cameraPoses;
 
@@ -243,7 +245,7 @@ void loadPresetLC(map<int,int> &presetLC)
 	}
 }
 
-bool Map::detectLoopClosure(const PoseVector	&cameraPoses)
+bool Sequence::detectLoopClosure(const PoseVector	&cameraPoses)
 {
 	bool returnValue = false;
 	Pose		currentPose;
@@ -343,7 +345,7 @@ bool Map::detectLoopClosure(const PoseVector	&cameraPoses)
 					transform);
 
 			// free RGBD data in frame buffer
-			bufferFrameDataLC[indexLC]->releaseImageAndDepth();
+			bufferFrameDataLC[indexLC]->releaseImageRGBD();
 
 			if (validLC)
 			{
@@ -441,9 +443,9 @@ bool Map::detectLoopClosure(const PoseVector	&cameraPoses)
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  build
+//  buildMap
 // -----------------------------------------------------------------------------------------------------
-void Map::build()
+void Sequence::buildMap()
 {
 	PoseVector	cameraPoses;
 	Pose		currentPose;
@@ -452,11 +454,11 @@ void Map::build()
 	double totalDistance = 0.0;
     Eigen::Matrix3f initialRotation = Eigen::Matrix3f::Identity();
 
-	// initialize the graph
-    _graphOptimizer.initialize();
-
     if (_sequenceTransform.size()>0)
     {
+    	// initialize the graph
+        _graphOptimizer.initialize();
+
 		// -------------------------------------------------------------------------------------------
 		//  origin
 		// -------------------------------------------------------------------------------------------
@@ -556,9 +558,9 @@ void Map::build()
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  startSequence
+//  startTransform
 // -----------------------------------------------------------------------------------------------------
-void Map::startSequence()
+void Sequence::startTransform()
 {
 	char buf[256];
 	sprintf(buf, "%s/transfo.dat", Config::_PathDataProd.c_str());
@@ -572,18 +574,19 @@ void Map::startSequence()
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  stopSequence
+//  stop
 // -----------------------------------------------------------------------------------------------------
-void Map::stopSequence()
+void Sequence::stopTransform()
 {
 	// close windows
 	_display.hide();
+	_fileTransformOut.close();
 }
 
 // -----------------------------------------------------------------------------------------------------
-//  addFrames
+//  addFramesTransform
 // -----------------------------------------------------------------------------------------------------
-bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
+bool Sequence::addFramesTransform(int frameID1, int frameID2, Transformation &transform)
 {
 	bool match = false;
 
@@ -591,8 +594,8 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 	match = computeTransformation(
 			frameID1,
 			frameID2,
-			_bufferFrameData1,
-			_bufferFrameData2,
+			_bufferFrame1,
+			_bufferFrame2,
 			transform);
 
 	if (match)	{
@@ -619,84 +622,32 @@ bool Map::addFrames(int frameID1, int frameID2, Transformation &transform)
 		}
 		cout << "\n";
 
-		_display.showFeatures(_bufferFrameData1.getImage(), _bufferFrameData2.getImage(), transform._qualityScore);
+		_display.showFeatures(_bufferFrame1.getImage(), _bufferFrame2.getImage(), transform._qualityScore);
 
 		// free data
-		_bufferFrameData1.releaseData();
+		_bufferFrame1.releaseData();
 		// reassign the last frame to avoid reloading all the data twice
-		_bufferFrameData1.assignData(_bufferFrameData2);
+		_bufferFrame1.assignData(_bufferFrame2);
 	}
 	else { // out of sync !
-		_display.showOutOfSync(_bufferFrameData1.getImage(), _bufferFrameData2.getImage());
-
-		// invalid transformation
-		// empty buffers - data has to be reloaded
-		_bufferFrameData1.releaseData();
-		_bufferFrameData2.releaseData();
+		_display.showOutOfSync(_bufferFrame1.getImage(), _bufferFrame2.getImage());
 	}
 
 	return match;
 }
 
-// -----------------------------------------------------------------------------------------------------
-//  addSequence
-// -----------------------------------------------------------------------------------------------------
-void Map::addSequence(std::vector<int> &sequenceFramesID)
-{
-	if (sequenceFramesID.size()>=2)
-	{
-		Transformation transform;
-		int indexLastFrame;
-		int stepFrame = Config::_DataInRatioFrame;
-
-		indexLastFrame = 0;
-		for (int iFrame=stepFrame; iFrame<sequenceFramesID.size(); iFrame+=stepFrame)
-		{
-			if (! addFrames(
-					sequenceFramesID[indexLastFrame],
-					sequenceFramesID[iFrame],
-					transform))
-			{
-				// no valid transform
-				std::cerr << transform._idOrig << "-" << transform._idDest << ": ";
-				std::cerr << "No valid transformation!!";
-				std::cerr << "\tRatio=" << transform._ratioInliers*100 << "% ";
-				std::cerr << "\tResync attempt #" <<  Config::_DataInRatioFrame-stepFrame+1 << "\n";
-				// try to lower step
-				stepFrame--;
-				if (stepFrame>0)
-				{
-					// go back
-					iFrame = indexLastFrame;
-					continue;	// skip current frame
-				}
-				else
-				{
-					if (! Config::_MatchingAllowInvalid)
-						break;		// abort
-					std::cerr << "INVALID TRANSFORMATION RECORDED! Frames ";
-					std::cerr << transform._idOrig << "-" << transform._idDest << "\n";
-				}
-			}
-			
-			indexLastFrame = iFrame;
-			stepFrame = Config::_DataInRatioFrame;
-		}
-	}
-	
-}
 
 // -----------------------------------------------------------------------------------------------------
-//  restoreSequence
+//  restoreTransformations
 // -----------------------------------------------------------------------------------------------------
-void Map::restoreSequence(int minFrameID, int maxFrameID)
+void Sequence::restoreTransformations(int minFrameID, int maxFrameID)
 {
 	Transformation transfo;
 	char buf[256];
 	sprintf(buf, "%s/transfo.dat", Config::_PathDataProd.c_str());
 	std::ifstream fileTransfo(buf);
 	int check=-1;
-	
+
 	_sequenceTransform.clear();
 
 	printf("Restoring sequence range %d-%d\n", minFrameID, maxFrameID);
@@ -731,5 +682,178 @@ void Map::restoreSequence(int minFrameID, int maxFrameID)
 			fileTransfo.peek();				// to update the eof flag (if no empty line)
 		}
 	}
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  reloadFrames
+// -----------------------------------------------------------------------------------------------------
+bool Sequence::reloadFrames(int min, int max)
+{
+	vector<int> sequenceFramesID;
+
+	// build the list of FrameID from the default path
+	FrameData::GetFrameList(Config::_PathFrameSequence.c_str(), min, max, sequenceFramesID);
+
+	if (sequenceFramesID.size()>=2)
+	{
+		Transformation transform;
+		int indexLastFrame;
+		int stepFrame = Config::_DataInRatioFrame;
+
+	    // start sequence
+		this->startTransform();
+
+		indexLastFrame = 0;
+		for (int iFrame=stepFrame; iFrame<sequenceFramesID.size(); iFrame+=stepFrame)
+		{
+			// add current couple of frames
+			if (! addFramesTransform(
+					sequenceFramesID[indexLastFrame],
+					sequenceFramesID[iFrame],
+					transform))
+			{
+				// no valid transform
+				std::cerr << transform._idOrig << "-" << transform._idDest << ": ";
+				std::cerr << "No valid transformation!!";
+				std::cerr << "\tRatio=" << transform._ratioInliers*100 << "% ";
+				std::cerr << "\tResync attempt #" <<  Config::_DataInRatioFrame-stepFrame+1 << "\n";
+				// try to lower step
+				stepFrame--;
+				if (stepFrame>0)
+				{
+					// go back
+					iFrame = indexLastFrame;
+					continue;	// skip current frame
+				}
+				else
+				{
+					if (! Config::_MatchingAllowInvalid)
+						break;		// abort
+					std::cerr << "INVALID TRANSFORMATION RECORDED! Frames ";
+					std::cerr << transform._idOrig << "-" << transform._idDest << "\n";
+				}
+			}
+			
+			indexLastFrame = iFrame;
+			stepFrame = Config::_DataInRatioFrame;
+		}
+	    // stop sequence
+		this->stopTransform();
+
+		return true;
+	}
+	return false;
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  record
+// -----------------------------------------------------------------------------------------------------
+void Sequence::recordFrames(bool buildMap)
+{
+	CameraDevice cameraKinect;
+	TimeTracker tm;
+
+    if (cameraKinect.connect())
+    {
+    	int frameID = 0;
+    	Transformation transform;
+    	bool abort = false;
+    	bool keyhit = false;
+        char c;
+        FrameData frame1, frame2;
+
+        frame1.createImageRGB();
+        frame2.createImageRGB();
+
+        // working buffers reused for each frame (just to avoid reallocate the arrays each time)
+        IplImage* imgBufferDepth = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
+
+    	// generate 1st frame
+        while(!abort && !keyhit) {
+        	if (! cameraKinect.generateFrame(frame1.getImage(), imgBufferDepth))
+        		break;
+
+			// recopy to data
+        	frame1.setFrameID(frameID);
+        	frame1.copyImageDepth(imgBufferDepth);
+
+        	keyhit = cameraKinect.getUserInput(c);
+        	if (keyhit) {
+        		printf("\n");
+        		if (c==27)
+        			abort = true;
+        		else {
+        			// save RGBD frames
+        			cameraKinect.saveImageRGB(frame1.getImage(), frameID);
+        			cameraKinect.saveImageDepth(imgBufferDepth, frameID);
+        		}
+        	}
+
+			// compute and draw features
+        	frame1.computeFeatures();
+        	frame1.drawFeatures();
+			// display RGB with features and depth
+			 _display.showPreview(frame1.getImage(), imgBufferDepth);
+		}
+
+        if (!abort && keyhit) {
+            // start sequence
+			tm.start();
+			frameID++;
+			bool validate = false;
+
+			this->startTransform();
+			while (!abort && !validate) {
+				// generate new frame
+				if (! cameraKinect.generateFrame(frame2.getImage(), imgBufferDepth))
+					break;
+
+	        	keyhit = cameraKinect.getUserInput(c);
+	        	if (keyhit) {
+	        		printf("\n");
+					switch (c) {
+					case 27:	// ESC
+						abort = true;
+						break;
+					case 13:	// CR
+					case 10:	// LF
+						validate = true;
+						break;
+					}
+				}
+
+				if (!validate && !abort)	{
+					// save RGBD frames
+        			cameraKinect.saveImageRGB(frame2.getImage(), frameID);
+        			cameraKinect.saveImageDepth(imgBufferDepth, frameID);
+					// associate with previous
+					if (! addFramesTransform(frameID-1, frameID, transform)) {
+						printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+						printf("!!! LOW QUALITY !!! LOST SYNCHRO !!!\n");
+						printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+						printf("Last Frame (%d) rejected\n", frameID);
+					}
+					else
+						frameID++;
+				}
+			}
+
+			tm.stop();
+			printf("Acquisition and matching duration time: %d(ms)\n", tm.duration());
+			this->stopTransform();
+
+			cvReleaseImage(&imgBufferDepth);
+			frame1.releaseData();
+	        frame2.releaseData();
+
+	        if (abort)
+	        	printf("Aborted.\n");
+
+	        if (buildMap && validate)
+				this->buildMap();
+        }
+
+    	cameraKinect.disconnect();
+    }
 }
 
