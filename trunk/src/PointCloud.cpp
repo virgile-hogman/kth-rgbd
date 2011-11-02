@@ -31,13 +31,7 @@ using namespace std;
 bool getFramePointCloud(int frameID, pcl::PointCloud<pcl::PointXYZRGB> &pointCloud)
 {
 	FrameData frameData;
-	if (!frameData.loadImage(frameID))
-	{
-		pointCloud.points.clear();
-		return false;
-	}
-	if (!frameData.loadDepthData())
-	{
+	if (!frameData.loadImageRGBD(frameID)) {
 		pointCloud.points.clear();
 		return false;
 	}

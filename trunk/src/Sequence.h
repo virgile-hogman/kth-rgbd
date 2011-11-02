@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef MAP_H
-#define MAP_H
+#ifndef SEQUENCE_H
+#define SEQUENCE_H
 
 #include "FrameData.h"
 #include "Graph.h"
@@ -24,33 +24,35 @@
 #include <vector>
 #include <fstream>
 
-class Map
+class Sequence
 {
 public:
-	// start of a new transformation sequence
-	void startSequence();
+	// record a new sequence with camera, compute transfo and build map
+	void recordFrames(bool buildMap);
 
-	// end of sequence updates display
-	void stopSequence();
-
-	// add a pair of frames to the transformation sequence
-	bool addFrames(int frameID1, int frameID2, Transformation &transform);
-
-	// transform a full sequence
-	void addSequence(std::vector<int> &sequenceFramesID);
+	// reload a full sequence of frames in a given range, transformations will be recomputed
+	bool reloadFrames(int min, int max);
 
 	// restore transformation from archive with given range
-	void restoreSequence(int minFrameID, int maxFrameID);
+	void restoreTransformations(int minFrameID, int maxFrameID);
 
 	// build the map from the current transformation sequence
-	void build();
+	void buildMap();
 
 	// regenerate PCD files only from existing graph
 	void regeneratePCD();
 
-	Display *getDisplay()			{ return &_display; }
-
 private:
+	// start of a new transformation sequence
+	void startTransform();
+
+	// end of sequence updates display
+	void stopTransform();
+
+	// add a pair of frames to the transformation sequence, the result transform is returned
+	bool addFramesTransform(int frameID1, int frameID2, Transformation &transform);
+
+	// detect the loop closures and updates the graph
 	bool detectLoopClosure(const PoseVector	&cameraPoses);
 
 private:
@@ -64,12 +66,12 @@ private:
 	std::ofstream 			_fileTransformOut;
 
 	// buffers
-	FrameData				_bufferFrameData1;
-	FrameData				_bufferFrameData2;
+	FrameData				_bufferFrame1;
+	FrameData				_bufferFrame2;
 
 	// display windows
 	Display					_display;
 };
 
-#endif // MAP_H
+#endif // SEQUENCE_H
 

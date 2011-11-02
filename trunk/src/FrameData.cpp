@@ -23,39 +23,15 @@
 
 // standard
 #include <vector>
+#include <list>
 #include <stdio.h>
 
-std::string FrameData::_DataPath;
+using namespace std;
+
+string FrameData::_DataPath;
 
 const char *strFileExtension = "bmp";
 const char *strSearchExtension = ".bmp";
-
-bool FrameData::FindFile(
-		const boost::filesystem::path & pathSearch,	// in this directory,
-        const std::string & filename,				// search for this name,
-        std::string & filePathFound)				// placing path here if found
-{
-	int timestamp = 0;
-	if (! boost::filesystem::exists(pathSearch))
-		return false;
-
-	// looking for pattern <filename>_<timestamp>.<ext>
-	char filePattern[256];
-	sprintf(filePattern, "%s_%%d", filename.c_str());
-	fflush(stdout);
-
-	boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
-	for (boost::filesystem::directory_iterator itr( pathSearch ); itr != end_itr; ++itr )
-	{
-		if (boost::filesystem::extension(*itr)==strSearchExtension &&
-			sscanf(itr->leaf().c_str(), filePattern, &timestamp)==1)
-		{
-			filePathFound = itr->path().string().c_str();
-			return true;
-		}
-	}
-	return false;
-}
 
 // -----------------------------------------------------------------------------------------------------
 //  FrameData
@@ -76,7 +52,17 @@ FrameData::~FrameData()
 	releaseData();
 }
 
-bool FrameData::loadImage(int frameID)
+bool FrameData::loadImageRGBD(int frameID)
+{
+	_frameID = frameID;	// valid ID
+	if (loadImageRGB() && loadImageDepth())
+		return true;
+
+	_frameID = -1;		// invalid ID
+	return false;
+}
+
+bool FrameData::loadImageRGB()
 {
 	char filename[256];
 	
@@ -86,31 +72,22 @@ bool FrameData::loadImage(int frameID)
 	}
 
 	// load RGB data file
-	sprintf(filename, "%s/frame_%d_rgb.%s", _DataPath.c_str(), frameID, strFileExtension);
+	sprintf(filename, "%s/frame_%d_rgb.%s", _DataPath.c_str(), _frameID, strFileExtension);
 	_pImage  = cvLoadImage(filename, 1);
 	
 	if (_pImage == NULL)
 	{
-		std::string pathFile;
-		sprintf(filename, "frame_%d_rgb", frameID);
-		if (FindFile(_DataPath.c_str(), filename,  pathFile))
+		string pathFile;
+		sprintf(filename, "frame_%d_rgb", _frameID);
+		if (FindFrame(_DataPath.c_str(), filename,  pathFile))
 			_pImage  = cvLoadImage( pathFile.c_str(), 1 );
 	}
 	
-	if (_pImage != NULL)
-		_frameID = frameID;	// valid ID
-	else
-		_frameID = -1;		// invalid ID
 	return (_pImage != NULL);
 }
 
-bool FrameData::isImageLoaded(int frameID) const
-{
-	// check only if RGB data is available here
-	return (_frameID == frameID && _pImage != NULL);
-}
 
-bool FrameData::loadDepthData()
+bool FrameData::loadImageDepth()
 {
 	char filename[256];
 	IplImage *pImageDepth = NULL;
@@ -125,9 +102,9 @@ bool FrameData::loadDepthData()
 	
 	if (pImageDepth == NULL)
 	{
-		std::string pathFile;
+		string pathFile;
 		sprintf(filename, "frame_%d_depth", _frameID);
-		if (FindFile(_DataPath.c_str(), filename,  pathFile))
+		if (FindFrame(_DataPath.c_str(), filename,  pathFile))
 			pImageDepth  = cvLoadImage( pathFile.c_str(), -1 );
 	}
 	
@@ -159,16 +136,33 @@ bool FrameData::loadDepthData()
 	return (_depthData != NULL);
 }
 
-void FrameData::saveImage()
+void FrameData::saveImageRGB(const char *path)
 {
 	char filename[256];
 	if (_pImage != NULL) {
-		sprintf(filename, "%s/image_%d.%s", Config::_PathDataProd.c_str(), getFrameID(), strFileExtension);
+		if (path == NULL)
+			path = Config::_PathFrameSequence.c_str();
+		sprintf(filename, "%s/frame_%d_rgb.%s", path, _frameID, strFileExtension);
 		cvSaveImage(filename, _pImage);
 		printf("Generated file: %s\n", filename);
 	}
 }
 
+bool FrameData::createImageRGB()
+{
+	// here we assume size is constant, we reaffect existing buffer
+	if (_pImage == NULL)
+		_pImage = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
+	return (_pImage != NULL);
+}
+
+void FrameData::releaseImageRGB()
+{
+	if (_pImage != NULL) {
+		cvReleaseImage(&_pImage);
+		_pImage = NULL;
+	}
+}
 
 void FrameData::copyImageRGB(IplImage *pImageRGB)
 {
@@ -205,9 +199,7 @@ bool FrameData::fetchFeatures(int frameID)
 	// loads data and compute features only if necessary
 	if (_frameID != frameID)
 	{
-		if (!loadImage(frameID))
-			return false;
-		if (!loadDepthData())
+		if (!loadImageRGBD(frameID))
 			return false;
 
 		computeFeatures();
@@ -216,7 +208,7 @@ bool FrameData::fetchFeatures(int frameID)
 	return true;
 }
 
-void FrameData::releaseImageAndDepth()
+void FrameData::releaseImageRGBD()
 {
 	if (_pImage != NULL)
 		cvReleaseImage(&_pImage);
@@ -245,7 +237,7 @@ void FrameData::releaseData()
 {
 	// free memory
 	releaseFeatures();
-	releaseImageAndDepth();
+	releaseImageRGBD();
 	_frameID = -1;
 	_nbFeatures = 0;
 }
@@ -421,20 +413,19 @@ void FrameData::drawFeatures()
 	int    lineWidth=1;
 	char buf[256];
 
+	if (_nbFeatures>0) {
+		// use SIFT library
+		draw_features(_pImage, _pFeatures, _nbFeatures);
+	}
+
 	sprintf(buf,"Frame%d [%d %s]", _frameID, _nbFeatures, (_featureType==FEATURE_SURF)?"SURF":"SIFT");
-
-	// draw SIFT features 
-	draw_features(_pImage, _pFeatures, _nbFeatures);
-
-	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
-
 	cvPutText(_pImage, buf, cvPoint(5, 18), &font, cvScalar(255,255,0));
 }
 
 void FrameData::removeInvalidFeatures()
 {
-	std::vector<int>	validIdFeatures;
+	vector<int>	validIdFeatures;
 	struct feature*		pNewFeatures = NULL; 
 	
 	const int maxDeltaDepthArea=50;
@@ -490,4 +481,74 @@ void FrameData::removeInvalidFeatures()
 		_pFeatures = pNewFeatures;
 		_nbFeatures = validIdFeatures.size();
 	}
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  FindFrame
+// -----------------------------------------------------------------------------------------------------
+bool FrameData::FindFrame(
+		const boost::filesystem::path & pathSearch,	// in this directory,
+        const string & filename,				// search for this name,
+        string & filePathFound)				// placing path here if found
+{
+	int timestamp = 0;
+	if (! boost::filesystem::exists(pathSearch))
+		return false;
+
+	// looking for pattern <filename>_<timestamp>.<ext>
+	char filePattern[256];
+	sprintf(filePattern, "%s_%%d", filename.c_str());
+	fflush(stdout);
+
+	boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
+	for (boost::filesystem::directory_iterator itr( pathSearch ); itr != end_itr; ++itr )
+	{
+		if (boost::filesystem::extension(*itr)==strSearchExtension &&
+			sscanf(itr->leaf().c_str(), filePattern, &timestamp)==1)
+		{
+			filePathFound = itr->path().string().c_str();
+			return true;
+		}
+	}
+	return false;
+}
+
+// -----------------------------------------------------------------------------------------------------
+//  getFrameList
+// -----------------------------------------------------------------------------------------------------
+void FrameData::GetFrameList(const char *dataDirectory, int min, int max, vector<int> &sequenceFramesID)
+{
+	int frameID;
+	list<int> listFramesID;
+
+	sequenceFramesID.clear();
+
+	boost::filesystem::directory_iterator end_itr; // default construction yields past-the-end
+	for ( boost::filesystem::directory_iterator itr( dataDirectory );
+		itr != end_itr;
+		++itr )
+	{
+		//	printf("%s\t%s\n", itr->leaf().c_str(), itr->path().string().c_str());
+		if (boost::filesystem::extension(*itr)==strSearchExtension &&
+			sscanf(itr->leaf().c_str(), "frame_%d", &frameID)==1 && frameID>=min && (frameID<=max || max<0))
+		{
+			// add frame
+			//printf("Add frame file #%i:\t%s\n", frameID, itr->path().string().c_str());
+			listFramesID.push_back(frameID);
+		}
+	}
+	// sort and keep only 1 element (remove duplicates because of rgb+depth)
+	listFramesID.sort();
+	listFramesID.unique();
+
+	// build the sequence
+	while (!listFramesID.empty())
+	{
+		sequenceFramesID.push_back(listFramesID.front());
+		listFramesID.pop_front();
+	}
+
+	cout << "Sequence of " << sequenceFramesID.size() << " frames available.\n";
+	cout << "Sequence of " << sequenceFramesID.size()/Config::_DataInRatioFrame << " frames with ";
+	cout << "Frame ratio:" << Config::_DataInRatioFrame << "\n";
 }

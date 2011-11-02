@@ -17,23 +17,23 @@
 #ifndef CAMERA_DEVICE_H
 #define CAMERA_DEVICE_H
 
-#include "Display.h"
+#include "cv.h"
 #include <vector>
 
 class CameraDevice
 {
-private:
-	bool		_abort;
-
 public:	
 	CameraDevice();
 
 	bool connect();
 	void disconnect();
 
-	bool aborted()		{ return _abort; }
+	bool generateFrame(IplImage* imgRGB, IplImage* imgDepth);
 
-	bool generateFrame(int frameID, Display *display=NULL);
+	bool getUserInput(char &c);
+
+	void saveImageRGB(IplImage* pImgRGB, int frameID);
+	void saveImageDepth(IplImage* pImgDepth, int frameID);
 };
 
 #endif // CAMERA_DEVICE_H

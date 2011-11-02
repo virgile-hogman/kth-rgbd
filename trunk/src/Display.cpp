@@ -186,8 +186,11 @@ void Display::showOutOfSync(IplImage *pImage1, IplImage *pImage2)
 		_displayingFeatures = true;
 	}
 	// update image buffer by stacking the 2 frames
-	memcpy(_pImgFeatures->imageData, pImage1->imageData, pImage1->imageSize);
-	memcpy(_pImgFeatures->imageData+(pImage1->imageSize), pImage2->imageData, pImage2->imageSize);
+	if (pImage1 != NULL) {
+		memcpy(_pImgFeatures->imageData, pImage1->imageData, pImage1->imageSize);
+		if (pImage2 != NULL)
+			memcpy(_pImgFeatures->imageData+(pImage1->imageSize), pImage2->imageData, pImage2->imageSize);
+	}
 	// define a font to write some text
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 	cvPutText(_pImgFeatures, "SYNC LOST", cvPoint(40, NBPIXELS_HEIGHT+200), &font, cvScalar(0,0,255));

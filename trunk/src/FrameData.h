@@ -50,6 +50,7 @@ public:
 	
 	// basic public accessors
 	int getFrameID() const								{ return _frameID; }
+	void setFrameID(int ID)								{ _frameID = ID; }
 	IplImage* getImage()								{ return _pImage; }
 	TDepthPixel* getDepthData()							{ return _depthData; }
 	struct feature* getFeatures()						{ return _pFeatures; }
@@ -88,13 +89,14 @@ public:
 			return 0;
 	}
 	
-	// load RGB data
-	bool loadImage(int frameID);
-	bool isImageLoaded(int frameID) const;
-	// load D data only
-	bool loadDepthData();
+	// load RGBD data
+	bool loadImageRGBD(int frameID);
+
 	// save RGB data (with features drawn)
-	void saveImage();
+	void saveImageRGB(const char *path);
+
+	bool createImageRGB();
+	void releaseImageRGB();
 
 	// copy given RGB image to internal RGB buffer
 	void copyImageRGB(IplImage *pImageRGB);
@@ -109,7 +111,7 @@ public:
 	void drawFeatures();
 
 	// free data RGBD
-	void releaseImageAndDepth();
+	void releaseImageRGBD();
 	// free data features
 	void releaseFeatures();
 	// free all
@@ -124,12 +126,23 @@ public:
 	static std::string _DataPath;
 	
 	// utility function to locate RGBD files with the prefix but unknown timestamp
-	static bool FindFile(
+	static bool FindFrame(
 			const boost::filesystem::path & pathSearch,	// in this directory,
             const std::string & fileName,				// search for this name,
             std::string & fileFound);					// full path to file if found
 
+	static void GetFrameList(
+			const char *dataDirectory,
+			int min,
+			int max,
+			std::vector<int> &sequenceFramesID);
+
 protected:
+	// load RGB data
+	bool loadImageRGB();
+	// load D data only
+	bool loadImageDepth();
+
 	// SIFT features
 	int computeFeaturesSIFT();
 	// SURF features
