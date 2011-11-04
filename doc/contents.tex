@@ -2,7 +2,7 @@
 
 To navigate in an unknown environment, a mobile robot needs to build a map of the environment and locate itself in the map at the same time. The process adressing this dual problem is called \gls{SLAM}. In an outdoor environment, this can generally be solved by a GPS that generally allows to get an estimation of the position with a very good accuracy. However, when moving indoor or in places where the GPS data is not available, or not reliable enough, other solutions have to be found. 
 
-Generally, the main problem raised with \gls{SLAM} comes from the measurement errors, due to the sensors noise. Probablistic models are widely used to reduce these errors and provide satisfying estimations. While this process is generally based on data provided by sensors such as laser scanners, or odometry data, \gls{VSLAM} focuses on the use of camera. 
+Generally, the main problem raised with \gls{SLAM} comes from the measurement errors, due to the sensors noise. Probabilistic models are widely used to reduce these errors and provide satisfying estimations. While this process is generally based on data provided by sensors such as laser scanners, or odometry data, \gls{VSLAM} focuses on the use of camera. 
 
 \begin{figure}[h!]
 \begin{center}
@@ -13,13 +13,13 @@ Generally, the main problem raised with \gls{SLAM} comes from the measurement er
 
 \section{Context}
 
-Currently, most of robotic mapping is performed using sensors that offers only a 2D cross section of the environment around them. The reason for this is ways of acquiring high quality 3D data were either very expensive or had hard constraints on the robot movements. However, recently there has been a great interest in processing data acquired using depth measuring sensors due to the availability of cheap and high performance RGB-D cameras. For instance, the Kinect Camera developed by Prime Sense and Microsoft has considerably changed the situation, providing a 3D camera at a very affordable price, with a particular interest for the research projects in robotics.
+Currently, most of robotic mapping is performed using sensors that offers only a 2D cross section of the environment around them. The reason is that acquiring high quality 3D data was either very expensive or had hard constraints on the robot movements. However, recently there has been a great interest in processing data acquired using depth measuring sensors due to the availability of cheap and high performance RGB-D cameras. For instance, the Kinect Camera developed by Prime Sense and Microsoft has considerably changed the situation, providing a 3D camera at a very affordable price, with a particular interest for the research projects in robotics.
 
 In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the project were using techniques such as \gls{EKF} or particle filters. Recently, some projects ~\cite{Intel_RGBD_2010}~\cite{engelhard11euron-workshop} rely on pose graphs, that seem to be an interesting alternative to study.
 
 \section{Goals}
 
-This work is done at the \gls{CVAP} of \gls{KTH}. The main goal is to build a 3D map from RGB \& depth information provided by a camera. The hardware device used here for the experimentations is the Microsoft Kinect but it could be extended to any RGB-D camera. One objective is to have an overview of the different methods and techniques in order to build a consistent map, so the problems can better be identified and then be individually handled more deeply. Though a \gls{VSLAM} system is intended to be used in real time, some of the processing may be done without focusing on the performance issues in this study. 
+This work is done at the \gls{CVAP} at the Royal Institute of Technology, in Stockholm (KTH). The main goal is to build a 3D map from RGB \& depth information provided by a camera. The hardware device used here for the experimentations is the Microsoft Kinect but it could be extended to any RGB-D camera. One objective is to have an overview of the different methods and techniques in order to build a consistent map, so the problems can better be identified and then be individually handled more deeply. Though a \gls{VSLAM} system is intended to be used in real time, some of the processing may be done without focusing on the performance issues in this study. 
 
 The \gls{VSLAM} process can be described as estimating the poses of the camera in order to reconstruct the entire environment while the camera is moving. As the sensor noise lead to deviations in the estimations of each camera poses with respect to the the real motion, the goal is to build a 3D map which is close to the real environment as much as possible.
 
@@ -71,7 +71,7 @@ An approach widely used in computer vision, especially in object recognition, is
 \item[BRIEF] \gls{BRIEF}~\cite{Calonder10-brief}
 \end{description}
 
-Feature is quite a generic term for which two aspects should be distinguised: the detection of a \emph{keypoint} which allows to localize an area of interest, and the \emph{descriptor} of this item, allows to characterize this region. Typically, the detector identifies a region which is delimitated by edges, and its center is designed as a keypoint. The descriptor is generally computed by measuring the main orientations of the surrounding points, leading to a multidimensional \emph{feature vector} which identifies the given keypoint. Given a set of features, a matching can then be performed in order to associate pairs of keypoints, inside an image or between different frames. If we summarize, the mentioned features can be listed as follows :
+Feature is quite a generic term for which two aspects should be distinguised: the detection of a \emph{keypoint} which allows to localize an area of interest, and the \emph{descriptor} of this item, allows to characterize this region. Typically, the detector identifies a region which contains a strong variation of intensity such as an edge or a corner, and its center is designed as a keypoint. The descriptor is generally computed by measuring the main orientations of the surrounding points, leading to a multidimensional \emph{feature vector} which identifies the given keypoint. Given a set of features, a matching can then be performed in order to associate pairs of keypoints, inside an image or between different frames. If we summarize, the mentioned features can be listed as follows :
 
 \begin {table}
  \begin{center}
@@ -110,7 +110,7 @@ The main idea of the \gls{SIFT} method is to define a cascade of operations foll
 
 \emph{Detector}
 
-Most of these concepts concerning the study of the scale space are based on the works of Lindeberg~\cite{Lindeberg_1994}. The general concept is shown in \ref{fig:sift_dog}. First off, the scale space is defined as the convolution of an image $I$ with a Gaussian $G$ with variance $\sigma$.
+Most of these concepts concerning the study of the scale space are based on the works of Lindeberg~\cite{Lindeberg_1994}. The general concept is shown in \ref{fig:sift_dog}. First, the scale space is defined as the convolution of an image $I$ with a Gaussian $G$ with variance $\sigma$.
 
 \[ L(x,y,\sigma) = G(x,y,\sigma) * I(x,y) \]
 
@@ -199,12 +199,12 @@ The \gls{SURF} is a robust image detector \& descriptor~\cite{surf}, that can be
 \subsection{NARF feature}
 
 \glsreset{NARF}
-The \gls{NARF} is presented by Bastian Steder in~\cite{steder10irosws}. It is meant to be used on single range scan obtained with 3D laser range finders or stereo camera. This work is part of the \gls{PCL}~\cite{Rusu_ICRA2011_PCL} which is itself a component of the \gls{ROS}. Its detector looks for stable areas with significant change in vicinity, that can identified from different viewpoint. The descriptor characterize the area around the keypoint by calculating a normal aligned range value patch and finding the dominant orientation of the neighbouring pixels.
+The \gls{NARF} is presented by Bastian Steder in~\cite{steder10irosws}. It is meant to be used on single range scan obtained with 3D laser range finders or stereo camera. This work is part of the \gls{PCL}~\cite{Rusu_ICRA2011_PCL} which is itself a component of the \gls{ROS}. Its detector looks for stable areas with significant change in vicinity, that can be identified from different viewpoints. The descriptor characterize the area around the keypoint by calculating a normal aligned range value patch and finding the dominant orientation of the neighbouring pixels.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{figures/narf_descriptor_visualization}
-\caption{NARF feature (courtesy of PCL) - from the range image a descriptor is computed in the given keypoint localized by the position of the green cross. The right figure shows the surface patch containing the corner of the armchair and the dominant orientation pointed by the red arrow. Each cell of the descriptor corresponds to one of the green beams. The bottom left picture shows the distance to the descriptor in the scene. The darkest areas are the closest, identifying the areas which are the most similar to the left corner of the armchair.}
+\caption{NARF feature (courtesy of PCL) - from the range image a descriptor is computed in the given keypoint localized by the position of the green cross. The right figure shows the surface patch containing the corner of the armchair and the dominant orientation pointed by the red arrow. Each component of the descriptor is associated to a direction given by one of the green beams. The bottom left picture shows the values of this descriptor. The middle left figure shows the distance to this descriptor for any point in the scene, and therefore their similarity with the current keypoint. The darkest areas are the closest, identifying the areas which are the most similar to the left corner of the armchair.}
 \end{figure}
 
 \begin{figure}[H]
@@ -647,7 +647,7 @@ Now that the main aspects concerning the graph and the reconstruction have been 
 \end{center}
 \end{figure}
 
-With the given program, it is possible to build a map with the camera positions representing the trajectory and orientation of the robot. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from \gls{KTH}, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
+With the given program, it is possible to build a map with the camera positions representing the trajectory and orientation of the robot. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
 
 \section{Software implementation}
 
@@ -677,7 +677,7 @@ The number of dependencies has been limited as much as possible, using preferabl
 
 \section{Data acquisition}
 
-Two types of experiments were conducted: online, by moving the Kinect sensor by hand, and offline with the help of the robot in the \glsreset{CVAP}\gls{CVAP} at \gls{KTH}. Experiments were carried out on a Pioneer III wheeled robot, Dora the explorer, with the Kinect camera mounted at 1.4 m above the floor and Hokuyo URG laser scanner. Each frame saved by the Kinect leads to a couple of RGB and Depth files taken at the same time. Additionally, the data from the laser scans and the odometry were saved. The acquisition of the data by the robot is not part of the program built in this work, this was done with the tools developed at \gls{CVAP}.
+Two types of experiments were conducted: online, by moving the Kinect sensor by hand, and offline with the help of the robot in the \glsreset{CVAP}\gls{CVAP} at KTH. Experiments were carried out on a Pioneer III wheeled robot, Dora the explorer, with the Kinect camera mounted at 1.4 m above the floor and Hokuyo URG laser scanner. Each frame saved by the Kinect leads to a couple of RGB and Depth files taken at the same time. Additionally, the data from the laser scans and the odometry were saved. The acquisition of the data by the robot is not part of the program built in this work, this was done with the tools developed at \gls{CVAP}.
 
 \begin{figure}[h]
  \begin{center}
@@ -686,7 +686,7 @@ Two types of experiments were conducted: online, by moving the Kinect sensor by 
 \caption{Dora the explorer (without the Kinect mounted)}
 \end{figure}
 
-At \gls{KTH}, the main dataset took place in environment with 4 different rooms connected by a corridor, resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. 
+At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor, resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. 
 
 \begin{figure}[H]
 \centering
