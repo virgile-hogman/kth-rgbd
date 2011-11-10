@@ -7,7 +7,7 @@ Generally, the main problem raised with \gls{SLAM} comes from the measurement er
 \begin{figure}[h!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{figures/visual_slam}
-\caption{General idea of Visual SLAM - the poses of the camera (and therefore of the robot) are determined by the information given by the video. The estimations can lead to a drift with respect to the real trajectory.}
+\caption{General idea of Visual SLAM - the poses of the camera (hence, the robot for a fixed camera) are determined by the information given by the video. The estimations can lead to a drift with respect to the real trajectory. The uncertainty grows over time.}
 \end{center}
 \end{figure}
 
@@ -478,8 +478,8 @@ Some preliminar experiments were conducted to determine how to find a satisfying
 \begin{figure}[H]
 \centering$
  \begin{array}{cc}
- \subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}} &
- \subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}}
+ \subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.5\textwidth]{pictures/sift_matching_init}} &
+ \subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.5\textwidth]{pictures/sift_matching_ransac}}
  \end{array}$
 \caption{Matching of SIFT features - \protect\subref{fig:sift_match_1} Initial matching \protect\subref{fig:sift_match_2} After a RANSAC loop. Note how the initial matches drawn in diagonal (green) in the left figure are excluded and become outliers (red) after the RANSAC loop.}
 \end{figure}
@@ -535,8 +535,6 @@ The corresponding values can be used to measure and detect this kind of situatio
 \end{tabular}
 
 Instead of using the ratio of inliers as the criterion to measure the quality of the model, the variance could be used, not only as an evaluation of the goodness ("score") but also as a criterion for the selection of the k elements of each sample. For example, the initial elements would have above a minimal distance from the mean, set by a threshold.
-
-\clearpage
 
 \section{Summary}
 
@@ -681,9 +679,9 @@ Two types of experiments were conducted: online, by moving the Kinect sensor by 
 
 \begin{figure}[h]
  \begin{center}
- \includegraphics[width=0.3\textwidth]{pictures/Dora_small_2108}
+ \includegraphics[width=0.8\textwidth]{pictures/Dora_7587}
  \end{center}
-\caption{Dora the explorer (without the Kinect mounted)}
+\caption{Dora the explorer}
 \end{figure}
 
 At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor, resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. 
@@ -887,22 +885,14 @@ These results mainly shows that maps can be built with this system and the inter
 This work gave a good insight into the general problem \gls{SLAM}, and more specifically about \gls{VSLAM} with feature extraction and matching. The approach can be described in the following steps:
 \begin{enumerate}
 \item Feature extraction: \gls{SIFT}/\gls{SURF} extraction in 2D
-\item Feature matching: kd-tree on the feature space with depth criterion
-\item Transformation: \gls{RANSAC} in 3D
+\item Feature matching: kd-tree on the feature space, using the depth for a preselection of the features
+\item Transformation: \gls{RANSAC} on the projected points in 3D
 \item Graph optimization: based on the $g^2o$ framework
 \item Loop Closures: add some constraints in the graph by detecting scenes already seen in the past
 \item Scene reconstruction: registrate the points clouds accordingly to the estimation of the keyposes, and concatenate them to build the global map.
 \end{enumerate}
 
-Given this, it is now possible to imagine some improvements of the current work, in terms of performance and quality of the results.
-
-\section{Performance improvements}
-
-Currently, most of the time is passed on the feature extraction. Remaining very close to the given method, the overall performance would significantly be improved by lowering the time spent for this step. This could be done through the use of new features:
-\begin{itemize}
-\item BRIEF: combined with a keypoint detector such as \gls{SURF} or \gls{SIFT}, the \gls{BRIEF} descriptors\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute. However, this would imply to rewrite the matching code, by doing binary string comparison. See also the PhD thesis of the author\cite{Calonder10_PhD}.
-\item SIFT GPU: a feature extraction optimized with hardware acceleration would give the same results in a very shorter time (about 1000s to 100ms for each feature extraction).
-\end{itemize}
+Given this, it is now possible to imagine some improvements of the current work, both in terms of quality of the results and overall performance.
 
 \section{Quality improvements}
 
@@ -913,6 +903,15 @@ The quality can be improved at different levels:
 \item Additional sensors: in this work, the only sensor used was the Kinect providing RGB-D data. One possibility would be to use others sensors and combine them to get a better result. This is particularly true when the transformations computed by the method presented in this work are less reliable. For example, when the quality of the transformations is not good, the odometry could be used assuming this is done for a short period of time.
 \end{itemize}
 
+\section{Performance improvements}
+
+Currently, most of the time is passed on the feature extraction. Remaining very close to the given method, the overall performance would significantly be improved by lowering the time spent for this step. Here are a few alternatives :
+\begin{itemize}
+\item GPU implementation: a feature extraction optimized for the hardware of the graphic cards would dramatically lower the computational time to enable real-time applications. Some implementations exist for SIFT GPU and SURF GPU, that would reasonably lead to features extraction under 100ms on the current platform. In addition, there are solutions taking advantage of the parallel computing on specific platforms, such as CUDA~\texttrademark for the NVIDIA graphic cards. The features extraction could then be performed in 15-20ms.
+\item BRIEF: combined with a keypoint detector such as \gls{SURF} or \gls{SIFT}, the \gls{BRIEF} descriptors~\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute. However, this would imply to rewrite the matching code, by doing binary string comparison. See also the PhD thesis of the author~\cite{Calonder10_PhD}.
+\item ICP: though the use of the standard algorithm could increase the computational time, some efficient variations exist~\cite{Rusinkiewicz_2001}. 
+\end{itemize}
+
 \section{Other approach}
 
-With the KinectFusion project~\cite{MSFusion}, Microsoft presents a solution performing reconstruction without any feature, though it achieves real-time performance as demostrated\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ}} at SIGGRAPH~2011. Based on \gls{ICP}, directly run on the point clouds from the depth data. However, the details of the method are not published yet. Some indications can be found in the paper about live dense reconstruction written by Newcombe~\cite{Newcombe_2010}, who participated to the KinectFusion project. The article describes how an accurate dense reconstruction can be performed real-time, which could be promising in the future for many applications related to computer vision, not only mapping but also segmentation and object recognition.
+With the KinectFusion project, Microsoft presents a solution performing reconstruction without any feature, though it achieves real-time performance as demonstrated\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ} (last access Nov 2011)} at SIGGRAPH~2011. The camera tracking is based on a GPU implementation of \gls{ICP} on the point clouds generated from the depth data. The related papers \cite{Izadi_2011_SIGGRAPH} \cite{Newcombe_2011_ISMAR} describe how an accurate dense reconstruction can be performed real-time, which could be promising in the future for many applications related to computer vision, not only mapping but also segmentation and object recognition.
