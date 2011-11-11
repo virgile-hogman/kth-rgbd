@@ -50,7 +50,6 @@ void printUsage(const char *name)
 // -----------------------------------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
-	vector<int> sequenceFramesID;
 	Sequence sequence;
 	TimeTracker tm;
 

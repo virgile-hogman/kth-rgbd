@@ -39,7 +39,7 @@ const char *strSearchExtension = ".bmp";
 FrameData::FrameData()
 {
 	_frameID = -1;
-	_pImage = NULL;
+	_pImageRGB = NULL;
 	_pFeatures = NULL;
 	_nbFeatures = 0;
 	_depthData = NULL;
@@ -66,24 +66,24 @@ bool FrameData::loadImageRGB()
 {
 	char filename[256];
 	
-	if (_pImage != NULL) {
-		cvReleaseImage(&_pImage);
-		_pImage = NULL;
+	if (_pImageRGB != NULL) {
+		cvReleaseImage(&_pImageRGB);
+		_pImageRGB = NULL;
 	}
 
 	// load RGB data file
 	sprintf(filename, "%s/frame_%d_rgb.%s", _DataPath.c_str(), _frameID, strFileExtension);
-	_pImage  = cvLoadImage(filename, 1);
+	_pImageRGB  = cvLoadImage(filename, 1);
 	
-	if (_pImage == NULL)
+	if (_pImageRGB == NULL)
 	{
 		string pathFile;
 		sprintf(filename, "frame_%d_rgb", _frameID);
 		if (FindFrame(_DataPath.c_str(), filename,  pathFile))
-			_pImage  = cvLoadImage( pathFile.c_str(), 1 );
+			_pImageRGB  = cvLoadImage( pathFile.c_str(), 1 );
 	}
 	
-	return (_pImage != NULL);
+	return (_pImageRGB != NULL);
 }
 
 
@@ -139,11 +139,11 @@ bool FrameData::loadImageDepth()
 void FrameData::saveImageRGB(const char *path)
 {
 	char filename[256];
-	if (_pImage != NULL) {
+	if (_pImageRGB != NULL) {
 		if (path == NULL)
 			path = Config::_PathFrameSequence.c_str();
 		sprintf(filename, "%s/frame_%d_rgb.%s", path, _frameID, strFileExtension);
-		cvSaveImage(filename, _pImage);
+		cvSaveImage(filename, _pImageRGB);
 		printf("Generated file: %s\n", filename);
 	}
 }
@@ -151,28 +151,28 @@ void FrameData::saveImageRGB(const char *path)
 bool FrameData::createImageRGB()
 {
 	// here we assume size is constant, we reaffect existing buffer
-	if (_pImage == NULL)
-		_pImage = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
-	return (_pImage != NULL);
+	if (_pImageRGB == NULL)
+		_pImageRGB = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
+	return (_pImageRGB != NULL);
 }
 
 void FrameData::releaseImageRGB()
 {
-	if (_pImage != NULL) {
-		cvReleaseImage(&_pImage);
-		_pImage = NULL;
+	if (_pImageRGB != NULL) {
+		cvReleaseImage(&_pImageRGB);
+		_pImageRGB = NULL;
 	}
 }
 
 void FrameData::copyImageRGB(IplImage *pImageRGB)
 {
-	if (_pImage != NULL) {
-		cvReleaseImage(&_pImage);
-		_pImage = NULL;
+	if (_pImageRGB != NULL) {
+		cvReleaseImage(&_pImageRGB);
+		_pImageRGB = NULL;
 	}
 
 	if (pImageRGB != NULL)
-		_pImage=cvCloneImage(pImageRGB);
+		_pImageRGB=cvCloneImage(pImageRGB);
 }
 
 void FrameData::copyImageDepth(IplImage *pImageDepth)
@@ -210,9 +210,9 @@ bool FrameData::fetchFeatures(int frameID)
 
 void FrameData::releaseImageRGBD()
 {
-	if (_pImage != NULL)
-		cvReleaseImage(&_pImage);
-	_pImage = NULL;
+	if (_pImageRGB != NULL)
+		cvReleaseImage(&_pImageRGB);
+	_pImageRGB = NULL;
 	if (_depthData != NULL)
 		delete[] _depthData;
 	_depthData = NULL;
@@ -247,13 +247,13 @@ void FrameData::assignData(FrameData &srcFrameData)
 	releaseData();
 	// recopy pointers only, data is not reallocated
 	_frameID = srcFrameData._frameID;
-	_pImage = srcFrameData._pImage;
+	_pImageRGB = srcFrameData._pImageRGB;
 	_pFeatures = srcFrameData._pFeatures;
 	_nbFeatures = srcFrameData._nbFeatures;
 	_depthData = srcFrameData._depthData;
 	// all the data is now handled by the new object so the source loses it
 	srcFrameData._frameID = -1;
-	srcFrameData._pImage = NULL;
+	srcFrameData._pImageRGB = NULL;
 	srcFrameData._pFeatures = NULL;
 	srcFrameData._nbFeatures = 0;
 	srcFrameData._depthData = NULL;
@@ -266,18 +266,18 @@ void FrameData::copyData(const FrameData &srcFrameData)
 	// reallocate/clone data
 	_frameID = srcFrameData._frameID;
 	
-	if (srcFrameData._pImage != NULL)
-		_pImage=cvCloneImage(srcFrameData._pImage);
+	if (srcFrameData._pImageRGB != NULL)
+		_pImageRGB=cvCloneImage(srcFrameData._pImageRGB);
 	
 	_pFeatures = (struct feature*)calloc( _nbFeatures, sizeof(struct feature) );
 	memcpy(&_pFeatures, &srcFrameData._pFeatures, sizeof(struct feature) * srcFrameData._nbFeatures);
 	
 	_nbFeatures = srcFrameData._nbFeatures;
 
-	if (_pImage != NULL && srcFrameData._depthData != NULL)
+	if (_pImageRGB != NULL && srcFrameData._depthData != NULL)
 	{
-		_depthData = new TDepthPixel[_pImage->width * _pImage->height];
-		memcpy(_depthData, &srcFrameData._depthData, sizeof(TDepthPixel) * _pImage->width * _pImage->height);
+		_depthData = new TDepthPixel[_pImageRGB->width * _pImageRGB->height];
+		memcpy(_depthData, &srcFrameData._depthData, sizeof(TDepthPixel) * _pImageRGB->width * _pImageRGB->height);
 	}
 }
 
@@ -315,8 +315,8 @@ int FrameData::computeFeaturesSIFT()
 	releaseFeatures();
 
 	// compute the new SIFT features
-	if (_pImage != NULL)
-		_nbFeatures = sift_features( _pImage, &_pFeatures );
+	if (_pImageRGB != NULL)
+		_nbFeatures = sift_features( _pImageRGB, &_pFeatures );
 
 	return _nbFeatures;
 }
@@ -327,8 +327,8 @@ int FrameData::computeFeaturesSURF()
 	// free the previous buffer
 	releaseFeatures();
 
-	if (_pImage != NULL) {
-		IplImage *pImgGray=cvCreateImage(cvSize(_pImage->width, _pImage->height),IPL_DEPTH_8U,1);
+	if (_pImageRGB != NULL) {
+		IplImage *pImgGray=cvCreateImage(cvSize(_pImageRGB->width, _pImageRGB->height),IPL_DEPTH_8U,1);
 		if (pImgGray == NULL)
 			return -1;
 
@@ -342,7 +342,7 @@ int FrameData::computeFeaturesSURF()
 		params.hessianThreshold=300;*/
 
 		// convert to grayscale (opencv SURF only works with this format)
-		cvCvtColor(_pImage, pImgGray, CV_RGB2GRAY);
+		cvCvtColor(_pImageRGB, pImgGray, CV_RGB2GRAY);
 
 		fflush(stdout);
 		cvExtractSURF(pImgGray, NULL, &objectKeypoints, &objectDescriptors, storage, params, 0);
@@ -415,12 +415,12 @@ void FrameData::drawFeatures()
 
 	if (_nbFeatures>0) {
 		// use SIFT library
-		draw_features(_pImage, _pFeatures, _nbFeatures);
+		draw_features(_pImageRGB, _pFeatures, _nbFeatures);
 	}
 
 	sprintf(buf,"Frame%d [%d %s]", _frameID, _nbFeatures, (_featureType==FEATURE_SURF)?"SURF":"SIFT");
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
-	cvPutText(_pImage, buf, cvPoint(5, 18), &font, cvScalar(255,255,0));
+	cvPutText(_pImageRGB, buf, cvPoint(5, 18), &font, cvScalar(255,255,0));
 }
 
 void FrameData::removeInvalidFeatures()

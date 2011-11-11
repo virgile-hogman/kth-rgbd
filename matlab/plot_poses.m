@@ -1,7 +1,7 @@
 clear
 clf
 
-sPathData = '~/data_out/set4_surf/';
+sPathData = '~/results/set4_surf/';
 
 M = dlmread(strcat(sPathData,'poses_initial.dat'),'\t');
 figure

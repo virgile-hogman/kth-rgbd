@@ -631,6 +631,9 @@ bool Sequence::addFramesTransform(int frameID1, int frameID2, Transformation &tr
 	}
 	else { // out of sync !
 		_display.showOutOfSync(_bufferFrame1.getImage(), _bufferFrame2.getImage());
+
+		// invalidate current buffer
+		_bufferFrame2.releaseData();
 	}
 
 	return match;

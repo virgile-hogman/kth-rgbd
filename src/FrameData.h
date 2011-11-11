@@ -38,7 +38,7 @@ class FrameData
 {
 private:
 	int					_frameID;		// frame identifier
-	IplImage*			_pImage;		// RGB data
+	IplImage*			_pImageRGB;		// RGB data
 	TDepthPixel*		_depthData;		// depth data
 	struct feature*		_pFeatures;		// SIFT features
 	int					_nbFeatures;	// number of features (size of features data)
@@ -51,7 +51,7 @@ public:
 	// basic public accessors
 	int getFrameID() const								{ return _frameID; }
 	void setFrameID(int ID)								{ _frameID = ID; }
-	IplImage* getImage()								{ return _pImage; }
+	IplImage* getImage()								{ return _pImageRGB; }
 	TDepthPixel* getDepthData()							{ return _depthData; }
 	struct feature* getFeatures()						{ return _pFeatures; }
 	int getNbFeatures()	const							{ return _nbFeatures; }
