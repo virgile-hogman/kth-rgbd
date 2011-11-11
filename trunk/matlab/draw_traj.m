@@ -9,14 +9,19 @@ sLegend1 = 'rgbd (SURF)';
 sLegend2 = 'laser';
 
 % Initial poses
-Poses=load(strcat(sPathData,'poses_optimized.dat'));
+P_init=load(strcat(sPathData,'poses_initial.dat'));
+P_optim=load(strcat(sPathData,'poses_optimized.dat'));
 
 %a=[0 0];
 % read x,y coord as z,x
-X = Poses(:,5);
-Y = Poses(:,9);
-Z = Poses(:,13);
-Poses = [X -Z];
+X_opt = P_optim(:,5);
+Y_opt = P_optim(:,9);
+Z_opt = P_optim(:,13);
+Poses_2d_optim = [X_opt -Z_opt];
+X_init = P_init(:,5);
+Y_init = P_init(:,9);
+Z_init = P_init(:,13);
+Poses_2d_init = [X_init -Z_init];
 % correct initial pose and orientation
 angle = -11;
 offx = 2.5;
@@ -28,11 +33,11 @@ offy = L(1,10);
 
 figure
 hold on
-plot( Y-Y(1),'r');
+plot( Y_opt-Y_opt(1),'r');
 %line( [0 size(Y,1)], [Y(1) Y(1)], 'Color', 'k', 'LineStyle','--');
-line( [0 size(Y,1)], [0 0], 'Color', 'k', 'LineStyle','--');
+line( [0 size(Y_opt,1)], [0 0], 'Color', 'k', 'LineStyle','--');
 title(strcat('Vertical drift - ',sLegend1));
-xlim([0 size(Y,1)]);
+xlim([0 size(Y_opt,1)]);
 ylabel('meters');
 xlabel('position');
 
@@ -59,14 +64,21 @@ ylim([-5 45]);
 
 %rotation
 Rot = [cosd(angle) -sind(angle); sind(angle) cosd(angle)];
-Poses = (Rot * Poses')';
+Poses_2d_optim = (Rot * Poses_2d_optim')';
 %translation
-Tra = [offx*ones(size(Poses,1),1) offy*ones(size(Poses,1),1)] ;
-Poses = Poses + Tra;
+Tra = [offx*ones(size(Poses_2d_optim,1),1) offy*ones(size(Poses_2d_optim,1),1)] ;
+Poses_2d_optim = Poses_2d_optim + Tra;
  
-plot( Poses(:,1), Poses(:,2),'r', 'LineWidth',1);
+%rotation
+Rot = [cosd(angle) -sind(angle); sind(angle) cosd(angle)];
+Poses_2d_init = (Rot * Poses_2d_init')';
+%translation
+Tra = [offx*ones(size(Poses_2d_init,1),1) offy*ones(size(Poses_2d_init,1),1)] ;
+Poses_2d_init = Poses_2d_init + Tra;
 
-total = compute_distance(Poses(:,1:2));
+plot( Poses_2d_optim(:,1), Poses_2d_optim(:,2),'r', 'LineWidth',1);
+
+total = compute_distance(Poses_2d_optim(:,1:2));
 if (total > 0)
     sDist = sprintf('Total Distance = %.2f m', total);
     text(8,0, sDist, 'FontSize',10,'Color',[1 0 0])
@@ -86,5 +98,5 @@ for k=1:size(d,1)
      plot(d(k,[1 3]), d(k,[2 4]),'b')
 end
 
-
- 
+[xd,zd] = plot_poses_xyz([Poses_2d_init(:,1) Y_init Poses_2d_init(:,2)], [Poses_2d_optim(:,1) Y_opt Poses_2d_optim(:,2)]);
+diff = sqrt(xd.^2 + zd.^2);
