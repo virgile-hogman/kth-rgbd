@@ -226,29 +226,46 @@ Once the features have been computed, the question is to be able to track them d
 \label{sub:ransac}
 
 \glsreset{RANSAC}
-The \gls{RANSAC} is an iterative method, widely known in the computer vision, to estimate the parameters of a transformation. It was published in 1981 \cite{FischlerB81}.
+The \gls{RANSAC} is an iterative method, widely known in the computer vision, to estimate the parameters of a transformation given a dataset. It was published in 1981 \cite{FischlerB81}. With a classic least square approach, the parameters which satisfy the whole dataset can be found, but this is not generally the best one when there are some noisy points. Here, the idea is to find the parameters which are valid for most of the points, by discarding the noisy points from the consensus. For each iteration, a very small number of samples are \emph{randomly} selected to define a model, representing one hypothesis. This model is then evaluated for the whole dataset. This is repeated several times by choosing new samples for each iteration and keeping the best transformation found. After running this for a fixed number of steps, the algorithm is guaranteed to converge to a better transformation (with a lower error), but it does not necessarily find the best one, as all the possibilities have not been tested. 
 
-The main idea is to \emph{randomly} select for each iteration a very small number of samples to determine a model representing an hypothesis. This model is then evaluated for the whole set. This is repeated several times by choosing new samples for iteration and keeping the best transformation found. After running this for a fixed number of steps, the algorithm is guaranteed to converge to a better transformation (with a lower error), but it does not necessarily find the best one, as all the possibilities have not been tested. 
+\begin{algorithm}
+\caption{General RANSAC}\label{alg:generic_ransac}
+\begin{algorithmic}
+\REQUIRE Dataset of points
+\STATE Define the number of iterations N
+\FOR{$iteration = 1 \to N$}
+ \STATE $samples \gets$ Pickup k points randomly
+ \STATE Compute $currentModel$ from $samples$ (base hypothesis)
+ \STATE $inliers \gets (empty)$
+ \FORALL{points}
+  \STATE Evaluate $currentModel$ for the point and compute its error
+  \IF{$error < threshold$}
+   \STATE $inliers \gets inliers + point$
+  \ENDIF
+ \ENDFOR
+ \STATE Count number of inliers and mean error
+ \IF{$currentModel$ is valid}
+  \STATE Recompute $currentModel$ from $inliers$
+  \IF{$currentModel$ better than $bestModel$}
+   \STATE $bestModel \gets currentModel$
+  \ENDIF
+ \ENDIF
+\ENDFOR
+\RETURN $bestModel$, $inliers$
+\end{algorithmic}
+\end{algorithm}
 
-\begin{verbatim}
-Define the number of iterations N.
-For each iteration:
-  Pickup k samples randomly and determine a model (hypothesis).
-  Evaluate this model by computing the error for all the points of the dataset.
-  If enough points are valid (number of inliers), then the hypothesis is valid.
-  Keep the best hypothesis with respect to the the mean error (lowest is best).
-\end{verbatim}
-
-\begin{figure}[H]
-\centering%$
-%\begin{array}{ccc}
-\subfloat[]{\label{fig:exransac1} \includegraphics[width=0.3\textwidth]{figures/ransac1}} 
-\subfloat[]{\label{fig:exransac2} \includegraphics[width=0.3\textwidth]{figures/ransac2}} 
-\subfloat[]{\label{fig:exransac3} \includegraphics[width=0.3\textwidth]{figures/ransac3}}
-%\end{array}$
-\caption{Illustration of a RANSAC iteration. \protect\subref{fig:exransac1}First, k items are chosen randomly among the set (here k=3). \protect\subref{fig:exransac2}From these points, a model is defined. \protect\subref{fig:exransac3}The model is then evaluated by measuring the error of each item with a given threshold, that separates the set into two subsets: the inliers (fitting to the model) and the outliers (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness").}
+\begin{figure}
+\centering$
+\begin{array}{|c|c|c|}
+\hline
+\subfloat[]{\label{fig:exransac1} \includegraphics[width=0.3\textwidth]{figures/ransac1}} &
+\subfloat[]{\label{fig:exransac2} \includegraphics[width=0.3\textwidth]{figures/ransac2}} & 
+\subfloat[]{\label{fig:exransac3} \includegraphics[width=0.3\textwidth]{figures/ransac3}} \\
+\hline
+\end{array}$
+\caption{Illustration of a RANSAC iteration, for a 2D dataset. \protect\subref{fig:exransac1}~First, k items are chosen randomly among the set (here k=2). \protect\subref{fig:exransac2}~From these points, a model is defined. Here, a line is drawn between the 2 chosen points, with an area of validity defined by a given threshold. \protect\subref{fig:exransac3}~The model is then evaluated by measuring the error for each point, here by computing the distance to the line. This separates the dataset into two subsets: the inliers, in green (fitting to the model) and the outliers, in red (ignored). The ratio of inliers relatively to the total number of items can give a numerical evaluation of the model ("goodness"). The initial model is generally recomputed taken all the inliers into account.}
 \end{figure}
-
 
 The main difficulty with the \gls{RANSAC} algorithm is to define the number of iterations and the thresholds.
 For the number of iterations, it is possible to define the ideal value according to a desired probability. Considering a sample of $k$ points, if $p$ denotes the probability (generally set to 0.99) that at least one of the sample set does not include an outlier, $u$ the probability of observing an inlier, we have then:
@@ -340,14 +357,14 @@ The first question is the choice of the features. In the context of \gls{VSLAM},
 Here we first tested the \gls{SIFT} features~\cite{lowe_2004_sift} with the library developed by Rob Hess~\cite{hess_sift}, and the \gls{NARF} descriptor~\cite{steder10irosws} provided by the \gls{PCL}. One important difference is that the \gls{SIFT} feature is computed from the RGB data in 2D, while the \gls{NARF} keypoints are computed from the 3D point cloud, involving both RGB and Depth data.
 The \gls{NARF} keypoints showed to be unstable, as shown below while the camera was not moving.
 
-\begin{figure}[h]
-\centering$
- \begin{array}{cc}
- \includegraphics[width=0.5\textwidth]{pictures/narf1_a} &
- \includegraphics[width=0.5\textwidth]{pictures/narf2_a}
- \end{array}$
-\caption{Example of NARF keypoints computed from two consecutive frames without moving the camera. The marks show some keypoints that differs (new or moved).}
-\end{figure}
+%\begin{figure}[h]
+%\centering$
+% \begin{array}{cc}
+% \includegraphics[width=0.5\textwidth]{pictures/narf1_a} &
+% \includegraphics[width=0.5\textwidth]{pictures/narf2_a}
+% \end{array}$
+%\caption{Example of NARF keypoints computed from two consecutive frames without moving the camera. The marks show some keypoints that differs (new or moved).}
+%\end{figure}
 
 These variations could be explained by the noise of the depth data of the Kinect, affecting the \gls{NARF} detector. It is possible that some tuning would help to get more stable results, but the \gls{NARF} was mainly designed for range scans such as laser range finders or stereo cameras which are generally more accurate and probably less sensible to noise than the Kinect sensor. For this reason, we prefered to work with the 2D image, using \gls{SIFT} feature~\cite{lowe_2004_sift} which is widely used in the community and is known to be highly discriminant. In order to keep only features that are interesting for the next steps of the processing, the features are removed if the depth data on this point is not available (occlusion) or if the depth data is outside a fixed range of depth distance. Here a maximum range of 5 meters is used.
 
@@ -355,50 +372,52 @@ Practically, there are many parameters to define how the \gls{SIFT} features are
 
 \section{Comparison of SIFT/SURF features}
 After testing and getting good results with the \gls{SIFT} feature, the \gls{SURF} features~\cite{surf} were tested. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features. Globally, for a scene requiring about 1000ms with \gls{SIFT}, the extraction of the \gls{SURF} feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
-However, both algorithms have various parameters that will result in more or less features at the cost of computional time. These parameters are for example the number of octaves, and the Hessian threshold for SURF. In order to compare both methods, we first tried to find a configuration of parameters giving similar number of features, using a dataset of 6474 frames described in chapter \ref{chap:experiments}. For an image of 640x480 pixels, the number of octaves set in the SIFT Library is 6. By setting the same number of octaves at 6 and a Hessian threshold of 300 for \gls{SURF}, we get a very close number of features. We then compare with the default settings which implies a number of octaves of 3 and a Hessian threshold of 500. The results are summarized in \ref{tab:stats_features}.
+However, both algorithms have various parameters that will result in more or less features at the cost of computional time. These parameters are for example the number of octaves, and the Hessian threshold for SURF. In order to compare both methods, we first tried to find a configuration of parameters giving similar number of features, using a dataset of 6474 frames described in chapter \ref{chap:experiments}. For an image of 640x480 pixels, the number of octaves set in the SIFT Library is 6. By setting the same number of octaves at 6 and a Hessian threshold of 300 for \gls{SURF}, we get a very close number of features. Then, we compare with the default settings which implies a number of octaves of 3 and a Hessian threshold of 500. The results are summarized in the table \ref{tab:stats_features}.
 
-\begin{table}[h!]
- \begin{tabular}{r|lll}
- & SIFT 6 & SURF 6/300 &  SURF 3/500 \\
+\begin{table}[h]
+ \begin{center}
+ \begin{tabular}{r|ccc}
+ & Nb Features & Time & Time by Feature \\
+ &  & (in ms) & (in ms) \\
  \hline
- Number of features (ratio) & 745 & 711 (x0.95) & 384 (x0.51) \\
- Time, in ms (gain) & 894 & 345 (x2.6) & 178 (x5) \\
- Time by feature, in ms (gain) & 1.407 & 0.582 (x2.4) & 0.586 (x2.4) \\
+ SIFT 6 & 745 & 894 & 1.407\\
+ SURF 6/300 & 711  & 345  & 0.582 \\
+ SURF 3/500 & 384 & 178 & 0.586 \\
  \end{tabular}
-\caption{Comparison of SIFT and SURF features, averaged for 6474 frames. For a similar number of features, SURF is about 3 times faster than SIFT. For half number of features, the gain is a factor 5. For various settings of SURF, the time by feature remains constant.}
+\caption{Comparison of SIFT and SURF features, averaged for 6474 frames. For a similar number of features, SURF is almost 3 times faster than SIFT. For half number of features, there is a gain of factor 5. For various settings of SURF, the time by feature remains constant.}
 \label{tab:stats_features}
+\end{center}
 \end{table}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \begin{center}
-\includegraphics[width=1.0\textwidth]{figures/stats_features_nb}
-\caption{Comparison of SIFT/SURF - Number of features. Default SIFT and SURF 6/300 are similar. Parameters SURF 3/500 give half number of features.}
+\includegraphics[width=0.7\textwidth]{figures/stats_features_nb}
+\caption{Comparison of SIFT and SURF - number of features: default SIFT and SURF 6/300 are similar, while SURF 3/500 give half number of features.}
 \end{center}
 \end{figure}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \begin{center}
-\includegraphics[width=1.0\textwidth]{figures/stats_features_time}
-\caption{Comparison of SIFT/SURF - Time for computing features. SURF is fastest than SIFT for similar number of features. For different SURF parameters, the time is linearly proportional to the number of features (x2 faster for x2 less features).}
+\includegraphics[width=0.7\textwidth]{figures/stats_features_time}
+\caption{Comparison of SIFT and SURF - time for computing features: SURF is about 2.6 times faster than SIFT for a similar number of features. For different SURF parameters, the time is linearly proportional to the number of features (x2 faster for x2 less features).}
 \end{center}
 \end{figure}
 
-\begin{figure}[h!]
+\begin{figure}[H]
 \begin{center}
-\includegraphics[width=1.0\textwidth]{figures/stats_features_tbf}
-\caption{Comparison of SIFT/SURF - Average time by feature. SURF is fastest and it does not depend on the given parameters.}
+\includegraphics[width=0.7\textwidth]{figures/stats_features_tbf}
+\caption{Comparison of SIFT and SURF - average time by feature: SURF is fastest and it does not depend on the given parameters.}
 \end{center}
 \end{figure}
 
 \section{Initial Matching}
 
 Now that the features can be computed, it is possible to perform some feature matching between a couple of frames, to get the initial matches. This is done through a nearest neighbour search, using the euclidian distance of these features.  
-The \gls{SIFT} Library~\cite{hess_sift} proposes an implementation of the Best Bin Search described by Lowe~\cite{lowe_2004_sift}, based on kd-tree. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. 
-After this, the depth information is used to keep the features that are close enough. A relative ratio is used.
+The SIFT Library~\cite{hess_sift} proposes an implementation of the Best Bin Search described by Lowe~\cite{lowe_2004_sift}, based on kd-tree. For each feature in the target frame, the 2 nearest neighbours are searched in the source frame. If these neighbours are close enough (with respect to a fixed threshold), then the result is considered to be valid. This first search is done on the 2D features. To increase robustness, matches are rejected for those keypoints for which the ratio of the nearest neighbor distance to the second nearest neighbor distance is greater than a given threshold, set to 0.5 here. After this, the depth information is used to keep the features that are close enough. A relative ratio is used.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\textwidth]{pictures/sift_matching_init}
+\includegraphics[width=0.6\textwidth]{pictures/sift_matching_init}
 \caption{Initial matching of SIFT features}
 \end{figure}
 
@@ -440,26 +459,37 @@ z = (u - 640/2) * depth / focal\_length \\
 \]
 
 \paragraph{}
-Considering the initial matches, the next step is then to find a transformation matrix that fits best to these points. Ideally we could simply compute a transformation by a least square method for all these points, each matching pair defining an equation. The minimum number of pairs required for this would be three, and the more points, the better defined the system would be. However, due to the uncertainty like the noise coming from the sensors, a single point which location is uncorrectly estimated could lead to a big error in the final transformation. Therefore, a better transformation can be found iteravely with the \gls{RANSAC} method, as presented in the background. In this context, we keep a very low, we need to precise the algorithm:
+Considering the initial matches, the next step is then to find a transformation matrix that fits best to these points. Ideally we could simply compute a transformation by a least square method for all these points, each matching pair defining an equation. The minimum number of pairs required for this would be three, and the more points, the better defined the system would be. However, due to the uncertainty like the noise coming from the sensors, a single point which location is uncorrectly estimated could lead to a big error in the final transformation. Therefore, a better transformation can be found iteratively with the \gls{RANSAC} method presented in the background~(\ref{sub:ransac}). In this context, we can precise the algorithm:
 
-\begin{verbatim}
-Define a number of iterations N.
-For each iteration:
-  pickup k samples from the initial matches 
-  compute transformation
-  evaluate transformation -> set of inliers
-  recompute a new transformation with all the inliers (*)
-  evaluate transformation inliers
-  store transformation if it is the best
-end loop
-Recompute transformation again with all the best inliers (final step *)
+\begin{algorithm}[H]
+\caption{Find the 3D transformation with RANSAC}
+\begin{algorithmic}
+\REQUIRE initial pairs of 3D points (origin, destination)
+\STATE Define the number of iterations N
+\FOR{$iteration=1 \to N$}
+ \STATE $samples \gets$ pickup randomly k pairs (origin, destination)
+ \STATE Compute $currentTransform$ from $samples$
+ \STATE $inliers \gets (empty)$
+ \FORALL{pairs of points}
+  \STATE $projected_i \gets$ projectPoint($origin_i$, $currentTransform$)
+  \STATE $error \gets$ computeDistance($projected_i - destination_i$)
+  \IF{$error$ < $threshold$}
+   \STATE{$inliers \gets inliers + pair_i$}
+  \ENDIF
+ \ENDFOR
+ \STATE Count number of inliers and mean error
+ \IF{$currentTransform$ is valid}
+  \STATE Recompute $currentTransform$ from $inliers$
+  \IF{$currentTransform$ better than $bestTransform$}
+   \STATE $bestTransform \gets currentTransform$
+  \ENDIF
+ \ENDIF
+\ENDFOR
+\RETURN $bestTransform$, $inliers$
+\end{algorithmic}
+\end{algorithm}
 
-(*) slight variation compared to standard RANSAC.
-\end{verbatim}
-
-As presented in the background, it is possible to estimate the optimal value of N to fulfill a target probability of having a desired number/ratio of inliers (or outliers). In this work we use a fixed value given by parameter of N=20. A deeper study of the \gls{RANSAC} step could lead to tune more accurately this parameter.
-
-In the nominal case, the quantity of features is quite important and the probability of having an outlier is generally very low, as most of the mismatches are excluded by the initial matching round.
+As presented in the background, it is possible to estimate the optimal value of N to fulfill a target probability of having a desired number/ratio of inliers (or outliers). In this work we use a fixed value given by parameter of N=20. A deeper study of the \gls{RANSAC} step could lead to tune more accurately this parameter. Generally, if the quantity of features is high, the probability of having an outlier is very low, as most of the mismatches are excluded by the initial matching round.
 
 %If we define that the mean number of features is 500 with 10 outliers (after different experiments) then we have:
 %\[
@@ -636,7 +666,7 @@ We presented how the poses can be estimated, first by cumulating each transforma
 \chapter{Experiments}
 \label{chap:experiments}
 
-Now that the main aspects concerning the graph and the reconstruction have been studied a software was developed, which goal is to acquire data from the Kinect, and from this compute the camera poses and produce a map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files.
+Now that the main aspects have been studied (feature extraction and matching, graph optimization, reconstruction), a software was developed, which goal is to acquire data from the Kinect, compute the 6~Degrees-of-Freedom camera poses representing the trajectory and orientation of the robot, and produce a 3D map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
 
 \begin{figure}[h!]
 \begin{center}
@@ -645,33 +675,7 @@ Now that the main aspects concerning the graph and the reconstruction have been 
 \end{center}
 \end{figure}
 
-With the given program, it is possible to build a map with the camera positions representing the trajectory and orientation of the robot. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
-
-\section{Software implementation}
-
-The code is available as an open source project\footnote{\url{http://code.google.com/p/kth-rgbd/}}. It is released with a LGPL v3 license.
-The program does the following tasks:
-\begin{itemize}
-\item Acquire RGB-D data from the Kinect
-\item Perform features extraction and matching on a sequence of frames and compute the relative transformations with \gls{RANSAC}
-\item Compute the positions of the camera poses and translate them into graph nodes and edges
-\item Compute the loop closures and insert the corresponding edges into the graph
-\item Optimize the graph and extract the updated camera poses
-\item Reconstruct the global scene by generating a point cloud datafile (*.pcd)
-\end{itemize}
-
-The number of dependencies has been limited as much as possible, using preferably open-source libraries. At the difference with the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop} it is not based on \gls{ROS} framework, but only \gls{PCL} for the reconstruction at the final step. The main dependencies are the following:
-\begin{itemize}
-\item g2o: the graph optimization
-\item OpenNI: to acquire the Kinect data
-\item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching) and compute the \gls {SURF} features
-\item SIFT Library by Rob Hess~\cite{hess_sift}: for the \gls{SIFT} extraction and initial matching
-\item Eigen3: for the geometric support with transformations and matrices
-\item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to point cloud datafiles
-\item Boost: support library, used here to access the filesystem
-\end{itemize}
-
-%$g^2o$ provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion. Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
+\clearpage
 
 \section{Data acquisition}
 
@@ -713,11 +717,39 @@ Other universities participating on common projects could provide data with a si
  \caption{Origin and size of the different datasets. Note that the KTH set of 1 room contains more frames than for 2 rooms, this is due to the robot moving at a slower speed.}
 \end{table}
 
+\clearpage
+
 \section{Data output}
 
 The result are the positions of the cameras, and the map represented by a point cloud. For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. Theorically, each point cloud can be composed of $640\times480 = 307,200$ points. In reality, this is less, as the depth information is not available for each point (due mainly to the range limit and to the occlusions considering the difference of point of view between the \gls{IR} and RGB sensors). A standard point cloud is composed of about 200,000 points. For each pixel, 24 bits are used for the positions (x,y,z) and 24 bits for the colors R,G,B ($3\times8$ bits), padded to 8 bytes for alignment in memory. Therefore, a colored cloud point occupies around $200k\times8$ = 1.6MB in memory. For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled simply by removing points taken randomly with a given probability (according to a fixed ratio, set as a parameter depending on the global size of the scene).
 
 Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition. For the visualization of the point clouds, the standard viewer provided in \gls{PCL} is used.
+
+\section{Software implementation}
+
+The code is available as an open source project\footnote{\url{http://code.google.com/p/kth-rgbd/}}. It is released with a LGPL v3 license.
+The program does the following tasks:
+\begin{itemize}
+\item Acquire RGB-D data from the Kinect
+\item Perform features extraction and matching on a sequence of frames and compute the relative transformations with \gls{RANSAC}
+\item Compute the positions of the camera poses and translate them into graph nodes and edges
+\item Compute the loop closures and insert the corresponding edges into the graph
+\item Optimize the graph and extract the updated camera poses
+\item Reconstruct the global scene by generating a point cloud datafile (*.pcd)
+\end{itemize}
+
+The number of dependencies has been limited as much as possible, using preferably open-source libraries. At the difference with the RGBD-6D-SLAM project~\cite{engelhard11euron-workshop} it is not based on \gls{ROS} framework, but only \gls{PCL} for the reconstruction at the final step. The main dependencies are the following:
+\begin{itemize}
+\item g2o: the graph optimization
+\item OpenNI: to acquire the Kinect data
+\item OpenCV: open source library used to visualize the intermediate results with bitmaps (frame matching) and compute the \gls {SURF} features
+\item SIFT Library by Rob Hess~\cite{hess_sift}: for the \gls{SIFT} extraction and initial matching
+\item Eigen3: for the geometric support with transformations and matrices
+\item Point Cloud Libary~\cite{Rusu_ICRA2011_PCL}, standalone distribution (cminpack, Flann, Eigen3, OpenNI): for the transformations and the export to point cloud datafiles
+\item Boost: support library, used here to access the filesystem
+\end{itemize}
+
+%$g^2o$ provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion. Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
 
 \clearpage
 
@@ -896,22 +928,21 @@ Given this, it is now possible to imagine some improvements of the current work,
 
 \section{Quality improvements}
 
-The quality can be improved at different levels:
 \begin{itemize}
 \item Finding a better transformation: the \gls{RANSAC} method gives a rigid transformation that is not necessarily the best. The parameters may be tuned in a more efficient way to give more accurate results, or using a variant like MLESAC \cite{TorrZ00}. The tuning also concerns the initial matching done with the \gls{SIFT}/\gls{SURF} features. The \gls{ICP} \cite{zhang_92_icp} method should give a refined solution. The output of the \gls{RANSAC} loop could be used as an initial guess for \gls{ICP}. 
-\item Graph optimization: by defining properly the optimization problem and studying the most appropriate method, possibly with $g^2o$, deriving new classes and defining error function, working with different scales (hierarchical levels for bigger maps). New criterions could be defined for loop closures, by introducing some knowledge about the past frames (features or estimated position more likely to give a loop closure with the current frame) or by detecting the same scene, and object or a portion of scene that does not give a valid transformation in the current system.
-\item Additional sensors: in this work, the only sensor used was the Kinect providing RGB-D data. One possibility would be to use others sensors and combine them to get a better result. This is particularly true when the transformations computed by the method presented in this work are less reliable. For example, when the quality of the transformations is not good, the odometry could be used assuming this is done for a short period of time.
+\item Graph optimization: it could be improved by defining more accurately the optimization problem and studying the most appropriate method (possibly with~$g^2o$ by deriving new classes and defining appropriate error functions), and also by working with different scales (hierarchical levels for bigger maps). New criterions could be defined for loop closures, by introducing some knowledge about the past frames (features or estimated position more likely to give a loop closure with the current frame) or by detecting a portion of scene that does not give a valid transformation in the current system.
+\item Additional sensors: in this work, the only sensor used was the Kinect providing RGB-D data. One possibility would be to use others sensors and combine them to get a better result, especially when the transformations computed by the method presented in this work are less reliable.
 \end{itemize}
 
 \section{Performance improvements}
 
-Currently, most of the time is passed on the feature extraction. Remaining very close to the given method, the overall performance would significantly be improved by lowering the time spent for this step. Here are a few alternatives :
+Currently, most of the time is passed on the feature extraction. Here are a few alternatives :
 \begin{itemize}
-\item GPU implementation: a feature extraction optimized for the hardware of the graphic cards would dramatically lower the computational time to enable real-time applications. Some implementations exist for SIFT GPU and SURF GPU, that would reasonably lead to features extraction under 100ms on the current platform. In addition, there are solutions taking advantage of the parallel computing on specific platforms, such as CUDA~\texttrademark for the NVIDIA graphic cards. The features extraction could then be performed in 15-20ms.
-\item BRIEF: combined with a keypoint detector such as \gls{SURF} or \gls{SIFT}, the \gls{BRIEF} descriptors~\cite{Calonder10-brief} could give an interesting alternative to the standard ones, by being more efficient to compute. However, this would imply to rewrite the matching code, by doing binary string comparison. See also the PhD thesis of the author~\cite{Calonder10_PhD}.
-\item ICP: though the use of the standard algorithm could increase the computational time, some efficient variations exist~\cite{Rusinkiewicz_2001}. 
+\item GPU implementation: a feature extraction optimized for the hardware of the graphic cards would dramatically lower the computational time to enable real-time applications. Various GPU implementations exist for both SIFT and SURF, that would certainly lead to a feature extraction under 100ms on the current platform. In addition, some solutions take advantage of the parallel computing on specific platforms, such as CUDA\texttrademark{} for the NVIDIA graphic cards. The features extraction could then be performed in 15-20ms.
+\item BRIEF: combined with a keypoint detector such as \gls{SURF} or \gls{SIFT}, the \gls{BRIEF} descriptors~\cite{Calonder10-brief} could give an interesting alternative, being more efficient to compute. However, this would imply to rewrite the matching code, by doing binary string comparison. See also the PhD thesis of the author~\cite{Calonder10_PhD}.
+\item ICP: though the standard algorithm could increase the computational time, some efficient variations exist~\cite{Rusinkiewicz_2001}. 
 \end{itemize}
 
 \section{Other approach}
 
-With the KinectFusion project, Microsoft presents a solution performing reconstruction without any feature, though it achieves real-time performance as demonstrated\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ} (last access Nov 2011)} at SIGGRAPH~2011. The camera tracking is based on a GPU implementation of \gls{ICP} on the point clouds generated from the depth data. The related papers \cite{Izadi_2011_SIGGRAPH} \cite{Newcombe_2011_ISMAR} describe how an accurate dense reconstruction can be performed real-time, which could be promising in the future for many applications related to computer vision, not only mapping but also segmentation and object recognition.
+With the KinectFusion project, Microsoft presents a solution performing reconstruction without any feature, though it achieves real-time performance as demonstrated\footnote{KinectFusion: \url{http://www.youtube.com/watch?v=quGhaggn3cQ} (last access Nov 2011)} at SIGGRAPH~2011. The camera tracking is based on a GPU implementation of \gls{ICP} on the point clouds generated from the depth data. The related papers \cite{Izadi_2011_SIGGRAPH} \cite{Newcombe_2011_ISMAR} describe how an accurate dense reconstruction can be performed in real-time, which sounds promising in the future for many applications related to computer vision, not only mapping but also segmentation and object recognition.
