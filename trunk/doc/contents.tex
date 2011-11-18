@@ -232,26 +232,27 @@ The \gls{RANSAC} is an iterative method, widely known in the computer vision, to
 \caption{General RANSAC}\label{alg:generic_ransac}
 \begin{algorithmic}
 \REQUIRE Dataset of points
-\STATE Define the number of iterations N
-\FOR{$iteration = 1 \to N$}
- \STATE $samples \gets$ Pickup k points randomly
- \STATE Compute $currentModel$ from $samples$ (base hypothesis)
- \STATE $inliers \gets (empty)$
+\STATE Define the number of iterations $N$;
+\FOR{$iteration = 1$ to $N$}
+ \STATE $samples \gets$ Pickup k points randomly;
+ \STATE Compute $currentModel$ from $samples$ (base hypothesis);
+ \STATE $inliers \gets \emptyset$;
  \FORALL{points}
-  \STATE Evaluate $currentModel$ for the point and compute its error
+  \STATE Evaluate $currentModel$ for the point and compute its error;
   \IF{$error < threshold$}
-   \STATE $inliers \gets inliers + point$
+   \STATE $inliers \gets inliers + point$;
   \ENDIF
  \ENDFOR
- \STATE Count number of inliers and mean error
+ \STATE Count number of inliers and compute mean error;
  \IF{$currentModel$ is valid}
-  \STATE Recompute $currentModel$ from $inliers$
+  \STATE Recompute $currentModel$ from $inliers$;
   \IF{$currentModel$ better than $bestModel$}
-   \STATE $bestModel \gets currentModel$
+   \STATE $bestModel \gets currentModel$;
+   \STATE $bestInliers \gets inliers$;
   \ENDIF
  \ENDIF
 \ENDFOR
-\RETURN $bestModel$, $inliers$
+\RETURN $bestModel$, $bestInliers$;
 \end{algorithmic}
 \end{algorithm}
 
@@ -333,7 +334,7 @@ Here we present different approaches:
 
 \subsection{Loop closure}
 
-In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure}. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
+In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure} detection. To illustrate this, let us take an example. Imagine you are visiting a new city and you have just arrived at your hotel. Without taking a map, you would like to explore the neighbourhoods but you still want to keep track of the path you follow with a scarse definition of the environment (mentally, or drawing it on a paper). After walking for a while around a few blocks, you don't know any longer exactly where you are. However, by following a circular path, or a squared path considering standard blocks, you will probably pass again by places you have already visited. By recognizing these places, you are now able to estimate more precisely the path you actually followed and correct the related map. The loop closure detection relies basically on this idea. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
 
 \begin{figure}[H]
 \centering
@@ -465,27 +466,28 @@ Considering the initial matches, the next step is then to find a transformation 
 \caption{Find the 3D transformation with RANSAC}
 \begin{algorithmic}
 \REQUIRE initial pairs of 3D points (origin, destination)
-\STATE Define the number of iterations N
-\FOR{$iteration=1 \to N$}
- \STATE $samples \gets$ pickup randomly k pairs (origin, destination)
- \STATE Compute $currentTransform$ from $samples$
- \STATE $inliers \gets (empty)$
+\STATE Define the number of iterations $N$;
+\FOR{$iteration=1$ to $N$}
+ \STATE $samples \gets$ pickup randomly k pairs (origin, destination);
+ \STATE Compute $currentTransform$ from $samples$;
+ \STATE $inliers \gets \emptyset$;
  \FORALL{pairs of points}
-  \STATE $projected_i \gets$ projectPoint($origin_i$, $currentTransform$)
-  \STATE $error \gets$ computeDistance($projected_i - destination_i$)
+  \STATE $projected_i \gets$ projectPoint($origin_i$, $currentTransform$);
+  \STATE $error \gets$ computeDistance($projected_i - destination_i$);
   \IF{$error$ < $threshold$}
-   \STATE{$inliers \gets inliers + pair_i$}
+   \STATE{$inliers \gets inliers + pair_i$};
   \ENDIF
  \ENDFOR
- \STATE Count number of inliers and mean error
+ \STATE Count number of inliers and compute mean error;
  \IF{$currentTransform$ is valid}
-  \STATE Recompute $currentTransform$ from $inliers$
+  \STATE Recompute $currentTransform$ from $inliers$;
   \IF{$currentTransform$ better than $bestTransform$}
-   \STATE $bestTransform \gets currentTransform$
+   \STATE $bestTransform \gets currentTransform$;
+   \STATE $bestInliers \gets inliers$;
   \ENDIF
  \ENDIF
 \ENDFOR
-\RETURN $bestTransform$, $inliers$
+\RETURN $bestTransform$, $bestInliers$;
 \end{algorithmic}
 \end{algorithm}
 
@@ -660,8 +662,6 @@ This method remains simple, but the major issues are that it leads to duplicate 
 \section{Summary}
 
 We presented how the poses can be estimated, first by cumulating each transformation between a couple of frames. Through the use of a pose graph and the loop closures, their positions can be corrected over time. Finally, the map can be built through a scene reconstruction, by registration of the point clouds with the given positions of the cameras.
-
-%[TODO conclusions]
 
 \chapter{Experiments}
 \label{chap:experiments}
