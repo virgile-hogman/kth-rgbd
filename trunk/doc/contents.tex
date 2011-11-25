@@ -15,7 +15,7 @@ Generally, the main problem raised with \gls{SLAM} comes from the measurement er
 
 Currently, most of robotic mapping is performed using sensors that offers only a 2D cross section of the environment around them. One reason is that acquiring high quality 3D data was either very expensive or had hard constraints on the robot movements. However, recently there has been a great interest in processing data acquired using depth measuring sensors due to the availability of cheap and high performance RGB-D cameras. For instance, the Kinect Camera developed by Prime Sense and Microsoft has considerably changed the situation, providing a 3D camera at a very affordable price, with a particular interest for the research projects in robotics.
 
-In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the project were using techniques such as \gls{EKF} or particle filters. Recently, some projects ~\cite{Intel_RGBD_2010}~\cite{engelhard11euron-workshop} rely on pose graphs, that seem to be an interesting alternative to study.
+In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the project were using techniques such as \gls{EKF} or particle filters. More recently, some projects make use of RGB-D data and rely on pose graphs to improve the estimation, illustrating the interest of the community for such an approach~\cite{Henry_RGBD_2010}~\cite{engelhard11euron-workshop}.
 
 \section{Goals}
 
@@ -296,7 +296,7 @@ Finds the rigid transformation minimizing the squared distance between each neig
 
 %[TODO precisions]
 
-As any gradient descent method, the \gls{ICP} is applicable when we have in advance an relatively good initial guess. Otherwise, it is likely to be trapped into a local minimum. One possibility, as done by Henry~\cite{Intel_RGBD_2010}, is to run \gls{RANSAC} first to determine a good approximation of the rigid transformation, and use it as the first guess for the \gls{ICP} procedure.
+As any gradient descent method, the \gls{ICP} is applicable when we have in advance an relatively good initial guess. Otherwise, it is likely to be trapped into a local minimum. One possibility, as done by Henry~\cite{Henry_RGBD_2010}, is to run \gls{RANSAC} first to determine a good approximation of the rigid transformation, and use it as the first guess for the \gls{ICP} procedure.
 
 \section{General concepts for SLAM}
 
@@ -327,19 +327,28 @@ Here we present different approaches:
 
 \begin{description}
 \item[GraphSLAM] A probabilistic approach ~\cite{Thrun_2005} gives the theoretical background. %[TODO complete...]
-\item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error, by taking steps proportional to the negative of the gradient (or its approximation). It is used in the 3D dense modeling project led by Peter~Henry~\cite{Intel_RGBD_2010}.
+\item[TORO] a Tree-based netwORk Optimizer ~\cite{grisetti07rss}. A least square error minimization technique based on a network of relations is applied to find maximum likelihood (ML) maps. This is done by using a variant of gradient descent to minimize the error, by taking steps proportional to the negative of the gradient (or its approximation). It is used in the 3D dense modeling project led by Henry~\cite{Henry_RGBD_2010}.
 \item[HOG-Man] Hierarchical Optimizations on Manifolds for Online 2D and 3D mapping~\cite{hogman_2010}: this approach considers different levels. Solving the problem on lower levels affects only partially the upper levels. Well adapted for large maps. It is used in the RGBD-6D-SLAM~project~\cite{engelhard11euron-workshop}.
 \item[$g^2o$] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. $g^2o$ is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D \gls{SLAM} or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in $g^2o$. This is the method chosen to solve the graph problem in this work.
 \end{description}
 
 \subsection{Loop closure}
 
-In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure} detection. To illustrate this, let us take an example. Imagine you are visiting a new city and you have just arrived at your hotel. Without taking a map, you would like to explore the neighbourhoods but you still want to keep track of the path you follow with a scarse definition of the environment (mentally, or drawing it on a paper). After walking for a while around a few blocks, you don't know any longer exactly where you are. However, by following a circular path, or a squared path considering standard blocks, you will probably pass again by places you have already visited. By recognizing these places, you are now able to estimate more precisely the path you actually followed and correct the related map. The loop closure detection relies basically on this idea. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. 
+In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure} detection. To illustrate this, let us take an example. Imagine you are visiting a new city and you have just arrived at your hotel. Without taking a map, you would like to explore the neighbourhoods but you still want to keep track of the path you follow with a scarse definition of the environment (mentally, or drawing it on a paper). After walking for a while around a few blocks, you don't know any longer exactly where you are. However, by following a circular path, or a squared path considering standard blocks, you will probably pass again by places you have already visited. By recognizing these places, you are now able to estimate more precisely the path you actually followed and correct the related map. The loop closure detection relies basically on this idea. Without making an assumption on the path followed by the robot, and simply by keeping the history of the past frames, it is possible to check if the current frame matches with some of the previous ones. If the current observation is close to a previous one, a transformation can be computed between these frames and a new constraint can be inserted from it. This can be repeated several times. With these new constraints, the cumulated error of the graph can then be considerably reduced. Theorically, all the poses could be linked together this way. 
+
+\begin{figure}
+\centering$
+\begin{array}{cc}
+\subfloat[]{\label{fig:lc1} \includegraphics[width=0.5\textwidth]{figures/graph_lc1}} &
+\subfloat[]{\label{fig:lc2} \includegraphics[width=0.5\textwidth]{figures/graph_lc2}}
+\end{array}$
+\caption{Loop closure detection. \protect\subref{fig:lc1}~The poses are linked together by standard edges, each one represents a transformation. \protect\subref{fig:lc2}~The observation of a common point of interest already seen in the past, if significant, can trigger the creation of a new link between two poses that were previously separated in the whole sequence.}
+\end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.5\textwidth]{figures/graph1}
-\caption{Overview of the graph optimization procedure}
+\includegraphics[width=1\textwidth]{figures/graph_overview}
+\caption{Overview of the graph optimization procedure. The detection of loop closures leads to the insertion of new edges. The optimization of the graph consists in finding the optimal configuration of vertices to respect all the given constraints. The poses are updated accordingly.}
 \end{figure}
 
 \section{Summary}
@@ -657,7 +666,7 @@ In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
 
 Finally, once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth data, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. This process is called the point cloud \emph{registration}. Once the relative camera positions are known, one simple method is to transform each point cloud by reprojecting all its points according to the corresponding camera position, and concatenate together all the transformed point clouds.
 
-This method remains simple, but the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done in the work of Peter~Henry~\cite{Intel_RGBD_2010}, but this would require some intensive processing and is out of the scope of this work.
+This method remains simple, but the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done in the work of Henry~\cite{Henry_RGBD_2010}, but this would require some intensive processing and is out of the scope of this work.
 
 \section{Summary}
 
