@@ -609,22 +609,40 @@ In the previous chapter, we saw how to determine a rigid transformation between 
 
 \section{Estimating the poses}
 
-Knowing the initial pose, the first step is to determine an estimation of any pose after a succession of transformations.
+Knowing the initial pose, the first step is to determine an estimation of any pose after a succession of transformations. Considering a finite sequence of frames $[frame_0 ; frame_N]$, let~$P_k$ be the pose at rank $k \in [0;N]$. For 6 degrees of freedom, composed by 3 axis of rotation and translation, it can be represented by a 4x4 matrix with homogeneous coordinates, where $R$ is a 3x3 rotation matrix and $t$ a translation vector:
 
-Considering a finite sequence of frames $[frame_0 ; frame_N]$, let~$P_k$ be the pose at rank $k \in [0;N]$, defined by a 4x4 matrix (6 Degrees-of-Freedom, 3 axis of rotation and translation, with homogeneous coordinates). For~$i>0$, we have the transformation~$T_{i_{-1},i}$ that binds the position~$P_{i-1}$ to the position~$P_i$. If~$P_0$ determines the initial position, we can then compute the position~$P_i$  by combining all the transformations like:
+$$
+P_k = \left[ \begin{array}{cccc}
+ \multicolumn{3}{c}{\multirow{3}{*}{$R$}} & t_x \\
+ & & & t_y \\
+ & & & t_z \\
+0 & 0 & 0 & 1 \end{array} \right] 
+$$
+
+For~$i>0$, we have the transformation~$T_{i_{-1},i}$ that binds the position~$P_{i-1}$ to the position~$P_i$. Each transformation $T$ can also be represented by a similar 4x4 matrix. If~$P_0$ determines the initial position, we can then compute the position~$P_i$  by combining all the transformations like:
 
 \begin{equation}
 P_k = \prod_{i=k}^1{T_{i_{-1},i}} \: P_0
 \label{eqn:pose_estimation}
 \end{equation}
 
-Note that, as the matrix product is not commutative, it is essential to follow the correct order when multiplying the matrices. For example, for the pose~$P_3$ we would have:
+Note: as the matrix product is not commutative, it is essential to follow the correct order when multiplying the matrices. For example, for the pose~$P_3$ we have:
 
 \[
 P_3 = T_{2,3} \: T_{1,2} \: T_{0,1} \: P_0
 \]
 
-As an arbitrary choice, we can define the initial position to be at the origin of the coordinate system, ie the identity matrix~$I_4$.
+Generally, the initial position is defined as follows:
+
+\[
+P_0 = \left[ \begin{array}{cccc}
+ \multicolumn{3}{c}{\multirow{3}{*}{$R_0$}} & x_0 \\
+ & & & y_0 \\
+ & & & z_0 \\
+0 & 0 & 0 & 1 \end{array} \right] 
+\]
+
+As an arbitrary choice, we can define the initial position to be at the origin of the coordinate system, which is given by the identity matrix~$I_4$.
 
 \[
 P_0 = I_4 = \left[ \begin{array}{cccc}
@@ -646,14 +664,19 @@ For each keypose, a node is inserted in the graph with an edge linking the new k
 
 \section{Loop closures}
 
-The next step is to insert additional constraints into the graph with the loop closure detection. Each time a loop closure is triggered between two keyposes, a new edge is inserted into the graph. To detect a loop closure, it is necessary to compare recent frames with previous ones. The naive approach would be to compare the current frame with all the previous frames. Generally, this is not realistic for reasons of performance, as the time necessary for the current frame would grow exponentially. This would be an issue if the matching verification is time consuming, or if the features of the past frames have to be recomputed each time. However, a preliminar check exclusively done on the RGB data, for example with color histograms, could be used to discard most of the negative candidates. Then, a more accurate verification with features could be done on the remaining candidates.
+The next step is to insert additional constraints into the graph with the loop closure detection. Each time a loop closure is triggered between two keyposes, a new edge is inserted into the graph. To detect a loop closure, it is necessary to compare recent frames with previous ones. The naive approach would be to through all the frames, and to compare the current frame with all the previous frames. However, this could be highly time consuming, as the time necessary for the current frame would grow exponentially. For $n$ frames, there would be $(n-1)!$ checks to perform, by looking into the past for each frame. This is clearly an issue if the matching verification is time consuming, and first if the features of the past frames have to be recomputed each time. This can be optimized by storing the features of the past frames into a memory buffer. A preliminar check exclusively done on the RGB data, for example with color histograms, could also be used to discard most of the negative candidates. Then, a more accurate verification with features could be done on the remaining candidates.
 
-Without making any assumption of the past frames, the first idea would then be to define a window with a fixed size of n frames in the past. The most naive way is to select these frames randomly without any criterion.
+In this work, for reason of performance, it was necessary to reduce the search list. Without making any assumption of the past frames, the first idea is then be to define a \emph{sliding window} with a fixed size of $n$ frames in the past. The easiest way is to select these frames randomly without any criterion, assuming a constant probability density function. Another approach would be to select the past frames that are more likely to match with the current frame. One solution could be to give a higher priority to the oldest frames. This could be done by defining a probability density function that would result in a higher probability for the oldest frames. This probability could also be defined by considering the knowledge of the context of the frames, in terms of features, or in terms of estimated position, preselecting the candidates with the highest likelihood.
 
-Another approach would be to select the past frames that are more likely to match with the current frame. One solution could be to give a higher priority to the oldest frames. This could be done by defining a probability density function that would result in a higher probability for the oldest frames. Another approach would also involve a knowledge of the context of the frames, in terms of features, or in terms of estimated position.
+Here, we limited the search by using a candidate list of $N$ frames (the size can be set by a parameter), and a probability density function giving priority to the oldest frames. To select the $N$ candidate frames, the function giving the probability to select a candidate can be defined by $p(i) = i/N!$. For a sliding window of 3 frames, the first frame would have the probability 3/6, the second 2/6 and the third 1/6. These values can then be normalized for a total probability of 1.
 
-%[TODO - for example, curves representing the probability to check a loop closure. Case linear, quadratic, threshold... ]
-%[TODO - explain sliding window ]
+To improve the loop closure detection, once a candidate has been found, the check can be extended to the neighbours of the candidate. The ratio of inliers is then used to measure the quality of the transformations. We consider a forward search, meaning that the next neighbours will be checked.
+
+\begin{figure}[H]
+\centering
+ \includegraphics[width=0.6\textwidth]{figures/graph_lc_candidate}
+\caption{Loop closure forward search for the pose k.}
+\end{figure}
 
 \section{Optimizing the graph}
 
