@@ -112,7 +112,7 @@ The main idea of the \gls{SIFT} method is to define a cascade of operations foll
 \clearpage
 \paragraph{\emph{Detector}}
 
-Most of these concepts concerning the study of the scale space are based on the works of Lindeberg~\cite{Lindeberg_1994}. The general concept is shown in \ref{fig:sift_dog}. First, the scale space is defined as the convolution of an image~$I$ with a Gaussian~$G$ with variance~$\sigma$.
+Most of these concepts concerning the study of the scale space are based on the works of Lindeberg~\cite{Lindeberg_1994}. The general concept is shown in figure \ref{fig:sift_dog}. First, the scale space is defined as the convolution of an image~$I$ with a Gaussian~$G$ with variance~$\sigma$.
 
 \[ L(x,y,\sigma) = G(x,y,\sigma) * I(x,y) \]
 
@@ -309,7 +309,7 @@ By denoting $x_t$ the state of the robot at time t (representing the robot's mot
 
 This posterior is the probability distribution over the state $x_t$ at time $t$, conditioned on all past measurements $z_{1:t}$ and all past controls $u_{1:t}$.
 
-In the case of \gls{VSLAM}, we consider the video sequence as a collection of frames, defined by a flow of RGB \& Depth data coming from the Kinect. Here we use exclusively the video, and therefore each measurement $z_t$ is a couple of RGB \& Depth frame at time $t$ . The number of frames then depends on the length of the sequence and the effective frame rate, which is bounded by the maximum rate of the Kinect which is 30Hz.
+In the case of \gls{VSLAM}, we consider the video sequence as a collection of frames, defined by a flow of RGB \& depth data coming from the Kinect. Here we use exclusively the video, and therefore each measurement $z_t$ is a couple of RGB \& Depth frame at time $t$ . The number of frames then depends on the length of the sequence and the effective frame rate, which is bounded by the maximum rate of the Kinect which is 30Hz.
 
 
 \subsection{Filtering vs Smoothing}
@@ -335,6 +335,7 @@ Here we present different approaches:
 \item[$g^2o$] General Framework for Graph Optimization~\cite{g2o_2011}, by the same authors of HOG-Man~\cite{hogman_2010}. $g^2o$ is a framework which gives the possibility to redefine very precisely the error function to be minized and how the solver should perform it. Some classes are provided for the most common problems such as 2D/3D \gls{SLAM} or Bundle Adjustement. The HOG-Man concepts are likely to be integrated in $g^2o$. This is the method chosen to solve the graph problem in this work.
 \end{description}
 
+\clearpage
 \subsection{Loop closure}
 
 In order to minimize the error, the graph optimization relies on constraints between the nodes. One interesting event occurs when the robot moves back to a position already visited in the past. This is refered as the \emph{loop closure} detection. To illustrate this, let us take an example. Imagine you are visiting a new city and you have just arrived at your hotel. Without taking a map, you would like to explore the neighbourhoods but you still want to keep track of the path you follow with a scarse definition of the environment (mentally, or drawing it on a paper). After walking for a while around a few blocks, you don't know any longer exactly where you are. However, by following a circular path, or a squared path considering standard blocks, you will probably pass again by places you have already visited. By recognizing these places, you are now able to estimate more precisely the path you actually followed and correct the related map.
@@ -350,10 +351,16 @@ The loop closure detection relies basically on this idea. Without making an assu
 \caption{Loop closure detection. \protect\subref{fig:lc1}~The poses are linked together by standard edges, each one represents a transformation. \protect\subref{fig:lc2}~The observation of a common point of interest already seen in the past, if significant, can trigger the creation of a new link between two poses that were previously separated in the whole sequence.}
 \end{figure}
 
+\clearpage
+\subsection{Graph optimization}
+
+The detection of loop closures leads to new constraints that can be inserted into the graph as new edges, linking the related poses. The optimization of the graph consists in finding the optimal configuration of vertices to respect all the given constraints, as illustrated in figure \ref{fig:graph_overview}.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=1\textwidth]{figures/graph_overview}
-\caption{Overview of the graph optimization procedure. The detection of loop closures leads to the insertion of new edges. The optimization of the graph consists in finding the optimal configuration of vertices to respect all the given constraints.}
+\caption{Overview of the graph optimization procedure. }
+\label{fig:graph_overview}
 \end{figure}
 
 \clearpage
@@ -386,6 +393,7 @@ These variations could be explained by the noise of the depth data of the Kinect
 
 Practically, there are many parameters to define how the \gls{SIFT} features are extracted. This will mainly affect the number of features and the computational time. In particular, it concerns how many scales ($k$) are computed for each octave and the variance ($\sigma$) of the Gaussian. Here, the default values of the \gls{SIFT} library~\cite{hess_sift} are used, refering themselves to the standard values recommanded by David Lowe ($k=3$, $\sigma=1.6$). Refer to the method~\cite{lowe_2004_sift} for the description of these parameters.
 
+\clearpage
 \section{Comparison of SIFT/SURF features}
 After testing and getting good results with the \gls{SIFT} feature, the same experiments were repeated, using the \gls{SURF} features. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features. Globally, for a scene requiring about 1000ms with \gls{SIFT}, the extraction of the \gls{SURF} feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
 However, both algorithms have various parameters that will result in more or less features at the cost of computational time. These parameters are for example the number of octaves (see figure \ref{fig:sift_dog}), and the Hessian threshold for SURF (only features with Hessian larger than that are extracted). In order to compare both methods, we first tried to find a configuration of parameters giving similar number of features, using a dataset of 6474 frames described in chapter \ref{chap:experiments}. For an image of 640x480 pixels, the number of octaves set in the SIFT Library is 6. By setting the same number of octaves at 6 and a Hessian threshold of 300 for \gls{SURF}, we get a very close number of features. Then, we compare with the default settings which implies a number of octaves of 3 and a Hessian threshold of 500. The results are summarized in the table \ref{tab:stats_features}.
@@ -400,17 +408,11 @@ However, both algorithms have various parameters that will result in more or les
  SURF 6/300 & 711  & 345  & 0.582 \\
  SURF 3/500 & 384 & 178 & 0.586 \\
  \end{tabular}
-\caption{Comparison of SIFT and SURF features, averaged for 6474 frames. For a similar number of features, SURF is almost 3 times faster than SIFT. For half number of features, there is a gain of factor 5. For various settings of SURF, the time by feature remains constant.}
+\caption{Comparison of SIFT and SURF features, averaged for 6474 frames. For a similar number of features, SURF is almost 3 times faster than SIFT. For half number of features, there is a gain of factor 5.}
 \label{tab:stats_features}
 \end{center}
 \end{table}
-
-\begin{figure}[H]
-\begin{center}
-\includegraphics[width=0.7\textwidth]{figures/stats_features_nb}
-\caption{Comparison of SIFT and SURF - number of features: default SIFT and SURF 6/300 are similar, while SURF 3/500 give half number of features.}
-\end{center}
-\end{figure}
+\clearpage
 
 \begin{figure}[H]
 \begin{center}
@@ -426,6 +428,7 @@ However, both algorithms have various parameters that will result in more or les
 \end{center}
 \end{figure}
 
+\clearpage
 \section{Initial Matching}
 
 Now that the features can be computed, it is possible to perform some feature matching between a couple of frames, to get the initial matches. This is done through a nearest neighbour search, using the Euclidean distance of these features.  
@@ -433,11 +436,12 @@ The SIFT Library~\cite{hess_sift} proposes an implementation of the Best Bin Sea
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.6\textwidth]{pictures/sift_matching_init}
+\includegraphics[width=0.5\textwidth]{pictures/sift_matching_init}
 \caption{Initial matching of SIFT features}
 \end{figure}
 
 \section{Estimation of the 3D transformation}
+\label{sec:transformation}
 
 From the matching pairs, it is possible to find a rigid transformation binding the two sets of points, ie the operation that transforms each feature point of a source frame to the corresponding point in the target frame. In our case, this transformation is a perspective projection for 6 degrees of freedom, composed by a rotation matrix and a translation vector in 3 dimensions. This transformation can be written by using a 4x4  matrix and homogeneous coordinates. We can then project a point P where $P = (x,y,z,1)^T$ simply by applying this transformation matrix to the point:
 
@@ -525,30 +529,32 @@ Some preliminar experiments were conducted to determine how to find a satisfying
 \begin{figure}[H]
 \centering$
  \begin{array}{cc}
- \subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.5\textwidth]{pictures/sift_matching_init}} &
- \subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.5\textwidth]{pictures/sift_matching_ransac}}
+ \subfloat[]{\label{fig:sift_match_1} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_init}} &
+ \subfloat[]{\label{fig:sift_match_2} \includegraphics[width=0.4\textwidth]{pictures/sift_matching_ransac}}
  \end{array}$
 \caption{Matching of SIFT features - \protect\subref{fig:sift_match_1} Initial matching \protect\subref{fig:sift_match_2} After a RANSAC loop. Note how the initial matches drawn in diagonal (green) in the left figure are excluded and become outliers (red) after the RANSAC loop.}
 \end{figure}
 
-How to characterize a transformation? There are at least 3 parameters:
+\clearpage
+\paragraph{\emph{Characterizing a transformation}}
+
+There are at least 3 parameters:
 \begin{itemize}
 \item Mean error: the norm of the error vector. Lower is better.
 \item Number of inliers: the absolute number of inliers. Higher is better.
 \item Rate of inliers: the relative number of inliers with respect to the initial matches. Higher is better.
 \end{itemize}
 
-The main difficulty here is to find the best balance among these 3 values, by putting some thresholds. Setting too high constraints would lead to the impossibility to find a transformation satisfying all the criterions. This can be a problem when there are not enough features available. Setting too low constraints helps to find a transformation even when there are less features or the measurements are noisy, but the resulting transformation will be less precise. The main risk here is to put so loose constraints that the inliers can be wrong.
-
-If the criterions are too permissive, this could result in an invalid model, leading to errated assocations. 
+The main difficulty is to find the best balance among these 3 values, by putting some thresholds. Setting too high constraints would lead to the impossibility to find a transformation satisfying all the criterions. This can be a problem when there are not enough features available. Setting too low constraints helps to find a transformation even when there are less features or the measurements are noisy, but the resulting transformation will be less precise. The main risk here is to put so loose constraints that the inliers can be wrong. If the criterions are too permissive, this could result in an invalid model, leading to errated assocations, as shown in figure \ref{fig:bad_inliers}. 
 
 \begin{figure}[H]
 \centering$
-\includegraphics[width=0.8\textwidth]{pictures/bad_inliers1}$
+\includegraphics[width=0.5\textwidth]{pictures/bad_inliers1}$
 \caption{Example of bad model - the matches are semantically incorrect, as the scenes are different. But the green lines are still considered to be inliers. Here, the threshold defining the minimum ratio of inliers with respect to the initial matches is too low.}
+\label{fig:bad_inliers}
 \end{figure}
 
-How to measure the quality of a transformation?
+\paragraph{\emph{Quality of a transformation}}
 
 A good transformation could be the one who is valid for most of the given points. But this definition is not enough, as considering only the number of inliers is not necessarily the best choice. Another criterion could be the spread of the inliers. If the inliers are all group together, they don't give much added value with respect to the global transformation of the scene. Many outliers are excluded but a better transformation may be found englobing more distant points. This could be measured by computing the mean of the inliers and from this the standard deviation, or more simply the variance of the inliers.
 
@@ -619,20 +625,20 @@ P_k = \left[ \begin{array}{cccc}
 0 & 0 & 0 & 1 \end{array} \right] 
 $$
 
-For~$i>0$, we have the transformation~$T_{i_{-1},i}$ that binds the position~$P_{i-1}$ to the position~$P_i$. Each transformation $T$ can also be represented by a similar 4x4 matrix. If~$P_0$ determines the initial position, we can then compute the position~$P_i$  by combining all the transformations like:
+For~$i>0$, we have the transformation~$T_{i_{-1}}^i$ that binds the position~$P_{i-1}$ to the position~$P_i$. Each transformation $T$ can also be represented by a similar 4x4 matrix. If~$P_0$ determines the initial position, we can then compute the position~$P_i$  by combining all the transformations like:
 
 \begin{equation}
-P_k = \prod_{i=k}^1{T_{i_{-1},i}} \: P_0
+P_k = \prod_{i=k}^1{T_{i_{-1}}^i} \: P_0
 \label{eqn:pose_estimation}
 \end{equation}
 
 Note: as the matrix product is not commutative, it is essential to follow the correct order when multiplying the matrices. For example, for the pose~$P_3$ we have:
 
 \[
-P_3 = T_{2,3} \: T_{1,2} \: T_{0,1} \: P_0
+P_3 = T_2^3 \: T_1^2 \: T_0^1 \: P_0
 \]
 
-Generally, the initial position is defined as follows:
+Generally, the initial position is defined by the initial orientation of the camera for each axis, stored in the initial rotation matrix $R_0$, and the initial translation vector $t_0 = (x_0, y_0, z_0)^T$, as follows:
 
 \[
 P_0 = \left[ \begin{array}{cccc}
@@ -656,7 +662,7 @@ P_0 = I_4 = \left[ \begin{array}{cccc}
 
 The equation \ref{eqn:pose_estimation} gives an estimation of the pose that can be inserted into the $g^2o$ graph.
 
-The video sequence can lead to an important number of poses, especially if the robot slows down, or even stops. Inserting a node for each transformation would not be very efficient, as the same pose would be repeated in the graph. To distinguish these poses among all the others that can potentially be inserted in the graph, these poses are called the \emph{keyposes}. 
+A sequence of video frames can contain an important number of redundant poses, especially if the robot slows down, or even stops. Inserting a node for each transformation would not be very efficient, as very similar poses would be repeated in the graph. It makes good sense to insert a new pose only after a significant change from a given pose. To distinguish them among all the others that can potentially be inserted in the graph, these poses are called the \emph{keyposes}. 
 
 A simple solution is to define a keypose only after having achieved a move, with a given amplitude defined by a threshold. By cumulating the unitary moves between each couple of frame in the sequence, the creation of a new key pose is triggered once a given distance in translation or a given angle in rotation has been reached,  with respect to the last key pose. The thresholds are set by parameters, here 0.1m for the distance and 15\textdegree for the rotation (both values consider the 3 axis cumulated together). Another solution could be to compare the points of interests between the frames and trigger the creation of a new keypose when the number of points in common falls below a given threshold, but it is not given that the absolute number of points is representative enough to describe the amplitude of the move.
 
@@ -664,35 +670,46 @@ For each keypose, a node is inserted in the graph with an edge linking the new k
 
 \section{Loop closures}
 
-The next step is to insert additional constraints into the graph with the loop closure detection. Each time a loop closure is triggered between two keyposes, a new edge is inserted into the graph. To detect a loop closure, it is necessary to compare recent frames with previous ones. The naive approach would be to through all the frames, and to compare the current frame with all the previous frames. However, this could be highly time consuming, as the time necessary for the current frame would grow exponentially. For $n$ frames, there would be $(n-1)!$ checks to perform, by looking into the past for each frame. This is clearly an issue if the matching verification is time consuming, and first if the features of the past frames have to be recomputed each time. This can be optimized by storing the features of the past frames into a memory buffer. A preliminar check exclusively done on the RGB data, for example with color histograms, could also be used to discard most of the negative candidates. Then, a more accurate verification with features could be done on the remaining candidates.
+The next step is to insert additional constraints into the graph with the loop closure detection, as illustrated in figure \ref{fig:graph_overview}. Each time a loop closure is triggered between two keyposes, a new edge is inserted into the graph. Here, the detection of the loop closure is simply done by computing a transformation between the two frames, as described in section \ref{sec:transformation}. If there are enough inliers to make the transformation valid, a loop closure can be inserted.
 
-In this work, for reason of performance, it was necessary to reduce the search list. Without making any assumption of the past frames, the first idea is then be to define a \emph{sliding window} with a fixed size of $n$ frames in the past. The easiest way is to select these frames randomly without any criterion, assuming a constant probability density function. Another approach would be to select the past frames that are more likely to match with the current frame. One solution could be to give a higher priority to the oldest frames. This could be done by defining a probability density function that would result in a higher probability for the oldest frames. This probability could also be defined by considering the knowledge of the context of the frames, in terms of features, or in terms of estimated position, preselecting the candidates with the highest likelihood.
+Following the order of the sequence of frames, the detection of a loop closure can be done by comparing the most recent frames with previous ones. The naive approach would be to check for the whole set of frames, by comparing the current frame with all the previous frames. However, this can be highly time consuming, as the time necessary for the current frame would grow. For example, for 4 frames, there would be 6 checks to perform, by looking into the past for each frame (respectively 1,2,3~checks for each frame). For $N$ frames, there would be $(N-1)*N/2$ checks to perform. Clearly, this can become an issue if the matching verification is time consuming. First, it is not necessary to recompute the features of the past frames each time. This can be optimized by storing the past features into a memory buffer. A preliminar check exclusively done on the RGB data, for example with color histograms, could also be used to discard most of the negative candidates. Then, a more accurate verification would involve the features of the remaining candidates.
 
-Here, we limited the search by using a candidate list of $N$ frames (the size can be set by a parameter), and a probability density function giving priority to the oldest frames. To select the $N$ candidate frames, the function giving the probability to select a candidate can be defined by $p(i) = i/N!$. For a sliding window of 3 frames, the first frame would have the probability 3/6, the second 2/6 and the third 1/6. These values can then be normalized for a total probability of 1.
+In this work, for reason of performance, it was necessary to reduce the list of candidates to check. Without making any assumption on the past frames, the first idea is  to define a \emph{sliding window} with a fixed size of $k$ frames in the past. The loop closure is of interest when it closes a loop with frames that are sufficiently far in the temporal sequence, as the goal is to reduce the drift over time. For this reason, from a given frame, it is not appropriate to check with the most recent frames, but rather with old frames in the past. Simply by defining a number of excluded frames and the size of the sliding window, a performant method can be implemented.
 
-To improve the loop closure detection, once a candidate has been found, the check can be extended to the neighbours of the candidate. The ratio of inliers is then used to measure the quality of the transformations. We consider a forward search, meaning that the next neighbours will be checked.
+\begin{figure}[H]
+\centering$
+ \begin{array}{c}
+ \subfloat[]{\label{fig:lc_sw_1}\includegraphics[width=0.8\textwidth]{figures/graph_lc_sw1}} \\
+ \subfloat[]{\label{fig:lc_sw_2}\includegraphics[width=0.8\textwidth]{figures/graph_lc_sw2}}
+ \end{array}$
+\caption{Illustration of a sliding window of 5 frames, where the last 3 frames are ignored. \protect{\subref{fig:lc_sw_1}} For the current frame n.9, the frames 1-5 are checked. \protect{\subref{fig:lc_sw_2}} For the next frame n.10, the window slides one step forward. The frames 2-6 are checked.}
+\end{figure}
+
+However, these parameters are hard to define without prior knowledge of the followed path. To extend the search, but still limitating the quantity of checks to a given number of frames, these frames could be selected randomly in a much larger window, assuming a constant probability density function. The goal is to select the past frames that are more likely to match with the current frame, giving a higher priority to the oldest frames. This could be done by defining a probability density function leading to a higher probability for the oldest frames. This probability could also be defined by considering the knowledge of the context of the frames, in terms of features, or in terms of estimated position, preselecting the candidates with the highest likelihood.
+
+Here, we limited the search by using a candidate list of $N$ frames, and ignoring the most recent frames (the size can be set by a parameter), and a probability density function giving priority to the oldest frames. To select the $N$ candidate frames, the function giving the probability to select a candidate can be defined by $p(i) = i/S$, where $S=(N+1)*N/2$. For a sliding window of 3 frames, the first frame would have the probability 3/6, the second 2/6 and the third 1/6. These values can then be normalized for a total probability of 1.
+
+To improve the loop closure detection, once a candidate frame is valid, the check is extended to the neighbours of this candidate, in order to possibly find a better transformation. The ratio of inliers is used to measure the quality of the transformations and to compare them. We only consider a forward search, meaning that the next neighbours will be checked.
 
 \begin{figure}[H]
 \centering
- \includegraphics[width=0.6\textwidth]{figures/graph_lc_candidate}
-\caption{Loop closure forward search for the pose k.}
+ \includegraphics[width=0.8\textwidth]{figures/graph_lc_candidate}
+\caption{Loop closure with forward search for the pose $P_k$. First, a valid transformation is found with candidate C1. The check is then performed with the next frame C2, giving a better transformation. So the search continues forward, and founds C3 to give a better transformation. Finally, the quality of the transformation with C4 is lower, so the process stops. The loop closure is inserted between $P_k$ and C3.}
 \end{figure}
 
 \section{Optimizing the graph}
 
 Once the graph has been initialized with the poses and the constraints from the loop closures, it can be optimized. Various methods are available in $g^2o$, for the optimization process and the solving problem. The method used here is Levenberg-Marquardt with a linear Cholmod solver. The optimization is done with a predefined number of steps. Once the graph has been optimized, the vertices are corrected and the new estimations of the camera poses can be extracted. The inverse operation is done to convert the information from the graph vertices to 4x4 matrices.
 
-In $g^2o$ there is a tool (g2oviewer) allowing the visualization of the graph.
-
 \begin{figure}[H]
 \centering$
- \begin{array}{ccc}
- \includegraphics[width=0.3\textwidth]{pictures/graph4_base} &
- \includegraphics[width=0.3\textwidth]{pictures/graph4_initial_guess} &
- \includegraphics[width=0.3\textwidth]{pictures/graph4_optimized}
+ \begin{array}{c}
+ \subfloat[]{\label{fig:g2o_view_1}\includegraphics[width=0.5\textwidth]{pictures/graph4_base}} \\
+ \subfloat[]{\label{fig:g2o_view_2}\includegraphics[width=0.5\textwidth]{pictures/graph4_optimized}}
  \end{array}$
-\caption{Graph with 4 rooms: non optimized - initial guess - after 10 iterations}
+\caption{Visualization of the graph with the g2oviewer, \protect{\subref{fig:g2o_view_1}} non optimized, \protect{\subref{fig:g2o_view_2}} after 10 iterations, for a map of 4 rooms (experiments are described in chapter \protect{\ref{chap:experiments}}).}
 \end{figure}
+\clearpage
 
 \section{Scene reconstruction}
 
@@ -707,12 +724,17 @@ We presented how the poses can be estimated, first by cumulating each transforma
 \chapter{Experiments}
 \label{chap:experiments}
 
-Now that the main aspects have been studied (feature extraction and matching, graph optimization, reconstruction), a software was developed, which goal is to acquire data from the Kinect, compute the 6~Degrees-of-Freedom camera poses representing the trajectory and orientation of the robot, and produce a 3D map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
+Now that the main aspects have been studied (feature extraction and matching, graph optimization, reconstruction), a software was developed, which goal is to acquire data from the Kinect, compute the 6~degrees-of-freedom camera poses representing the trajectory and orientation of the robot, and produce a 3D map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
+
+\section{System overview}
+
+The sequence of actions described in the previous chapters can be summarized in the figure \ref{fig:system_overview}.
 
 \begin{figure}[h!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{figures/overview}
 \caption{Overview of the system}
+\label{fig:system_overview}
 \end{center}
 \end{figure}
 
@@ -724,20 +746,19 @@ Two types of experiments were conducted: online, by moving the Kinect sensor by 
 
 \begin{figure}[h]
  \begin{center}
- \includegraphics[width=0.8\textwidth]{pictures/Dora_7587}
+ \includegraphics[width=0.6\textwidth]{pictures/Dora_7587}
  \end{center}
 \caption{Dora the explorer}
 \end{figure}
 
-At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor, resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. 
+At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor (see figure \ref{fig:plan_cvap}), resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. Other universities participating on common projects could provide data with a similar robot. This allowed to test the system with external data. We used the data provided by the universities of Birmingham and Ljubljana.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=1\textwidth]{figures/cvap_7th}
 \caption{Reference map of the environment explored at CVAP. The visited rooms are labelled.}
+\label{fig:plan_cvap}
 \end{figure}
-
-Other universities participating on common projects could provide data with a similar robot. This allowed to test the system with external data. We used the data provided by the universities of Birmingham and Ljubljana.
 
 \begin{table}[H]
  \begin{center}
@@ -751,7 +772,6 @@ Other universities participating on common projects could provide data with a si
   Birmingham & Lab3 & 1 & 1342 \\
   Birmingham & Robot Lab & 1 & 2878 \\
   Ljubljana & Office1 & 1 & 2088 \\
-  %TODO Office23 fails
   \hline
   \end{tabular}
  \end{center}
@@ -759,7 +779,6 @@ Other universities participating on common projects could provide data with a si
 \end{table}
 
 \clearpage
-
 \section{Data output}
 
 The result are the positions of the cameras, and the map represented by a point cloud. For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. Theorically, each point cloud can be composed of $640\times480 = 307,200$ points. Practically, the effective number of points is lower, as the depth information is not available for each point (due mainly to the range limit and to the occlusions considering the difference of point of view between the IR and RGB sensors). A standard point cloud is composed of about 200,000 points. For each pixel, 24 bits are used for the positions (x,y,z) and 24 bits for the colors R,G,B ($3\times8$ bits), padded to 8 bytes for alignment in memory. Therefore, a colored cloud point occupies around $200k\times8$ = 1.6MB in memory. For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled simply by removing points taken randomly with a given probability (according to a fixed ratio, set as a parameter depending on the global size of the scene).
@@ -790,29 +809,24 @@ The number of dependencies has been limited as much as possible, using preferabl
 \item Boost: support library, used here to access the filesystem
 \end{itemize}
 
-%$g^2o$ provides the class SE3Quat which implies the transformation of the rotational part of the matrix into a quaternion. Compared to Euler angles, the advantage of the quaternion is a more compact representation (4 terms instead of 9), a more efficient for the numerical computations and it allows to avoid some particular cases like the gimbal locks. In this work, we still keep a standard representation with a 4x4 matrix for the transformation (rotation \& translation) until the interaction with $g^2o$.
-
 \clearpage
-
 \section{Map CVAP, one room}
 
-\subsection{Without loop closures}
+\begin{figure}[H]
+\centering
+\subfloat[]{\label{fig:room1_1}\includegraphics[width=0.8\textwidth]{pictures/room1_initial}} \\
+\subfloat[]{\label{fig:room1_2}\includegraphics[width=0.8\textwidth]{pictures/room1_optimized}}
+\caption{Map with 1 room, \protect\subref{fig:room1_1} without graph optimization \protect\subref{fig:room1_2} with loop closure. This map is built from a sequence containing one room, the graph is optimized with one loop closure, which is triggered after having gone through the room and back to a position close to the initial position. Note how the corner of the table and the chair appears to be doubled in the first figure.}
+\end{figure}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\textwidth]{pictures/room1_initial}
-\caption{Map with 1 room, without graph optimization. Note how the corner of the table and the chair appears to be doubled.}
+\subfloat[]{\label{fig:room1_chair_1}\includegraphics[width=0.8\textwidth]{pictures/room1_chair_initial}} \\
+\subfloat[]{\label{fig:room1_chair_2}\includegraphics[width=0.8\textwidth]{pictures/room1_chair_optimized}}
+\caption{Map with 1 room, details of the chair, \protect\subref{fig:room1_chair_1} without graph optimization \protect\subref{fig:room1_chair_2} with loop closure. The reduction of the drift is clearly noticeable.}
 \end{figure}
 
-\subsection{With loop closure}
-This map is built from a sequence containing one room, the graph is optimized with one loop closure, which is triggered after having gone through the room and back to a position close to the initial position. 
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{pictures/room1_1}
-\caption{Map with 1 room, optimized with one loop closure. Note how the corner of the table and the chair are now correctly "merged" compared to the previous figure.}
-\end{figure}
-
+\clearpage
 \section{Map CVAP, two rooms and corridor}
 
 \begin{figure}[H]
@@ -824,9 +838,8 @@ This map is built from a sequence containing one room, the graph is optimized wi
 \caption{Map with 2 rooms, optimized with two loop closures}
 \end{figure}
 
+\clearpage
 \section{Map CVAP, four rooms and corridor}
-
-\subsection{Without loop closure}
 
 \begin{figure}[H]
 \centering$
@@ -840,17 +853,6 @@ This map is built from a sequence containing one room, the graph is optimized wi
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
- \subfloat[]{\label{fig:poses_4r_1_1} \includegraphics[width=0.6\textwidth]{figures/poses_4r_odometry_raw}} \\
- \subfloat[]{\label{fig:poses_4r_1_2} \includegraphics[width=0.6\textwidth]{figures/poses_4r_initial}}
- \end{array}$
-\caption{Estimation of the poses - \protect\subref{fig:poses_4r_1_1} From standard odometry, raw data. Note the drift, as the start and end points should be pretty close. \protect\subref{fig:poses_4r_1_2} With this system, initial graph. }
-\end{figure}
-
-\subsection{With loop closure}
-
-\begin{figure}[H]
-\centering$
- \begin{array}{c}
  \includegraphics[width=0.8\textwidth]{pictures/room4_new_optim1}\\
  \includegraphics[width=0.8\textwidth]{pictures/room4_new_optim2}
  \end{array}$
@@ -860,24 +862,22 @@ This map is built from a sequence containing one room, the graph is optimized wi
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
- \subfloat[]{\label{fig:poses_4r_2_1} \includegraphics[width=0.6\textwidth]{figures/poses_4r_initial}} \\
- \subfloat[]{\label{fig:poses_4r_2_2} \includegraphics[width=0.6\textwidth]{figures/poses_4r_optimized}}
+ \subfloat[]{\label{fig:poses_4r_1} \includegraphics[width=0.6\textwidth]{figures/poses_4r_odometry_raw}} \\
+ \subfloat[]{\label{fig:poses_4r_2} \includegraphics[width=0.6\textwidth]{figures/poses_4r_initial}} \\
+ \subfloat[]{\label{fig:poses_4r_3} \includegraphics[width=0.6\textwidth]{figures/poses_4r_optimized}}
  \end{array}$
-\caption{Estimation of the poses - \protect\subref{fig:poses_4r_2_1} With the initial graph.  \protect\subref{fig:poses_4r_2_2} With the optimized graph. There is a slight variation. }
+\caption{Estimation of the poses - \protect\subref{fig:poses_4r_1} From standard odometry, raw data. Note the drift, as the start and end points should be pretty close. \protect\subref{fig:poses_4r_2} With this system, initial graph. \protect\subref{fig:poses_4r_3} With the optimized graph. There is a slight variation.}
 \end{figure}
 
+\clearpage
 \begin{figure}[H]
 \centering
-\includegraphics[width=1\textwidth]{figures/cvap_7th_4r_sift}
-\caption{Trajectory overlayed on the reference map of the 7th floor, with SIFT features.}
+\subfloat[]{\label{fig:mappath_1}\includegraphics[width=0.8\textwidth]{figures/cvap_7th_4r_sift}} \\
+\subfloat[]{\label{fig:mappath_2}\includegraphics[width=0.8\textwidth]{figures/cvap_7th_4r_surf}}
+\caption{Trajectory overlayed on the reference map of the 7th floor, \protect\subref{fig:mappath_1} with SIFT features, \protect\subref{fig:mappath_2} with SURF features.}
 \end{figure}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=1\textwidth]{figures/cvap_7th_4r_surf}
-\caption{Trajectory overlayed on the reference map of the 7th floor, with SURF features.}
-\end{figure}
-
+\clearpage
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
@@ -923,7 +923,6 @@ This map is built from a sequence containing one room, the graph is optimized wi
 \caption{Ljubljana office1 - \protect\subref{fig:ljub1_1} Map without closure loop. \protect\subref{fig:ljub1_2} Not enough features could be extracted at this point.}
 \end{figure}
 
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{pictures/ljub_office2and3}
@@ -931,8 +930,6 @@ This map is built from a sequence containing one room, the graph is optimized wi
 \end{figure}
 
 \section{Summary}
-
-These results show that 3D maps can be built with this system and illustrate the interest of the loop closure to get a good correction. But it does not necessarily  give the optimal result, and there can be a drift as soon as the size of the map grows. Here, the maps with 4 rooms show some noticeable errors. This also shows that the process can be interrupted as soon as there are not enough visual features to detect a valid transformation.
 
 %In terms of performance, we compared SIFT and SURF on the largest dataset.
 %
@@ -950,7 +947,7 @@ These results show that 3D maps can be built with this system and illustrate the
 % \caption{Performance using SIFT and SURF.}
 %\end{table}
 
-
+These results show that 3D maps can be built with this system and illustrate the interest of the loop closure to get a good correction. But it does not necessarily  give the optimal result, and there can be a drift as soon as the size of the map grows. Here, the maps with 4 rooms show some noticeable errors. This also shows that the process can be interrupted as soon as there are not enough visual features to detect a valid transformation.
 
 \chapter{Conclusions and Future Works}
 \label{chap:conclusion}
