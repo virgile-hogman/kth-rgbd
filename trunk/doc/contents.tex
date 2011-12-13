@@ -679,8 +679,8 @@ In this work, for reason of performance, it was necessary to reduce the list of 
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
- \subfloat[]{\label{fig:lc_sw_1}\includegraphics[width=0.8\textwidth]{figures/graph_lc_sw1}} \\
- \subfloat[]{\label{fig:lc_sw_2}\includegraphics[width=0.8\textwidth]{figures/graph_lc_sw2}}
+ \subfloat[]{\label{fig:lc_sw_1}\includegraphics[width=0.7\textwidth]{figures/graph_lc_sw1}} \\
+ \subfloat[]{\label{fig:lc_sw_2}\includegraphics[width=0.7\textwidth]{figures/graph_lc_sw2}}
  \end{array}$
 \caption{Illustration of a sliding window of 5 frames, where the last 3 frames are ignored. \protect{\subref{fig:lc_sw_1}} For the current frame n.9, the frames 1-5 are checked. \protect{\subref{fig:lc_sw_2}} For the next frame n.10, the window slides one step forward. The frames 2-6 are checked.}
 \end{figure}
@@ -693,7 +693,7 @@ To improve the loop closure detection, once a candidate frame is valid, the chec
 
 \begin{figure}[H]
 \centering
- \includegraphics[width=0.8\textwidth]{figures/graph_lc_candidate}
+ \includegraphics[width=0.8\textwidth]{figures/graph_lc_candidate_2}
 \caption{Loop closure with forward search for the pose $P_k$. First, a valid transformation is found with candidate C1. The check is then performed with the next frame C2, giving a better transformation. So the search continues forward, and founds C3 to give a better transformation. Finally, the quality of the transformation with C4 is lower, so the process stops. The loop closure is inserted between $P_k$ and C3.}
 \end{figure}
 
@@ -753,13 +753,6 @@ Two types of experiments were conducted: online, by moving the Kinect sensor by 
 
 At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor (see figure \ref{fig:plan_cvap}), resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. Other universities participating on common projects could provide data with a similar robot. This allowed to test the system with external data. We used the data provided by the universities of Birmingham and Ljubljana.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=1\textwidth]{figures/cvap_7th}
-\caption{Reference map of the environment explored at CVAP. The visited rooms are labelled.}
-\label{fig:plan_cvap}
-\end{figure}
-
 \begin{table}[H]
  \begin{center}
   \begin{tabular}{llcc}
@@ -778,17 +771,35 @@ At KTH, the main dataset took place in environment with 4 different rooms connec
  \caption{Origin and size of the different datasets. Note that the KTH set of 1 room contains more frames than for 2 rooms, this is due to the robot moving at a slower speed.}
 \end{table}
 
-\clearpage
+%In terms of performance, we compared SIFT and SURF on the largest dataset.
+%
+%\begin{table}[H]
+% \begin{center}
+%  \begin{tabular}{llcc|cc}
+%  \hline
+%  University & Dataset & Rooms & Frames & SIFT & SURF \\
+%  \hline
+%  KTH & 7th floor & 4 & 6474 & 2h24mn & 0h54mn \\
+%
+%  \hline
+%  \end{tabular}
+% \end{center}
+% \caption{Performance using SIFT and SURF.}
+%\end{table}
+
+%\clearpage
 \section{Data output}
 
 The result are the positions of the cameras, and the map represented by a point cloud. For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. Theorically, each point cloud can be composed of $640\times480 = 307,200$ points. Practically, the effective number of points is lower, as the depth information is not available for each point (due mainly to the range limit and to the occlusions considering the difference of point of view between the IR and RGB sensors). A standard point cloud is composed of about 200,000 points. For each pixel, 24 bits are used for the positions (x,y,z) and 24 bits for the colors R,G,B ($3\times8$ bits), padded to 8 bytes for alignment in memory. Therefore, a colored cloud point occupies around $200k\times8$ = 1.6MB in memory. For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled simply by removing points taken randomly with a given probability (according to a fixed ratio, set as a parameter depending on the global size of the scene).
 
 Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition. For the visualization of the point clouds, the standard viewer provided in \gls{PCL} is used.
 
+\clearpage
 \section{Software implementation}
 
 The code is available as an open source project\footnote{\url{http://code.google.com/p/kth-rgbd/}}. It is released with a LGPL v3 license.
 The program does the following tasks:
+
 \begin{itemize}
 \item Acquire RGB-D data from the Kinect
 \item Perform features extraction and matching on a sequence of frames and compute the relative transformations with \gls{RANSAC}
@@ -809,25 +820,33 @@ The number of dependencies has been limited as much as possible, using preferabl
 \item Boost: support library, used here to access the filesystem
 \end{itemize}
 
-\clearpage
+\cleardoublepage
 \section{Map CVAP, one room}
 
+This map is built from a sequence containing one room, the graph is optimized with one loop closure, which is triggered after having gone through the room and back to a position close to the initial position. 
+
 \begin{figure}[H]
-\centering
-\subfloat[]{\label{fig:room1_1}\includegraphics[width=0.8\textwidth]{pictures/room1_initial}} \\
-\subfloat[]{\label{fig:room1_2}\includegraphics[width=0.8\textwidth]{pictures/room1_optimized}}
-\caption{Map with 1 room, \protect\subref{fig:room1_1} without graph optimization \protect\subref{fig:room1_2} with loop closure. This map is built from a sequence containing one room, the graph is optimized with one loop closure, which is triggered after having gone through the room and back to a position close to the initial position. Note how the corner of the table and the chair appears to be doubled in the first figure.}
+\centering$
+\begin{array}{c}
+\subfloat[]{\label{fig:room1_1}\includegraphics[width=0.7\textwidth]{pictures/room1_initial}} \\
+\subfloat[]{\label{fig:room1_2}\includegraphics[width=0.7\textwidth]{pictures/room1_optimized}}
+ \end{array}$
+\caption{Map with 1 room,  \protect\subref{fig:room1_1} without graph optimization \protect\subref{fig:room1_2} with loop closure. Note how the corner of the table and the chair appears to be doubled in the first figure.}
 \end{figure}
 
 \begin{figure}[H]
-\centering
+\centering$
+\begin{array}{c}
 \subfloat[]{\label{fig:room1_chair_1}\includegraphics[width=0.8\textwidth]{pictures/room1_chair_initial}} \\
 \subfloat[]{\label{fig:room1_chair_2}\includegraphics[width=0.8\textwidth]{pictures/room1_chair_optimized}}
+\end{array}$
 \caption{Map with 1 room, details of the chair, \protect\subref{fig:room1_chair_1} without graph optimization \protect\subref{fig:room1_chair_2} with loop closure. The reduction of the drift is clearly noticeable.}
 \end{figure}
 
 \clearpage
 \section{Map CVAP, two rooms and corridor}
+
+This map is built from a sequence containing two rooms separated by a corridor, the graph is optimized with two loop closures, the first one with an internal loop in the living room, and the other one at the end of the sequence, after coming back in the first room close to the initial position. 
 
 \begin{figure}[H]
 \centering$
@@ -841,6 +860,8 @@ The number of dependencies has been limited as much as possible, using preferabl
 \clearpage
 \section{Map CVAP, four rooms and corridor}
 
+This map is built from a sequence containing four rooms separated by a corridor, first without graph optimization. 
+
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
@@ -849,6 +870,9 @@ The number of dependencies has been limited as much as possible, using preferabl
  \end{array}$
 \caption{Map with 4 rooms and corridor, not optimized. The main problem can be seen in the living room, see the double chair.}
 \end{figure}
+
+\clearpage
+For the following map, the graph is optimized with four loop closures, triggered with a loop in three rooms room and the other one at the end of the sequence, after coming back in the first room close to the initial position.
 
 \begin{figure}[H]
 \centering$
@@ -869,15 +893,14 @@ The number of dependencies has been limited as much as possible, using preferabl
 \caption{Estimation of the poses - \protect\subref{fig:poses_4r_1} From standard odometry, raw data. Note the drift, as the start and end points should be pretty close. \protect\subref{fig:poses_4r_2} With this system, initial graph. \protect\subref{fig:poses_4r_3} With the optimized graph. There is a slight variation.}
 \end{figure}
 
-\clearpage
 \begin{figure}[H]
 \centering
 \subfloat[]{\label{fig:mappath_1}\includegraphics[width=0.8\textwidth]{figures/cvap_7th_4r_sift}} \\
 \subfloat[]{\label{fig:mappath_2}\includegraphics[width=0.8\textwidth]{figures/cvap_7th_4r_surf}}
 \caption{Trajectory overlayed on the reference map of the 7th floor, \protect\subref{fig:mappath_1} with SIFT features, \protect\subref{fig:mappath_2} with SURF features.}
+\label{fig:plan_cvap}
 \end{figure}
 
-\clearpage
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
@@ -930,23 +953,6 @@ The number of dependencies has been limited as much as possible, using preferabl
 \end{figure}
 
 \section{Summary}
-
-%In terms of performance, we compared SIFT and SURF on the largest dataset.
-%
-%\begin{table}[H]
-% \begin{center}
-%  \begin{tabular}{llcc|cc}
-%  \hline
-%  University & Dataset & Rooms & Frames & SIFT & SURF \\
-%  \hline
-%  KTH & 7th floor & 4 & 6474 & 2h24mn & 0h54mn \\
-%
-%  \hline
-%  \end{tabular}
-% \end{center}
-% \caption{Performance using SIFT and SURF.}
-%\end{table}
-
 These results show that 3D maps can be built with this system and illustrate the interest of the loop closure to get a good correction. But it does not necessarily  give the optimal result, and there can be a drift as soon as the size of the map grows. Here, the maps with 4 rooms show some noticeable errors. This also shows that the process can be interrupted as soon as there are not enough visual features to detect a valid transformation.
 
 \chapter{Conclusions and Future Works}
