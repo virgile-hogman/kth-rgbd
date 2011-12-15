@@ -2,13 +2,14 @@
 
 To navigate in an unknown environment, a mobile robot needs to build a map of the environment and locate itself in the map at the same time. The process adressing this dual problem is called \gls{SLAM}. In an outdoor environment, this can generally be solved by a GPS that generally allows to get an estimation of the position with a very good accuracy. However, when moving indoor or in places where the GPS data is not available, or not reliable enough, other solutions have to be found. 
 
-Generally, the main problem raised with \gls{SLAM} comes from the measurement errors, due to the sensors noise. Probabilistic models are widely used to reduce these errors and provide satisfying estimations. While this process is generally based on data provided by sensors such as laser scanners, or odometry data, \gls{VSLAM} focuses on the use of camera. 
+Generally, the main problem raised with \gls{SLAM} comes from the measurement errors, due to the sensors noise. Probabilistic models are widely used to reduce these errors and provide satisfying estimations. While this process is generally based on data provided by sensors such as laser scanners, or odometry data, \gls{VSLAM} focuses on the use of camera.
 
 \begin{figure}[h!]
 \begin{center}
 \includegraphics[width=1.0\textwidth]{figures/visual_slam}
 \caption{General idea of Visual SLAM - the poses of the camera (hence, the robot for a fixed camera) are determined by the information given by the video. The estimations can lead to a drift with respect to the real trajectory. The uncertainty grows over time.}
 \end{center}
+\label{fig:vslam_overview}
 \end{figure}
 
 \section{Context}
@@ -17,11 +18,18 @@ Currently, most of robotic mapping is performed using sensors that offers only a
 
 In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the project were using techniques such as \gls{EKF} or particle filters. More recently, several methods rely on pose graphs to improve the estimation~\cite{Thrun05_GraphSLAM}~\cite{grisetti07rss}~\cite{g2o_2011}~\cite{hogman_2010}. Some projects making use of both RGB-D data and graph optimization~\cite{Henry_RGBD_2010}~\cite{engelhard11euron-workshop} illustrate well the interest of the community for such an approach.
 
+\clearpage
 \section{Goals}
 
 This work is done at the \gls{CVAP} at the Royal Institute of Technology, in Stockholm (KTH). The main goal is to build a 3D map from RGB \& depth information provided by a camera. The hardware device used here for the experimentations is the Microsoft Kinect but it could be extended to any RGB-D camera. One objective is to have an overview of the different methods and techniques in order to build a consistent map, so the problems can better be identified and then be individually handled more deeply. Though a \gls{VSLAM} system is intended to be used in real time, some of the processing may be done without focusing on the performance issues in this study. 
 
 The \gls{VSLAM} process can be described as estimating the poses of the camera in order to reconstruct the entire environment while the camera is moving. As the sensor noise lead to deviations in the estimations of each camera poses with respect to the the real motion, the goal is to build a 3D map which is close to the real environment as much as possible.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\textwidth]{pictures/kinect_mount}
+\caption{Microsoft Kinect mounted on a robot platform at KTH}
+\end{figure}
 
 \clearpage
 \section{Thesis outline}
@@ -396,7 +404,10 @@ Practically, there are many parameters to define how the \gls{SIFT} features are
 \clearpage
 \section{Comparison of SIFT/SURF features}
 After testing and getting good results with the \gls{SIFT} feature, the same experiments were repeated, using the \gls{SURF} features. The implementation of OpenCV was used. We noticed a considerable gain in performance for a similar number of features. Globally, for a scene requiring about 1000ms with \gls{SIFT}, the extraction of the \gls{SURF} feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is considerable.
-However, both algorithms have various parameters that will result in more or less features at the cost of computational time. These parameters are for example the number of octaves (see figure \ref{fig:sift_dog}), and the Hessian threshold for SURF (only features with Hessian larger than that are extracted). In order to compare both methods, we first tried to find a configuration of parameters giving similar number of features, using a dataset of 6474 frames described in chapter \ref{chap:experiments}. For an image of 640x480 pixels, the number of octaves set in the SIFT Library is 6. By setting the same number of octaves at 6 and a Hessian threshold of 300 for \gls{SURF}, we get a very close number of features. Then, we compare with the default settings which implies a number of octaves of 3 and a Hessian threshold of 500. The results are summarized in the table \ref{tab:stats_features}.
+
+owever, both algorithms have various parameters that will result in more or less features at the cost of computational time. These parameters are for example the number of octaves (see figure \ref{fig:sift_dog}), and the Hessian threshold for SURF (only features with Hessian larger than that are extracted). In order to compare both methods, we first tried to find a configuration of parameters giving similar number of features, using a dataset of 6474 frames described in chapter \ref{chap:experiments} (see also the description of the hardware and software configuration).
+
+For an image of 640x480 pixels, the number of octaves set in the SIFT Library is 6. By setting the same number of octaves at 6 and a Hessian threshold of 300 for \gls{SURF}, we get a very close number of features. Then, we compare with the default settings which implies a number of octaves of 3 and a Hessian threshold of 500. The results are summarized in the table \ref{tab:stats_features}.
 
 \begin{table}[h]
  \begin{center}
@@ -412,6 +423,7 @@ However, both algorithms have various parameters that will result in more or les
 \label{tab:stats_features}
 \end{center}
 \end{table}
+
 \clearpage
 
 \begin{figure}[H]
@@ -724,7 +736,9 @@ We presented how the poses can be estimated, first by cumulating each transforma
 \chapter{Experiments}
 \label{chap:experiments}
 
-Now that the main aspects have been studied (feature extraction and matching, graph optimization, reconstruction), a software was developed, which goal is to acquire data from the Kinect, compute the 6~degrees-of-freedom camera poses representing the trajectory and orientation of the robot, and produce a 3D map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files. The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities. 
+Now that the main aspects have been studied (feature extraction and matching, graph optimization, reconstruction), a software was developed, which goal is to acquire data from the Kinect, compute the 6DOF camera poses representing the trajectory and orientation of the robot, and produce a 3D map. In order to repeat the experiments with different parameters, the data is saved and the program is able to replay a given sequence from a list of RGB-D files. The maps were generated on a PC running on Linux Ubuntu 10.04 (Linux Kernel~2.6.35.7), equiped with an Intel~Core\texttrademark{}~i3-540~CPU (4MB cache, 3.07GHz) and 3.3GB of RAM.
+
+The following sections describes how the input data was acquired and how the output is generated. The next sections present the maps obtained from different datasets, first from KTH, at different scales (1 room, 2 and 4 rooms with corridor). The last section shows the results obtained with data from other universities.
 
 \section{System overview}
 
@@ -732,7 +746,7 @@ The sequence of actions described in the previous chapters can be summarized in 
 
 \begin{figure}[h!]
 \begin{center}
-\includegraphics[width=1.0\textwidth]{figures/overview}
+\includegraphics[width=0.8\textwidth]{figures/overview}
 \caption{Overview of the system}
 \label{fig:system_overview}
 \end{center}
@@ -751,7 +765,8 @@ Two types of experiments were conducted: online, by moving the Kinect sensor by 
 \caption{Dora the explorer}
 \end{figure}
 
-At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor (see figure \ref{fig:plan_cvap}), resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. Other universities participating on common projects could provide data with a similar robot. This allowed to test the system with external data. We used the data provided by the universities of Birmingham and Ljubljana.
+\clearpage
+At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor (see figure \ref{fig:plan_cvap}), resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. Other universities participating on common projects could provide data with a similar robot. This allowed to test the system with data provided by the universities of Birmingham and Ljubljana.
 
 \begin{table}[H]
  \begin{center}
@@ -763,12 +778,13 @@ At KTH, the main dataset took place in environment with 4 different rooms connec
   KTH & 7th floor & 2 & 2697 \\
   KTH & 7th floor & 4 & 6474 \\
   Birmingham & Lab3 & 1 & 1342 \\
-  Birmingham & Robot Lab & 1 & 2878 \\
+  Birmingham & Robotic Lab & 1 & 2878 \\
   Ljubljana & Office1 & 1 & 2088 \\
+  Ljubljana & Office2and3 & 2 & 5687 \\
   \hline
   \end{tabular}
  \end{center}
- \caption{Origin and size of the different datasets. Note that the KTH set of 1 room contains more frames than for 2 rooms, this is due to the robot moving at a slower speed.}
+ \caption{Description of the different datasets. Note the KTH set of 1 room contains more frames than for 2 rooms, due to the robot moving at a slower speed.}
 \end{table}
 
 %In terms of performance, we compared SIFT and SURF on the largest dataset.
@@ -790,9 +806,9 @@ At KTH, the main dataset took place in environment with 4 different rooms connec
 %\clearpage
 \section{Data output}
 
-The result are the positions of the cameras, and the map represented by a point cloud. For reasons of performance, it is necessary to control the memory storage by limitating to the size of the final point cloud. Theorically, each point cloud can be composed of $640\times480 = 307,200$ points. Practically, the effective number of points is lower, as the depth information is not available for each point (due mainly to the range limit and to the occlusions considering the difference of point of view between the IR and RGB sensors). A standard point cloud is composed of about 200,000 points. For each pixel, 24 bits are used for the positions (x,y,z) and 24 bits for the colors R,G,B ($3\times8$ bits), padded to 8 bytes for alignment in memory. Therefore, a colored cloud point occupies around $200k\times8$ = 1.6MB in memory. For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled simply by removing points taken randomly with a given probability (according to a fixed ratio, set as a parameter depending on the global size of the scene).
+The results are the positions of the cameras, and the map represented by a point cloud. For reasons of performance, it is necessary to control the memory storage by limitating the size of the final point cloud. Theorically, each point cloud can be composed of $640\times480 = 307,200$ points. Practically, the effective number of points is lower, as the depth information is not available for each point (due mainly to the range limit and to the occlusions considering the difference of point of view between the IR and RGB sensors). A standard point cloud is composed of about 200,000 points. For each pixel, 24 bits are used for the positions (x,y,z) and 24 bits for the colors R,G,B ($3\times8$ bits), padded to 8 bytes for alignment in memory. Therefore, a colored cloud point occupies around $200k\times8$ = 1.6MB in memory. For a scope of visualization, it is reasonable to reduce the amount of information. Each point cloud is first subsampled simply by removing points taken randomly with a given probability (according to a fixed ratio, set as a parameter depending on the global size of the scene).
 
-Generally, only one output file is produced but this could still lead to a big file in case of a large map. In this case, the total number of points can still be relatively important and a too high rate of subsampling would lead to a map of low quality. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition. For the visualization of the point clouds, the standard viewer provided in \gls{PCL} is used.
+Generally, only one output file is produced but this can still lead to a big file in case of a large map. In this case, the total number of points can be  important and a too high rate of subsampling would result in a low quality map. By setting a threshold for the size of the final point cloud file, it can be splitted in several subfiles each time the threshold is reached during the reconstruction of the global map. The result is then divided in different files. This allows to keep a low subsampling rate, and still to visualize a portion of the global scene with a good definition. For the visualization of the point clouds, the standard viewer provided in \gls{PCL} is used.
 
 \clearpage
 \section{Software implementation}
@@ -893,19 +909,21 @@ For the following map, the graph is optimized with four loop closures, triggered
 \caption{Estimation of the poses - \protect\subref{fig:poses_4r_1} From standard odometry, raw data. Note the drift, as the start and end points should be pretty close. \protect\subref{fig:poses_4r_2} With this system, initial graph. \protect\subref{fig:poses_4r_3} With the optimized graph. There is a slight variation.}
 \end{figure}
 
+\clearpage
+To analyze the quality of the trajectory, we compared the resulting path with one generated with a \gls{SLAM} system developed at KTH and closed to the ground truth, based on a \gls{EKF} filtering and using the laser scan data.
 \begin{figure}[H]
 \centering
-\subfloat[]{\label{fig:mappath_1}\includegraphics[width=0.8\textwidth]{figures/cvap_7th_4r_sift}} \\
-\subfloat[]{\label{fig:mappath_2}\includegraphics[width=0.8\textwidth]{figures/cvap_7th_4r_surf}}
-\caption{Trajectory overlayed on the reference map of the 7th floor, \protect\subref{fig:mappath_1} with SIFT features, \protect\subref{fig:mappath_2} with SURF features.}
+\subfloat[]{\label{fig:mappath_1}\includegraphics[width=0.75\textwidth]{figures/cvap_7th_4r_sift}} \\
+\subfloat[]{\label{fig:mappath_2}\includegraphics[width=0.75\textwidth]{figures/cvap_7th_4r_surf}}
+\caption{Trajectory overlayed on the reference map of the 7th floor, \protect\subref{fig:mappath_1} with SIFT features, \protect\subref{fig:mappath_2} with SURF features. In both cases, the drift is noticeable, but the results are relatively close.}
 \label{fig:plan_cvap}
 \end{figure}
 
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
- \includegraphics[width=1.0\textwidth]{figures/drift_y_sift} \\
- \includegraphics[width=1.0\textwidth]{figures/drift_y_surf}
+ \includegraphics[width=0.9\textwidth]{figures/drift_y_sift} \\
+ \includegraphics[width=0.9\textwidth]{figures/drift_y_surf}
  \end{array}$
 \caption{Analysis of the vertical drift. Coordinate Y has been rescaled to origin. Considering the camera is fixed on a support, the value should stay close to zero.}
 \end{figure}
@@ -913,38 +931,43 @@ For the following map, the graph is optimized with four loop closures, triggered
 \clearpage
 \section{Map from other universities}
 
+For this map, the dataset "Lab3" provided by the University of Birminghman was used. No particular issues were ecountered.
+
 \begin{figure}[H]
 \centering$
  \begin{array}{c}
- \includegraphics[width=0.5\textwidth]{pictures/bham_lab3_1}
- \includegraphics[width=0.5\textwidth]{pictures/bham_lab3_2}
+ \includegraphics[width=0.8\textwidth]{pictures/bham_lab3_1} \\
+ \includegraphics[width=0.8\textwidth]{pictures/bham_lab3_2}
  \end{array}$
 \caption{Birmingham Lab3}
 \end{figure}
 
-%\begin{figure}[H]
-%\centering$
-%\begin{array}{c}
-%\includegraphics[width=0.5\textwidth]{pictures/bham_robotlab_1}
-%\includegraphics[width=0.5\textwidth]{pictures/bham_robotlab_2}
-%\end{array}$
-%\caption{Birmingham Robotic Lab}
-%\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{pictures/bham}
-\caption{Birmingham office}
-\end{figure}
+\clearpage
+For this map, the dataset "Robotic Lab" provided by the University of Birminghman was used. There was an issue due to the people moving during the passage of the robot. The system is not able to handle such situations, affecting the feature matching, and therefore the overall quality of the map.
 
 \begin{figure}[H]
 \centering$
- \begin{array}{cc}
- \subfloat[]{\label{fig:ljub1_1} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1}} &
- \subfloat[]{\label{fig:ljub1_2} \includegraphics[width=0.4\textwidth]{pictures/ljub_office1_feature}}
+\begin{array}{c}
+\includegraphics[width=0.8\textwidth]{pictures/bham_robotlab_1} \\
+\includegraphics[width=0.8\textwidth]{pictures/bham_robotlab_2}
+\end{array}$
+\caption{Birmingham Robotic Lab}
+\end{figure}
+
+\clearpage
+For this map, the dataset "Office1" provided by the University of Ljubljana was used. It could only be processed partially, the sequence was interrupted for a lack of features.
+
+\begin{figure}[H]
+\centering$
+ \begin{array}{c}
+ \subfloat[]{\label{fig:ljub1_1} \includegraphics[width=0.7\textwidth]{pictures/ljub_office1}} \\
+ \subfloat[]{\label{fig:ljub1_2} \includegraphics[width=0.7\textwidth]{pictures/ljub_office1_feature}}
  \end{array}$
 \caption{Ljubljana office1 - \protect\subref{fig:ljub1_1} Map without closure loop. \protect\subref{fig:ljub1_2} Not enough features could be extracted at this point.}
 \end{figure}
+
+\clearpage
+For this map, the dataset "Office2and3" provided by the University of Ljubljana was used. It could only be processed partially, the sequence was interrupted for a lack of features, as for the previous dataset.
 
 \begin{figure}[H]
 \centering
@@ -953,7 +976,7 @@ For the following map, the graph is optimized with four loop closures, triggered
 \end{figure}
 
 \section{Summary}
-These results show that 3D maps can be built with this system and illustrate the interest of the loop closure to get a good correction. But it does not necessarily  give the optimal result, and there can be a drift as soon as the size of the map grows. Here, the maps with 4 rooms show some noticeable errors. This also shows that the process can be interrupted as soon as there are not enough visual features to detect a valid transformation.
+These results show that 3D maps can be built with this system and illustrate the interest of the loop closure to get a good correction. But it does not necessarily  give the optimal result, and there can be a drift as soon as the size of the map grows. Here, the maps with 4 rooms show some noticeable errors. This also shows that the process can be interrupted as soon as there are not enough visual features to detect a valid transformation, and it also illustrates how moving elements can alter the final result.
 
 \chapter{Conclusions and Future Works}
 \label{chap:conclusion}
