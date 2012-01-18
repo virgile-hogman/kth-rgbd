@@ -101,7 +101,7 @@ There are two aspects concerning a feature: the \emph{detection} of keypoint, wh
 
 \subsection{Harris Corner}
 
-Known as the Harris corner operator, this is one of the earliest detector, as it was proposed in 1988 by Harris and Stephens~\cite{Harris88alvey}. The  notion of corner should be taken in a wide sense as it allows to detect not only corners, but edges and more generally, keypoints. It is done by computing the second moment matrix. It is an important reference to mention as it has been used as the basis for further works and improvements leading to more recent methods. One of the main limitation with the Harris operator concerns the scale invariance.
+Known as the Harris corner operator, this is one of the earliest detector, as it was proposed in 1988 by Harris and Stephens~\cite{Harris88alvey}. The  notion of corner should be taken in a wide sense as it allows to detect not only corners, but edges and more generally, keypoints. It is done by computing the second moment matrix (or auto-correlation matrix) of the image intensities, describing its local variations. One of the main limitation with the Harris operator concerns the scale invariance as the matrix should be recomputed for a different scale.
 
 \subsection{SIFT feature}
 
@@ -120,7 +120,7 @@ The main idea of the \gls{SIFT} method is to define a cascade of operations foll
 \clearpage
 \paragraph{\emph{Detector}}
 
-One characteristic of the SIFT detector is to be scale invariant, ensuring that a keypoint can be detected in a stable way at different scales, which is a fundamental requirement for a mobile robot. Most of these concepts concern the study of the scale space, based on the works of Lindeberg~\cite{Lindeberg_1994}. The general idea is shown in figure \ref{fig:sift_dog}. First, the scale space is defined as the convolution of an image~$I$ with a Gaussian~$G$ with variance~$\sigma$.
+One characteristic of the SIFT detector is to be scale invariant, ensuring that a keypoint can be detected in a stable way at different scales, which is a fundamental requirement for a mobile robot. As the platform of the camera moves, the areas containing the points of interest will appear larger or smaller, relatively to a scale factor. Most of these concepts concerning the study of the scale space are based on the works of Lindeberg~\cite{Lindeberg_1994}. The general idea is shown in figure \ref{fig:sift_dog}. First, the scale space is defined as the convolution of an image~$I$ with a Gaussian~$G$ with variance~$\sigma$.
 
 \[ L(x,y,\sigma) = G(x,y,\sigma) * I(x,y) \]
 
@@ -244,28 +244,28 @@ The \gls{RANSAC} is an iterative method, widely known in the computer vision, to
 \caption{General RANSAC}\label{alg:generic_ransac}
 \begin{algorithmic}
 \REQUIRE Dataset of points
-\STATE $bestModel,\:bestInliers \gets \emptyset$;
-\STATE Define the number of iterations $N$;
+\STATE $bestModel,\:bestInliers \gets \emptyset$
+\STATE Define the number of iterations $N$
 \FOR{$iteration = 1$ to $N$}
- \STATE $samples \gets$ Pickup k points randomly;
- \STATE Compute $currentModel$ from $samples$ (base hypothesis);
- \STATE $inliers \gets \emptyset$;
+ \STATE $samples \gets$ Pickup k points randomly
+ \STATE Compute $currentModel$ from $samples$ (base hypothesis)
+ \STATE $inliers \gets \emptyset$
  \FORALL{points}
-  \STATE Evaluate $currentModel$ for the point and compute its error;
+  \STATE Evaluate $currentModel$ for the point and compute its error
   \IF{$error < threshold$}
-   \STATE $inliers \gets inliers + point$;
+   \STATE $inliers \gets inliers + point$
   \ENDIF
  \ENDFOR
- \STATE Count number of inliers and compute mean error;
+ \STATE Count number of inliers and compute mean error
  \IF{$currentModel$ is valid}
-  \STATE Recompute $currentModel$ from $inliers$;
+  \STATE Recompute $currentModel$ from $inliers$
   \IF{$currentModel$ better than $bestModel$}
-   \STATE $bestModel \gets currentModel$;
-   \STATE $bestInliers \gets inliers$;
+   \STATE $bestModel \gets currentModel$
+   \STATE $bestInliers \gets inliers$
   \ENDIF
  \ENDIF
 \ENDFOR
-\RETURN $bestModel$, $bestInliers$;
+\RETURN $bestModel$, $bestInliers$
 \end{algorithmic}
 \end{algorithm}
 
@@ -497,29 +497,29 @@ Considering the initial matches, the next step is then to find a transformation 
 \caption{Find the 3D transformation with RANSAC}
 \begin{algorithmic}
 \REQUIRE initial pairs of 3D points (origin, destination)
-\STATE $bestTransform,\:bestInliers \gets \emptyset$;
-\STATE Define the number of iterations $N$;
+\STATE $bestTransform,\:bestInliers \gets \emptyset$
+\STATE Define the number of iterations $N$
 \FOR{$iteration=1$ to $N$}
- \STATE $samples \gets$ pickup randomly k pairs (origin, destination);
- \STATE Compute $currentTransform$ from $samples$;
- \STATE $inliers \gets \emptyset$;
+ \STATE $samples \gets$ pickup randomly k pairs (origin, destination)
+ \STATE Compute $currentTransform$ from $samples$
+ \STATE $inliers \gets \emptyset$
  \FORALL{pairs of points}
-  \STATE $projected_i \gets$ projectPoint($origin_i$, $currentTransform$);
-  \STATE $error \gets$ computeDistance($projected_i - destination_i$);
+  \STATE $projected_i \gets$ projectPoint($origin_i$, $currentTransform$)
+  \STATE $error \gets$ computeDistance($projected_i - destination_i$)
   \IF{$error$ < $threshold$}
-   \STATE{$inliers \gets inliers + pair_i$};
+   \STATE{$inliers \gets inliers + pair_i$}
   \ENDIF
  \ENDFOR
- \STATE Count number of inliers and compute mean error;
+ \STATE Count number of inliers and compute mean error
  \IF{$currentTransform$ is valid}
-  \STATE Recompute $currentTransform$ from $inliers$;
+  \STATE Recompute $currentTransform$ from $inliers$
   \IF{$currentTransform$ better than $bestTransform$}
-   \STATE $bestTransform \gets currentTransform$;
-   \STATE $bestInliers \gets inliers$;
+   \STATE $bestTransform \gets currentTransform$
+   \STATE $bestInliers \gets inliers$
   \ENDIF
  \ENDIF
 \ENDFOR
-\RETURN $bestTransform$, $bestInliers$;
+\RETURN $bestTransform$, $bestInliers$
 \end{algorithmic}
 \end{algorithm}
 
@@ -885,7 +885,7 @@ This map is built from a sequence containing four rooms separated by a corridor,
  \includegraphics[width=0.8\textwidth]{pictures/room4_new_init1}\\
  \includegraphics[width=0.8\textwidth]{pictures/room4_new_init2}
  \end{array}$
-\caption{Map with 4 rooms and corridor, not optimized. The main issue that can be noticed at this scale is the relative orientation of the first room (bottom left on first figure), which looks misaligned, and its desk appears to be doubled.}
+\caption{Map with 4 rooms and corridor, not optimized. The main issue that can be noticed at this scale is the relative orientation of the first room (first figure, bottom right), which looks misaligned, and its desk appears to be doubled.}
 \end{figure}
 
 \clearpage
@@ -897,7 +897,7 @@ For the following map, the graph is optimized with four loop closures, triggered
  \includegraphics[width=0.75\textwidth]{pictures/room4_new_optim1}\\
  \includegraphics[width=0.75\textwidth]{pictures/room4_new_optim2}
  \end{array}$
-\caption{Map with 4 rooms and corridor, optimized with several loop closures. The alignment of the first room looks better (bottom left on first figure), but the living room (bottom center) shows some misaligned frames. This is a trade-off with respect to the global error.}
+\caption{Map with 4 rooms and corridor, optimized with several loop closures. The alignment of the first room looks better (first figure, bottom right), but the living room (bottom center) shows some misaligned frames. This is a trade-off with respect to the global error.}
 \end{figure}
 
 \begin{figure}[H]
@@ -926,7 +926,7 @@ To analyze the quality of the localization, we compared the resulting path with 
  \includegraphics[width=0.9\textwidth]{figures/drift_y_sift} \\
  \includegraphics[width=0.9\textwidth]{figures/drift_y_surf}
  \end{array}$
-\caption{Analysis of the vertical drift. Coordinate Y has been rescaled to origin. Considering the camera is fixed on a support, the value should stay close to zero.}
+\caption{Analysis of the vertical drift. The Y-coordinates have been shifted to the origin for the starting position. Considering the camera is fixed on a support, the value should stay close to zero.}
 \end{figure}
 
 \clearpage
