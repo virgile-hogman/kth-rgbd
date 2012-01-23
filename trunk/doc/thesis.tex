@@ -26,7 +26,8 @@
 \usepackage{lmodern}
 \usepackage[latin1]{inputenc}
 \usepackage[swedish,english]{babel}
-\usepackage{nada-ex}
+\usepackage{modifications}
+%\usepackage{nada-ex}
 \usepackage{graphicx}
 \usepackage{float}
 \usepackage{subfig}
@@ -36,6 +37,7 @@
 \usepackage{url}
 \usepackage{algorithm}
 \usepackage{algorithmic}
+%\usepackage{modifications}
 
 \hypersetup{
    plainpages=false,
@@ -70,17 +72,22 @@
 \begin{document}
 %--------------------------------------------------------
 \frontmatter
+\pagestyle{empty}
+\removepagenumbers
 \maketitle
+
 \clearpage
 \selectlanguage{english}
-\begin {abstract}
+\begin{abstract}
 \input{abstract}
 \end{abstract}
-%\selectlanguage{swedish}
-%\begin{abstract}
-%\input{sammanfattning}
-%\end{abstract}
-\selectlanguage{english}
+\clearpage
+\begin{foreignabstract}{swedish}
+\input{sammanfattning}
+\end{foreignabstract}
+\clearpage
+\input{acknowledgements}
+
 \cleardoublepage
 \tableofcontents
 
@@ -89,6 +96,7 @@
 %--------------------------------------------------------
 \mainmatter
 
+\pagestyle{newchap}
 \input{contents}
 
 %--------------------------------------------------------
