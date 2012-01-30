@@ -10,6 +10,8 @@ pdf:
 read:
 	evince ${filename}.pdf &
 
+all:	pdf read
+
 clean:
 	rm -f ${filename}.ps ${filename}.pdf ${filename}.log ${filename}.aux ${filename}.out ${filename}.dvi ${filename}.bbl ${filename}.blg ${filename}.glg ${filename}.glo ${filename}.gls ${filename}.ist
 
