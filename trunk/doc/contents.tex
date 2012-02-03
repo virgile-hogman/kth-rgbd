@@ -16,20 +16,24 @@ The main problem raised with \gls{SLAM} comes from the uncertainty of the measur
 
 Currently, most of robotic mapping is performed using sensors that offers only a 2D cross section of the environment around them. One reason is that acquiring high quality 3D data was either very expensive or had hard constraints on the robot movements. Therefore, research has mainly focused on laser scanners to solve the \gls{SLAM} problem, although there are some methods making use of stereo and monocular cameras~\cite{KonoligeA08}~\cite{StrasdatMD10}. However, recently there has been a great interest in processing data acquired using depth measuring sensors due to the availability of cheap and efficient RGB-D cameras. For instance, the Kinect Camera developed by Prime Sense and Microsoft has considerably changed the situation, providing a 3D camera at a very affordable price. Primarily designed for entertainment, it has received a warm welcome in the research community, especially in robotics.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=1.0\textwidth]{pictures/kinect_mount}
-\caption{Microsoft Kinect mounted on a mobile robot platform at KTH}
-\end{figure}
+In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the projects have used techniques such as \gls{EKF} or particle filters~\cite{Thrun_2005}. More recently, several methods rely on pose graphs to model and improve the estimations~\cite{Thrun05_GraphSLAM}~\cite{grisetti07rss}~\cite{g2o_2011}~\cite{hogman_2010}. Some projects making use of both RGB-D data and graph optimization~\cite{Henry_RGBD_2010}~\cite{engelhard11euron-workshop} illustrate well the interest for such an approach.
+
+The work presented in this thesis is done at the \gls{CVAP} at KTH, the Royal Institute of Technology, in Stockholm. Since 1982, the research at \gls{CVAP} focuses on the topics of computer vision and robotics. 
 
 \clearpage
 \section{Goals}
 
-This work is done at the \gls{CVAP} at the Royal Institute of Technology, in Stockholm (KTH). The main goal is to build a 3D map from RGB and depth information provided by a camera, considering a 6~\gls{DOF} motion system. The hardware device used for the experimentations is the Microsoft Kinect but this work could be extended to any system providing video and depth data. One objective is to have an overview of the different methods and techniques in order to build a consistent map, so the problems can better be identified and then analyzed more deeply. Though a \gls{VSLAM} system is intended to be used in real time, some of the processing may be done without focusing on the performance issues in this study, and can therefore be delayed. 
+The main goal of this thesis is to build a 3D map from RGB and depth information provided by a camera, considering a 6~\gls{DOF} motion system. The hardware device used for the experimentations is the Microsoft Kinect but this work could be extended to any system providing video and depth data.
 
-The \gls{VSLAM} process can be described as estimating the poses of the camera from its data stream (video and depth), in order to reconstruct the entire environment while the camera is moving. As the sensory noise leads to deviations in the estimations of each camera poses with respect to the real motion, the goal is to build a 3D map which is close to the real environment, as much as possible.
+The \gls{VSLAM} process can be described as estimating the poses of the camera from its data stream (video and depth), in order to reconstruct the entire environment while the camera is moving. As the sensory noise leads to deviations in the estimations of each camera poses with respect to the real motion, the goal is to build a 3D map which is close, as much as possible, to the real environment.
 
-In the past, to solve the inherent problem of drift and provide a reliable estimation of the camera poses, most of the projects have used techniques such as \gls{EKF} or particle filters~\cite{Thrun_2005}. More recently, several methods rely on pose graphs to model and improve the estimations~\cite{Thrun05_GraphSLAM}~\cite{grisetti07rss}~\cite{g2o_2011}~\cite{hogman_2010}. Some projects making use of both RGB-D data and graph optimization~\cite{Henry_RGBD_2010}~\cite{engelhard11euron-workshop} illustrate well the interest for such an approach.
+One objective is to have an overview of the different methods and techniques, so the problems can better be identified and then analyzed more deeply after doing some experiments. However, this work will focus on the use of visual features. Though a \gls{VSLAM} system is intended to be used in real time, some of the processing may be done without considering the performance as a main priority, and could therefore be delayed. The rendering of the scene is also out of scope of this study.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\textwidth]{pictures/kinect_mount}
+\caption{Microsoft Kinect mounted on a mobile robot platform at CVAP (KTH)}
+\end{figure}
 
 \clearpage
 \section{Thesis outline}
@@ -83,7 +87,7 @@ In this work, we focus on tracking some parts of the scene observed by the camer
 There are two aspects concerning a feature: the \emph{detection} of a keypoint, which identifies an area of interest, and its \emph{descriptor}, which characterizes its region. Typically, the detector identifies a region containing a strong variation of intensity such as an edge or a corner, and its center is designed as a keypoint. The descriptor is generally computed by measuring the main orientations of the surrounding points, leading to a multidimensional \emph{feature vector} which identifies the given keypoint. Given a set of features, a matching can then be performed in order to associate some pairs of keypoints between a couple of frames.
 
 \clearpage
-The features listed previously can be summarized in table \ref{table:features}.
+The features listed previously can be summarized in table \ref{tab:features}.
 
 \begin{table}[H]
  \centering
@@ -394,7 +398,7 @@ We first tested the \gls{NARF} descriptor provided by the \gls{PCL}. The keypoin
 \section{Comparison of SIFT and SURF}
 After testing simple extractions and getting satisfying results with the \gls{SIFT} feature, the same experiments were repeated using the \gls{SURF} features. The implementation provided in OpenCV\footnote{\url{http://opencv.willowgarage.com/}} was used. We noticed a considerable gain in performance for a similar number of features. Globally, for a scene requiring about 1000ms with \gls{SIFT}, the extraction of the \gls{SURF} feature takes about 250ms, meaning that the time is reduced by a factor of 4 which is significant.
 
-Both algorithms have various parameters that will result in more or less features at the cost of computational time. In particular, for \gls{SIFT} it concerns the number of scales $k$ computed for each octave (see figure~\ref{fig:sift_dog}) and the variance $\sigma$ of the Gaussian. Here, the default values of the \gls{SIFT} library~\cite{hess_sift} are used, which are actually the standard values recommended by David Lowe ($k=3$, $\sigma=1.6$). Refer to the method~\cite{lowe_2004_sift} for the description of these parameters. For \gls{SURF}, another parameter is the threshold of the Hessian. Only features with Hessian larger than this value are extracted.
+Both algorithms have various parameters that will result in more or less features at the cost of computational time. In particular, for \gls{SIFT} it concerns the number of scales $k$ computed for each octave (see figure~\ref{fig:sift_dog}) and the variance $\sigma$ of the Gaussian. Here, the default values of the \gls{SIFT} library~\cite{hess_sift} are used, which are also the standard values recommended by David Lowe ($k=3$, $\sigma=1.6$). Refer to the method~\cite{lowe_2004_sift} for the description of these parameters. For \gls{SURF}, another parameter is the threshold of the Hessian. Only features with Hessian larger than this value are extracted.
 
 In order to compare both methods, we first tried to find a configuration of parameters giving similar number of features, using a dataset of 6474 frames described in chapter \ref{chap:experiments} (see also the description of the hardware and software configuration). For an image of 640x480 pixels, the number of octaves set in the SIFT Library is 6. By setting the same number of octaves at 6 and a Hessian threshold of 300 for \gls{SURF}, we get a very close number of features. Then, we compare with the default settings which implies a number of octaves of 3 and a Hessian threshold of 500. The results are summarized in the table \ref{tab:stats_features}.
 
@@ -718,9 +722,9 @@ Once the graph has been initialized with the poses and the constraints from the 
 
 \section{Scene reconstruction}
 
-Finally, once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. From each couple of RGB and depth frames, a 3D point cloud can be generated providing the colour information for each point, but they still have to be put together. This process is called the point cloud \emph{registration}. Once the relative camera positions are known, one simple method is to transform each point cloud by projecting all its points according to the corresponding camera position, and concatenate together all the transformed point clouds.
+Finally, once the camera poses are determined with a good belief, the reconstruction of the scene can be performed. For each frame, a 3D point cloud can be generated from the RGB and depth data, providing the colour information for each point. However, in order to reconstruct the whole scene, they have to be combined together from a unique point of view. This process is called the point cloud \emph{registration}. Once the camera positions are known, each point cloud is transformed by projecting all its points according to the corresponding camera position, given by the equation~\ref{eqn:pose_estimation}. This is done relatively to the first pose, which is predefined. The transformed point clouds are then concatenated together to build the scene.
 
-This method remains simple, the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. The point cloud is not necessarily the best representation of the scene. Another solution would be to use some \emph{surfels} as done in the work of Henry~\cite{Henry_RGBD_2010}, but this would require some intensive processing and it is out of the scope of this work. Here, we simply generate the point clouds with some considerations about their dimension in memory, as described in the section \ref{sec:data_output}.
+This method is simple, the major issues are that it leads to duplicate points, and it does not take variances of illumination into account. Some considerations about memory are described in the experiments, in section \ref{sec:data_output}. However, the point cloud is not necessarily the best representation of the scene. For many applications, it would be preferable to define some dense surfaces, such as the \emph{surfels} presented in \cite{PfisterZBG00} and used in the work of Henry~\cite{Henry_RGBD_2010}, but this would require further study and processing and it is out of the scope of this work. 
 
 \section{Summary}
 
@@ -762,12 +766,15 @@ In order to repeat the experiments with different parameters, the RGB-D stream i
 \item offline, by recording a data stream with a mobile robot, and processing it afterwards. 
 \end{itemize}
 
-In the first case, the program performs the feature extraction and computes the transformations in real time. This allows to detect if there is no valid transformation between the last 2 frames, that can happen when the motion is too important, or when the number of features is too low. If the synchronization is lost, the sequence is suspended and a message is displayed, so the user can move the camera back and lock again with the last valid frame, to resume the sequence. The detection of the loop closures, the graph optimization, and the reconstruction are done in a next step. Similarly, all the processing could have been done on the robot as well, but this would require further installations, and here the goal was to generate a set of reference data, as described in the next chapter. The main program was executed on a PC equiped with an Intel~Core\texttrademark{}~i3-540~CPU (3.06~GHz, 4MB~cache) and 3GB of RAM, running on Linux Ubuntu~10.04 (kernel~2.6.35.7).
+In the first case, the program performs the feature extraction and computes the transformations in real time. When the motion is too fast, or when the number of features is too low, the synchronization can be lost if no valid transformation is found between the last two frames. The sequence is then suspended and a message is displayed, so the user can move the camera back and lock again with the last valid frame, to resume the sequence. The detection of the loop closures, the graph optimization, and the reconstruction are done in a next step. Similarly, all the processing could have been done on the robot as well, but this would require further installations, and here the goal was to generate a set of reference data, as described in the section \ref{sec:data_acquisition}.
+
+The main program was executed on a PC equiped with an Intel~Core\texttrademark{}~\hbox{i3--540}~CPU (3.06~GHz, 4MB~cache) and 3GB of RAM, running on Linux Ubuntu~10.04 (kernel~2.6.35.7). When the acquisition and matching are done on the fly, the system is able to process about 3-4~frames per second using \gls{SURF}, which is already enough to let the user walk slowly in a room, with a real time feedback. Most of the time is spent for the feature extraction (100-200ms). Some possible improvements are given in the final chapter with the conclusions.
 
 \clearpage
 \section{Data acquisition}
+\label{sec:data_acquisition}
 
-The experiments at \gls{CVAP} (KTH) were carried out on a Pioneer III wheeled robot, Dora the explorer (see figure~\ref{fig:dora}). The Kinect camera is mounted at 1.4 m above the floor, and the robot is also equiped with a Hokuyo URG laser scanner. Each frame saved by the Kinect leads to a couple of RGB and depth files taken at the same time. Additionally, the data from the laser scans and the odometry were saved, and then used to build a reference path, as shown in figure~\ref{fig:plan_cvap}. The acquisition of the raw data by the robot is not part of the main program built in this work, but with the tools that were developed at \gls{CVAP}. Clearly, this implies the format of the RGB-D data is specified.
+To build some reusable datasets, the experiments were carried out at \gls{CVAP} (KTH) on a Pioneer III wheeled robot, Dora the explorer (see figure~\ref{fig:dora}). The Kinect camera is mounted at 1.4 m above the floor, and the robot is also equiped with a Hokuyo URG laser scanner. Each frame saved by the Kinect leads to a couple of RGB and depth files taken at the same time. Additionally, the data from the laser scans and the odometry were saved, and then used to build a reference path, as shown in figure~\ref{fig:plan_cvap}. The acquisition of the raw data by the robot is not part of the main program built in this work, but with the tools that were developed at \gls{CVAP}. Clearly, this implies the format of the RGB-D data is specified.
 
 \begin{figure}[h]
  \begin{center}
@@ -777,7 +784,7 @@ The experiments at \gls{CVAP} (KTH) were carried out on a Pioneer III wheeled ro
 \label{fig:dora}
 \end{figure}
 
-At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor (see figure~\ref{fig:plan_cvap}), resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. Other universities participating on common projects could provide data at the same format with similar robots. This allowed to test the system with data provided by the universities of Birmingham and Ljubljana.
+At KTH, the main dataset took place in environment with 4 different rooms connected by a corridor (see map in figure~\ref{fig:plan_cvap}, page ~\pageref{fig:plan_cvap}), resulting in 6474 frames (RGB-D datafiles) with several possibilities of loop closures. Other universities participating on common projects could provide data at the same format with similar robots. This allowed to test the system with data provided by the universities of Birmingham and Ljubljana.
 
 \begin{table}[H]
  \begin{center}
@@ -814,11 +821,12 @@ The code is available as an open source project\footnote{\url{http://code.google
 
 \clearpage
 \section{User interface}
-To be able to use the program in real time, a simple graphic interface was developed. The main window displays two frames with their features. The upper frame is the current frame, and the lower frame is the last valid frame. If the sequence is out of synchronization, meaning that no valid transformation between the last two frames, this layout allows the user to move back by comparing visually the current frame with the last valid one. Then, the sequence is resumed automatically as soon as there is a valid transformation. The quality of the transformation is also displayed, that corresponds to the ratio of inliers.
+To use the program in real time, a simple graphical user interface was developed. The main window displays two frames with their features. The upper frame is the current frame, and the lower frame is the last valid frame. If the sequence is out of synchronization, meaning that no valid transformation between the last two frames, this layout allows the user to move back by comparing visually the current frame with the last valid one. Then, the sequence is resumed automatically as soon as there is a valid transformation. The quality of the transformation is also displayed, that corresponds to the ratio of inliers.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=1\textwidth]{pictures/screenshot}\\
-\caption{screenshot with the GUI of the main program}
+\caption{user interface, displaying the current and last frames with their features}
 \end{figure}
 
 \clearpage
@@ -921,7 +929,7 @@ For the following map, the graph is optimized with four loop closures, triggered
 \end{figure}
 
 \clearpage
-To analyze the quality of the localization, we compared the resulting path with one close to the ground truth, generated by a \gls{SLAM} system developed at KTH, based on \gls{EKF} using the laser scan data~\cite{Folkesson_07}.
+To analyze the quality of the localization, we compared the resulting path with one close to the ground truth, generated by a \gls{SLAM} system developed at \gls{CVAP}, based on \gls{EKF} using the laser scan data~\cite{Folkesson_07}.
 \begin{figure}[H]
 \centering
 \subfloat[]{\label{fig:mappath_1}\includegraphics[width=0.75\textwidth]{figures/cvap_7th_4r_sift}} \\
