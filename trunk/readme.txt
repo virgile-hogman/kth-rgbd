@@ -51,8 +51,44 @@ Last tested with 1.40.0
 
 
 --------------------------------------------------------------------
+HOWTO install
+--------------------------------------------------------------------
+No installation package provided.
+Checkout from SVN and build.
+
+--------------------------------------------------------------------
+HOWTO build
+--------------------------------------------------------------------
+Use cmake and standard build commands.
+
+From installation directory:
+mkdir build
+cd build
+cmake ..
+make
+
+--------------------------------------------------------------------
+HOWTO run
+--------------------------------------------------------------------
+First, check the configuration file containing the parameters (kth-rgbd.cfg)
+Create the working in/out repositories: frames and results.
+Make symbolic links for easier usage: results and configuration files
+
+Program can be launched from build, but use preferably the scripts found in the folder "scripts"!
+
+[Short description of the scripts]
+
+record: saves a sequence and builds map
+sequence: replays a sequence from given frames previously recorded
+main: call main program with all the custom arguments (check usage)
+
+backup: saves the results into a folder
+restore: restores the results previously saved
+clean: removes current results
+
+--------------------------------------------------------------------
 Known bugs
 --------------------------------------------------------------------
-Frames 2734-2735:	 Extracting SIFT features... OpenCV Error: Null pointer () in cvCvtSeqToArray, file cxcore/cxdatastructs.cpp, line 548
-terminate called after throwing an instance of 'cv::Exception'
-this may be a pb in the SIFT library (?).
+None so far!
+Main problem is residual drift on vertical axis (Y).
+
