@@ -26,6 +26,7 @@ extern "C" {
 #include "imgfeatures.h"
 }
 
+#define BOOST_FILESYSTEM_VERSION 2  // for backwards compatibility with boost 1.46+
 #include <boost/filesystem.hpp>
 
 enum FeatureType
