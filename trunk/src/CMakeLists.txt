@@ -7,13 +7,15 @@ if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
 
+set(OPENSIFT_DIR ~/Projects/opensift)	# http://robwhess.github.com/opensift/
+
 find_package(PCL 1.2 REQUIRED)
 
 # ----------------------------------------------------------------------------------------------------
 # rgbd library
 # ----------------------------------------------------------------------------------------------------
 include_directories(${PCL_INCLUDE_DIRS})
-include_directories(~/Projects/sift/include)	# Rob Hess SIFT library
+include_directories(${OPENSIFT_DIR}/include)
 include_directories(/usr/include/opencv-2.3.1/opencv) #SIFT library uses opencv root
 include_directories(/usr/include/opencv-2.3.1/) #autoref in opencv to opencv2 folder
 include_directories(/usr/include/ni)	#Open NI
@@ -33,7 +35,7 @@ add_library(rgbd_slam ${RGBD_SOURCES_CPP})
 # ----------------------------------------------------------------------------------------------------
 link_directories(${PCL_LIBRARY_DIRS})
 link_directories(/usr/lib)
-link_directories(~/Projects/sift/lib)
+link_directories(${OPENSIFT_DIR}/lib)
 link_directories(~/Projects/g2o/trunk/lib)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
@@ -42,4 +44,4 @@ set(G2O_LIBRARIES g2o_core g2o_math_groups g2o_solver_cholmod g2o_types_slam3d)
 set(OPENCV_LIBRARIES opencv_core opencv_highgui opencv_features2d)
 
 add_executable(kth_rgbd rgbd.cpp)
-target_link_libraries(kth_rgbd rgbd_slam boost_filesystem feat OpenNI ${OPENCV_LIBRARIES} ${G2O_LIBRARIES} ${PCL_LIBRARIES}) 
+target_link_libraries(kth_rgbd rgbd_slam boost_filesystem opensift OpenNI ${OPENCV_LIBRARIES} ${G2O_LIBRARIES} ${PCL_LIBRARIES}) 
