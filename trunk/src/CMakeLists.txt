@@ -41,7 +41,7 @@ link_directories(~/Projects/g2o/trunk/lib)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
 set(G2O_LIBRARIES g2o_core g2o_math_groups g2o_solver_cholmod g2o_types_slam3d)
-set(OPENCV_LIBRARIES opencv_core opencv_highgui opencv_features2d)
+set(OPENCV_LIBRARIES opencv_core opencv_highgui opencv_features2d opencv_imgproc)
 
 add_executable(kth_rgbd rgbd.cpp)
 target_link_libraries(kth_rgbd rgbd_slam boost_filesystem opensift OpenNI ${OPENCV_LIBRARIES} ${G2O_LIBRARIES} ${PCL_LIBRARIES}) 
