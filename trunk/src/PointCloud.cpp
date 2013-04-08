@@ -22,8 +22,8 @@
 // PCL includes
 #include "pcl/io/pcd_io.h"
 #include "pcl/point_types.h"
-#include "pcl/common/transform.h"
-#include "pcl/registration/icp.h"
+#include "pcl/common/transforms.h"
+//#include "pcl/registration/icp.h" //TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
 
 using namespace std;
 
@@ -88,6 +88,7 @@ bool PointCloud::getTransformICP(
 		const vector<Eigen::Vector3f> &target,
 		Eigen::Matrix4f& transformation)
 {
+	/* //TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudSource (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudTarget (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ> cloudFinal;
@@ -113,15 +114,15 @@ bool PointCloud::getTransformICP(
 	icp.setInputTarget(cloudTarget);
 
 	icp.setRANSACOutlierRejectionThreshold(Config::_MatchingMaxDistanceInlier);
-	/* use default values
-	// Set the max correspondence distance to 5cm (e.g., correspondences with higher distances will be ignored)
-	icp.setMaxCorrespondenceDistance (0.05);
-	// Set the maximum number of iterations (criterion 1)
-	icp.setMaximumIterations (50);
-	// Set the transformation epsilon (criterion 2)
-	icp.setTransformationEpsilon (1e-8);
-	// Set the euclidean distance difference epsilon (criterion 3)
-	// icp.setEuclideanFitnessEpsilon (1);*/
+	// use default values
+	// // Set the max correspondence distance to 5cm (e.g., correspondences with higher distances will be ignored)
+	// icp.setMaxCorrespondenceDistance (0.05);
+	// // Set the maximum number of iterations (criterion 1)
+	// icp.setMaximumIterations (50);
+	// // Set the transformation epsilon (criterion 2)
+	// icp.setTransformationEpsilon (1e-8);
+	// // Set the euclidean distance difference epsilon (criterion 3)
+	// // icp.setEuclideanFitnessEpsilon (1);
 
 	std::cout << "Running ICP...";
 	fflush(stdout);
@@ -136,6 +137,8 @@ bool PointCloud::getTransformICP(
 		transformation = icp.getFinalTransformation();
 
 	return icp.hasConverged();
+	*/ //TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
+	return false;
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -185,10 +188,10 @@ void PointCloud::generatePCD(const PoseVector &cameraPoses, const char *filename
 		subsamplePointCloud(cloudFrame, Config::_PcdRatioKeepSubsample);
 
 		// apply transformation to the point cloud
-		pcl::getTransformedPointCloud(
+		pcl::transformPointCloud(
 				cloudFrame,
-				Eigen::Affine3f(cameraPoses[iPose]._matrix),
-				cloudFrameTransformed);
+				cloudFrameTransformed,
+				Eigen::Affine3f(cameraPoses[iPose]._matrix));
 
 		// apend transformed point cloud
 		cloudFull += cloudFrameTransformed;
