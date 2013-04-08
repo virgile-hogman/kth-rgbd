@@ -27,9 +27,12 @@ extern "C" {
 #include "sift.h"
 #include "imgfeatures.h"
 #include "kdtree.h"
-#include "utils.h"	// stack_imgs
+//#include "utils.h"	// stack_imgs - can't include, see below
 #include "xform.h"
 }
+
+// needs to declare this function here due to conflict fct "basename" in utils.h (OpenSift) vs string.h (C++)
+extern "C" IplImage* stack_imgs( IplImage* img1, IplImage* img2 );
 
 #include "CameraDevice.h"
 #include "Config.h"
