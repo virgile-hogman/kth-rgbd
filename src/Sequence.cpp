@@ -211,7 +211,7 @@ void testRandom()
 		printf("TEST %d --> ", k);
 		for (int j=0; j<5; j++) {
 			int index=selectCandidateLcLinear(v);
-			printf(" %d/%d # ", index, v.size());
+			printf(" %d/%ld # ", index, v.size());
 			total[index]++;
 		}
 		printf("\n");
