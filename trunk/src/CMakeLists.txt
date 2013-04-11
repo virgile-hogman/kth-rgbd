@@ -7,22 +7,31 @@ if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
 
-set(OPENSIFT_DIR ~/Projects/opensift)	# http://robwhess.github.com/opensift/
+set(g2o_SOURCE_DIR ~/archive/g2o/trunk)	# http://openslam.org/g2o.html
+set(OpenSIFT_DIR ~/archive/opensift)	# http://robwhess.github.com/opensift/
 
 find_package(PCL 1.2 REQUIRED)
+find_package(OpenCV 2.3 REQUIRED)
+#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${g2o_SOURCE_DIR}/cmake_modules)
+#find_package(SuiteSparse)
+
+message("---CHECK PATH---")
+message("PCL_INCLUDE=${PCL_INCLUDE_DIRS}")
+message("PCL_LIBS=${PCL_LIBRARIES}")
+message("OPENCV_INC=${OpenCV_INCLUDE_DIRS}")
+message("OPENCV_LIBS=${OpenCV_LIBS}")
 
 # ----------------------------------------------------------------------------------------------------
 # rgbd library
 # ----------------------------------------------------------------------------------------------------
 include_directories(${PCL_INCLUDE_DIRS})
-include_directories(${OPENSIFT_DIR}/include)
-include_directories(/usr/include/opencv-2.3.1/opencv) #SIFT library uses opencv root
-include_directories(/usr/include/opencv-2.3.1/) #autoref in opencv to opencv2 folder
-include_directories(/usr/include/ni)	#Open NI
-include_directories(/usr/local/include/eigen3) #eigen3
-include_directories(/usr/include/suitesparse)	#g2o cholmod
-include_directories(~/Projects/g2o/trunk)	
-include_directories(~/Projects/g2o/trunk/build/)
+include_directories(${OpenSIFT_DIR}/include)	
+include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(/usr/include/openni)	
+include_directories(/usr/include/eigen3)	
+include_directories(${g2o_SOURCE_DIR})	
+include_directories(${g2o_SOURCE_DIR}/build/)	#for g2o/config.h
+include_directories(${g2o_SOURCE_DIR}/EXTERNAL/csparse)
 
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
@@ -34,14 +43,14 @@ add_library(rgbd_slam ${RGBD_SOURCES_CPP})
 # main executable
 # ----------------------------------------------------------------------------------------------------
 link_directories(${PCL_LIBRARY_DIRS})
-link_directories(/usr/lib)
-link_directories(${OPENSIFT_DIR}/lib)
-link_directories(~/Projects/g2o/trunk/lib)
+link_directories(${OpenSIFT_DIR}/lib)
+link_directories(${g2o_SOURCE_DIR}/lib)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
-set(G2O_LIBRARIES g2o_core g2o_math_groups g2o_solver_cholmod g2o_types_slam3d)
-set(OPENCV_LIBRARIES opencv_core opencv_highgui opencv_features2d opencv_imgproc)
+#set(SUITESPARSE_LIBRARIES cholmod amd colamd umfpack blas lapack suitesparseconfig)
+#set(SUITESPARSE_LIBRARIES ${CHOLMOD_LIBRARIES})
+set(g2o_LIBRARIES g2o_core g2o_math_groups g2o_solver_csparse g2o_solver_dense g2o_solver_pcg g2o_types_slam3d g2o_stuff g2o_ext_csparse ${SUITESPARSE_LIBRARIES})
 
 add_executable(kth_rgbd rgbd.cpp)
-target_link_libraries(kth_rgbd rgbd_slam boost_filesystem opensift OpenNI ${OPENCV_LIBRARIES} ${G2O_LIBRARIES} ${PCL_LIBRARIES}) 
+target_link_libraries(kth_rgbd rgbd_slam boost_filesystem opensift OpenNI ${OpenCV_LIBS} ${g2o_LIBRARIES} ${PCL_LIBRARIES}) 
