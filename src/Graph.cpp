@@ -17,7 +17,7 @@
 #include "g2o/core/graph_optimizer_sparse.h"
 #include "g2o/core/block_solver.h"
 #include "g2o/core/solver.h"
-#include "g2o/solvers/cholmod/linear_solver_cholmod.h"
+#include "g2o/solvers/csparse/linear_solver_csparse.h"
 #include "g2o/math_groups/se3quat.h"
 #include "g2o/core/structure_only_solver.h"
 #include "g2o/types/slam3d/vertex_se3_quat.h"
@@ -38,7 +38,7 @@ void Graph::initialize()
 	_optimizer.setVerbose(true);
 
 	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
-	linearSolver = new g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>();
+	linearSolver = new g2o::LinearSolverCSparse<g2o::BlockSolver_6_3::PoseMatrixType>();
 	g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(&_optimizer,linearSolver);
 	_optimizer.setSolver(solver_ptr);
 }
