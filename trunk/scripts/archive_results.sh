@@ -13,14 +13,14 @@ fi
 if [ -d $DIR_TARGET ]; then
 	read -p "Directory '$DIR_TARGET' already exists. Overwrite? (y/[n])" ans
 	if [ "$ans" != "y" ]; then
-     		exit 
+		exit 
 	fi
 else
 	mkdir -p $DIR_TARGET
-fi
-if [ ! -d $DIR_ARCHIVE ]; then
-	echo "Directory '$DIR_TARGET' not found."
-	exit
+	if [ ! -d $DIR_ARCHIVE ]; then
+		echo "Impossible to create directory '$DIR_TARGET'"
+		exit
+	fi
 fi
 
 echo "Saving results in '$DIR_TARGET'..."
