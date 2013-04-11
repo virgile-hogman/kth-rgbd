@@ -4,8 +4,8 @@
 # ----------------------------------------------------------------------------------------------------
 
 include_directories(../src)
-include_directories(/usr/include/ni)	#Open NI
-include_directories(/usr/local/include/eigen3) #eigen3
+include_directories(/usr/include/openni)	#Open NI
+include_directories(/usr/include/eigen3)	#eigen3
 
 link_directories(/usr/lib)
 link_directories(../lib)
