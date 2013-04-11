@@ -23,7 +23,7 @@
 #include "pcl/io/pcd_io.h"
 #include "pcl/point_types.h"
 #include "pcl/common/transforms.h"
-//#include "pcl/registration/icp.h" //TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
+#include "pcl/registration/icp.h"
 
 using namespace std;
 
@@ -88,7 +88,7 @@ bool PointCloud::getTransformICP(
 		const vector<Eigen::Vector3f> &target,
 		Eigen::Matrix4f& transformation)
 {
-	/* //TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
+	//TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudSource (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudTarget (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ> cloudFinal;
@@ -137,7 +137,7 @@ bool PointCloud::getTransformICP(
 		transformation = icp.getFinalTransformation();
 
 	return icp.hasConverged();
-	*/ //TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
+	//TEMPORARILY DISABLED ICP PCL FOR CONFLICT FLANN OPENCV
 	return false;
 }
 
