@@ -168,7 +168,7 @@ void drawInliers(
 
 		// save stacked image
 		char buf[256];
-		sprintf(buf,"inliers:%d/%d (%d%%)", indexInliers.size(), indexMatches.size(), indexInliers.size()*100/indexMatches.size());
+		sprintf(buf,"inliers:%ld/%ld (%ld%%)", indexInliers.size(), indexMatches.size(), indexInliers.size()*100/indexMatches.size());
 		cvPutText(imgStackedInliers, buf, cvPoint(5, 950), &font, cvScalar(255,255,0));
 		if (forLoopClosure)
 			sprintf(buf, "%s/loopc_%d_%d_inliers.bmp", Config::_PathDataProd.c_str(), frameData1.getFrameID(), frameData2.getFrameID());
