@@ -26,6 +26,8 @@
 #include <iostream>
 #include <stdio.h>
 
+#include <opencv2/nonfree/nonfree.hpp>  // from OpenCV 2.4
+
 using namespace std;
 
 // name of the configuration file where all the parameters are set
@@ -64,6 +66,8 @@ int main(int argc, char** argv)
     FrameData::_DataPath = Config::_PathFrameSequence;
 
 	srand(time(NULL));
+
+    cv::initModule_nonfree();   // from OpenCV 2.4
 
     // ---------------------------------------------------------------------------------------------------
     //  regenerate PCD files from archive
