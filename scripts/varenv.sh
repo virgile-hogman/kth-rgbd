@@ -1,7 +1,10 @@
 #!/bin/sh
 
-DIR_PROD=~/rgbd_prod
-DIR_FRAMES=~/rgbd_frames
-DIR_ARCHIVE=~/results
-DIR_DATASET=~/datasets
+#location where the output files are produced
+DIR_PROD=../rgbd_prod
 
+#location of the input files
+DIR_FRAMES=../rgbd_frames
+
+#location of the archive results
+DIR_ARCHIVE=../rgbd_archive

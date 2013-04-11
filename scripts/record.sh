@@ -5,16 +5,23 @@
 echo "Recording new sequence..."
 
 if [ ! -d $DIR_PROD ]; then
-	echo $DIR_PROD "not found."
-	exit
+	mkdir -p $DIR_PROD
+	if [ ! -d $DIR_PROD ]; then
+		echo "Impossible to create directory '$DIR_PROD'"
+		exit
+	fi
 fi
 if [ ! -d $DIR_FRAMES ]; then
-        echo $DIR_FRAMES "not found."
-        exit
+	mkdir -p $DIR_FRAMES
+	if [ ! -d $DIR_FRAMES ]; then
+		echo "Impossible to create directory '$DIR_FRAMES'"
+		exit
+	fi
 fi
 
-echo "All data will be erased in '$DIR_PROD'"
-
+if [ "`ls -1 $DIR_PROD | wc -l`" -gt "0" ]; then
+	echo "All data will be erased in '$DIR_PROD'"
+fi
 NFRAMES=`ls -1 $DIR_FRAMES | wc -l`
 if [ "$NFRAMES" -gt "0" ]; then
 	echo "All FRAMES will be erased in '$DIR_FRAMES' : found $NFRAMES files!"
@@ -22,12 +29,12 @@ fi
 read -p "ARE YOU SURE? (y/[n]) " ans
 if [ "$ans" != "y" ]
 then
-     exit
+	exit
 fi
 
 rm -f $DIR_PROD/*
 rm -f $DIR_FRAMES/*.bmp
 
-cd
-~/Projects/kth-rgbd/bin/kth_rgbd -r $@
+cd ..
+bin/kth_rgbd -r $@
 cd --

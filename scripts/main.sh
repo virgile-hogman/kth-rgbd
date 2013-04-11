@@ -2,6 +2,6 @@
 
 . ./varenv.sh
 
-cd 
-~/Projects/kth-rgbd/bin/kth_rgbd $@
+cd ..
+bin/kth_rgbd $@
 cd --
