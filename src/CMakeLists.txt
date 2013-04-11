@@ -11,7 +11,7 @@ set(g2o_SOURCE_DIR ~/archive/g2o/trunk)	# http://openslam.org/g2o.html
 set(OpenSIFT_DIR ~/archive/opensift)	# http://robwhess.github.com/opensift/
 
 find_package(PCL 1.2 REQUIRED)
-find_package(OpenCV 2.3 REQUIRED)
+find_package(OpenCV 2.4 REQUIRED)
 #set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${g2o_SOURCE_DIR}/cmake_modules)
 #find_package(SuiteSparse)
 
