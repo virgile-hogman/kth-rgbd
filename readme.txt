@@ -1,5 +1,5 @@
 // kth-rgbd: Visual SLAM from RGB-D data
-// Copyright (C) 2011  Virgile Högman
+// Copyright (C) 2011-2013  Virgile Högman
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ Dependencies
 
 * OpenCV
 http://opencv.willowgarage.com/
-Last tested with 2.3.1
+Last tested with 2.4.5
 
 * OpenNI
 http://www.openni.org/
@@ -35,20 +35,20 @@ Last tested with 1.3.2.1-4
 
 * Point Cloud Libary
 http://pointclouds.org/
-Last tested with 1.2
+Last tested with 1.5
 (subdependencies -> cminpack, Flann)
 
 * Eigen3
 http://eigen.tuxfamily.org/
 Last tested with 3.0.2-3
 
-* SIFT Library - Rob Hess
-http://blogs.oregonstate.edu/hess/code/sift/
+* OpenSIFT Library - Rob Hess
+http://robwhess.github.com/opensift/
 (subdepencies -> gtk, opencv)
 
 * Boost Library
 http://www.boost.org/
-Last tested with 1.40.0
+Last tested with 1.46
 
 
 --------------------------------------------------------------------
@@ -71,11 +71,12 @@ make
 --------------------------------------------------------------------
 HOWTO run
 --------------------------------------------------------------------
-First, check the configuration file containing the parameters (kth-rgbd.cfg)
-Create the working in/out repositories: frames and results.
-Make symbolic links for easier usage: results and configuration files
+Check the configuration file containing the parameters (kth-rgbd.cfg)
+No config operation should be required if the scripts are used.
+Run those from the script directory.
 
-Program can be launched from build, but use preferably the scripts found in the folder "scripts"!
+cd script
+./record.sh
 
 [Short description of the scripts]
 
@@ -83,8 +84,8 @@ record: saves a sequence and builds map
 sequence: replays a sequence from given frames previously recorded
 main: call main program with all the custom arguments (check usage)
 
-backup: saves the results into a folder
-restore: restores the results previously saved
+archive_results: saves the results into a folder
+restore_results: restores the results previously saved
 clean: removes current results
 
 --------------------------------------------------------------------
@@ -93,3 +94,9 @@ Known bugs
 None so far!
 Main problem is residual drift on vertical axis (Y).
 
+--------------------------------------------------------------------
+Contact
+--------------------------------------------------------------------
+Virgile Högman
+PhD Student at CVAP, KTH Royal Institute of Technology
+virgile@kth.se

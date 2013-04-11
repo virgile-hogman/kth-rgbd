@@ -1,0 +1,49 @@
+// kth-rgbd: Visual SLAM from RGB-D data
+// Copyright (C) 2011-2013  Virgile Högman
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+------------------------------------------------------------------
+2013-04-11
+------------------------------------------------------------------
+General compatibility upgrade for the recent external libraries.
+Removed the links for the configuration files.
+Reorganized the data folders in the launching scripts.
+
+Concerning the external libraries:
+
+g2o (svn revision 30)
+The g2o library uses SuiteSparse (cholmod &csparse) if present. But the csparse library is provided by g2o and compiled as external lib if SuiteSparse is not present. To avoid dependency with SuiteSparse, the solver now uses csparse and links with g2o_ext_csparse instead of cholmod. However, not very clear what libs to link with if SuiteSparse is present!
+
+OpenSIFT (last update in GitHub 2012-07-25)
+Previously named Rob Hess SIFT library has become OpenSIFT.
+To be noticed a new conflict for function "basename" with string.h (found workaround)
+
+Boost 1.47
+backwards compatibility BOOST_FILESYSTEM_VERSION with boost 1.46+
+Version 2 is the default version for Boost release 1.44 and 1.45. Version 3 will be the default starting with release 1.46.
+
+OpenCV 2.4.5
+SURF feature is now part of nonfree module.
+Finally, the FLANN conflict with PCL seems to be solved!
+
+PCL 1.5
+Minor API changes.
+
+------------------------------------------------------------------
+2011-02-11
+------------------------------------------------------------------
+Initial version
+(final version for the Master Thesis)
