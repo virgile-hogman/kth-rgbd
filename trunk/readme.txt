@@ -44,6 +44,7 @@ Last tested with 3.0.2-3
 
 * SIFT Library - Rob Hess
 http://blogs.oregonstate.edu/hess/code/sift/
+(subdepencies -> gtk, opencv)
 
 * Boost Library
 http://www.boost.org/

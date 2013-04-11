@@ -31,7 +31,7 @@
 using namespace std;
 
 // name of the configuration file where all the parameters are set
-#define CONFIG_FILENAME	"rgbd_params.cfg"
+#define CONFIG_FILENAME	"config/kth-rgbd.cfg"
 
 void printUsage(const char *name)
 {
@@ -62,7 +62,11 @@ int main(int argc, char** argv)
 	}
 	
 	// load configuration
-	Config::LoadConfig(CONFIG_FILENAME);
+    if ( ! boost::filesystem::exists(CONFIG_FILENAME) ) {
+        printf("Configuration file not found! [%s]\n", CONFIG_FILENAME);
+        return -1;
+    }
+    Config::LoadConfig(CONFIG_FILENAME);
     FrameData::_DataPath = Config::_PathFrameSequence;
 
 	srand(time(NULL));
