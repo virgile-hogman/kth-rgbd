@@ -504,7 +504,7 @@ bool FrameData::FindFrame(
 	for (boost::filesystem::directory_iterator itr( pathSearch ); itr != end_itr; ++itr )
 	{
 		if (boost::filesystem::extension(*itr)==strSearchExtension &&
-			sscanf(itr->leaf().c_str(), filePattern, &timestamp)==1)
+			sscanf(itr->path().filename().c_str(), filePattern, &timestamp)==1)
 		{
 			filePathFound = itr->path().string().c_str();
 			return true;
@@ -528,9 +528,9 @@ void FrameData::GetFrameList(const char *dataDirectory, int min, int max, vector
 		itr != end_itr;
 		++itr )
 	{
-		//	printf("%s\t%s\n", itr->leaf().c_str(), itr->path().string().c_str());
+		//	printf("%s\t%s\n", itr->path().filename().c_str(), itr->path().string().c_str());
 		if (boost::filesystem::extension(*itr)==strSearchExtension &&
-			sscanf(itr->leaf().c_str(), "frame_%d", &frameID)==1 && frameID>=min && (frameID<=max || max<0))
+			sscanf(itr->path().filename().c_str(), "frame_%d", &frameID)==1 && frameID>=min && (frameID<=max || max<0))
 		{
 			// add frame
 			//printf("Add frame file #%i:\t%s\n", frameID, itr->path().string().c_str());
