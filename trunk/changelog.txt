@@ -14,6 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+------------------------------------------------------------------
+2014-09-08
+------------------------------------------------------------------
+Boost Filesystem V3 
+A new API for Boost-Filesystem was introduced as V3 in Boost 1.46 but V2 was provided until Boost 1.49.
+Upgraded code to Filesystem V3. The API is now compatible with Boost >= 1.46. 
+
+g2o (svn revision 33)
+Many parts of the interface and headers have changed. However a legacy version is found in g2o/tags/before-github-sync.
+Build this version instead of the one found in g2o/trunk.
+If SuiteSparse is found by g2o (optional package) there will be link errors as this in not supported yet in kth-rgbd.
+To hide SuiteSparse edit g2o/before-github-sync/CMakeLists.txt and comment (#) FIND_PACKAGE(CSPARSE) before running cmake ..
+When built done check that g2o/before-github-sync/lib contains libg2o_ext_csparse.so.
+Use this legacy version by setting the right path set(g2o_SOURCE_DIR ..../g2o/tags/before-github-sync)
+
+Updated src/CMakeLists.txt with new instructions. Upgrade to Boost>=1.46 and OpenNI>=1.5. 
 
 ------------------------------------------------------------------
 2013-04-11

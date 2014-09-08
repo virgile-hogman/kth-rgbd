@@ -20,22 +20,34 @@ Main URL
 --------------------------------------------------------------------
 http://code.google.com/p/kth-rgbd/
 
+Checkout kth-rgbd code from SVN.
+svn co https://kth-rgbd.googlecode.com/svn/trunk/kth-rgbd
 
 --------------------------------------------------------------------
 Dependencies
 --------------------------------------------------------------------
+Dependencies have to be installed correctly before building kth-rgbd.
+URLs are given for reference, install preferably with package manager.
+OpenSIFT and g2o require manual installation. 
+
+* Boost Library
+http://www.boost.org/
+Requires Boost>=1.46 
+Last tested with 1.55
 
 * OpenCV
 http://opencv.willowgarage.com/
 Last tested with 2.4.5
 
 * OpenNI
-http://www.openni.org/
-Last tested with 1.3.2.1-4
+https://github.com/OpenNI/OpenNI
+Requires OpenNI 1 (not OpenNI 2 SDK) preferably >=1.5
+Last tested with 1.5.7
 
 * Point Cloud Libary
 http://pointclouds.org/
-Last tested with 1.5
+Requires PCL>=1.5
+Last tested with 1.7
 (subdependencies -> cminpack, Flann)
 
 * Eigen3
@@ -46,27 +58,40 @@ Last tested with 3.0.2-3
 http://robwhess.github.com/opensift/
 (subdepencies -> gtk, opencv)
 
-* Boost Library
-http://www.boost.org/
-Last tested with 1.46
+* g2o: A General Framework for Graph Optimization (OpenSLAM)
+svn co https://svn.openslam.org/data/svn/g2o
 
-
---------------------------------------------------------------------
-HOWTO install
---------------------------------------------------------------------
-No installation package provided.
-Checkout from SVN and build.
+--- Important note for g2o (svn revision 33) ---
+A legacy version is found in g2o/tags/before-github-sync.
+Build this version instead of the one found in g2o/trunk.
+If SuiteSparse is found by g2o (optional package) there will be link errors as this in not supported in this current version of kth-rgbd.
+To hide SuiteSparse in g2o, edit g2o/before-github-sync/CMakeLists.txt and comment (#) FIND_PACKAGE(CSPARSE) before running cmake ..
+When built done you can check that g2o/before-github-sync/lib contains libg2o_ext_csparse.so.
+Use this legacy version of g2o in kth-rgbd (see below). 
 
 --------------------------------------------------------------------
 HOWTO build
 --------------------------------------------------------------------
-Use cmake and standard build commands.
+Edit kth-rgbd/src/CMakeLists.txt and set the correct paths for:
+set(g2o_SOURCE_DIR .../g2o/tags/before-github-sync)
+set(OpenSIFT_DIR .../opensift)
 
-From installation directory:
+Build all using cmake: 
+cd kth-rgbd 	#your SVN checkout directory
 mkdir build
 cd build
 cmake ..
 make
+
+Potential build problems:
+PB: if SuiteSparse package is found by g2o then kth-rgbd will not link
+SOL: disable SuiteSparse in g2o.
+
+PB: OpenNI headers like XnCppWrapper.h not found
+SOL: be sure to use OpenNI1 (not 2). With OpenNI<1.5 headers are in /usr/include/openni
+
+PB: link problems with GTK and OpenSift
+SOL: try by replacing the last command with the last line in src/CMakeLists.txt
 
 --------------------------------------------------------------------
 HOWTO run
@@ -91,8 +116,9 @@ clean: removes current results
 --------------------------------------------------------------------
 Known bugs
 --------------------------------------------------------------------
-None so far!
 Main problem is residual drift on vertical axis (Y).
+
+Improve cmake config for g2o and opensift.
 
 --------------------------------------------------------------------
 Contact

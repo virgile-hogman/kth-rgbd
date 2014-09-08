@@ -7,9 +7,17 @@ if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
 
-set(g2o_SOURCE_DIR ~/archive/g2o/trunk)	# http://openslam.org/g2o.html
-set(OpenSIFT_DIR ~/archive/opensift)	# http://robwhess.github.com/opensift/
+# ----------------------------------------------------------------------------------------------------
+# !!! PATH TO CUSTOMIZE !!!
+# ----------------------------------------------------------------------------------------------------
+set(sourcepath ~/archive/projects/)
+set(g2o_SOURCE_DIR ${sourcepath}/g2o/tags/before-github-sync)	# http://openslam.org/g2o.html
+set(OpenSIFT_DIR ${sourcepath}/opensift)			# http://robwhess.github.com/opensift/
+# ----------------------------------------------------------------------------------------------------
+# if errors also check include directories for OpenNI and Eigen3 below.
+# ----------------------------------------------------------------------------------------------------
 
+find_package(Boost 1.46 COMPONENTS filesystem REQUIRED)
 find_package(PCL 1.2 REQUIRED)
 find_package(OpenCV 2.4 REQUIRED)
 #set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${g2o_SOURCE_DIR}/cmake_modules)
@@ -24,11 +32,12 @@ message("OPENCV_LIBS=${OpenCV_LIBS}")
 # ----------------------------------------------------------------------------------------------------
 # rgbd library
 # ----------------------------------------------------------------------------------------------------
+include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PCL_INCLUDE_DIRS})
 include_directories(${OpenSIFT_DIR}/include)	
 include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories(/usr/include/openni)	
-include_directories(/usr/include/eigen3)	
+include_directories(/usr/include/ni)		# OpenNI >= 1.5 
+include_directories(/usr/include/eigen3)	# check this if errors!
 include_directories(${g2o_SOURCE_DIR})	
 include_directories(${g2o_SOURCE_DIR}/build/)	#for g2o/config.h
 include_directories(${g2o_SOURCE_DIR}/EXTERNAL/csparse)
@@ -53,4 +62,8 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(g2o_LIBRARIES g2o_core g2o_math_groups g2o_solver_csparse g2o_solver_dense g2o_solver_pcg g2o_types_slam3d g2o_stuff g2o_ext_csparse ${SUITESPARSE_LIBRARIES})
 
 add_executable(kth_rgbd rgbd.cpp)
-target_link_libraries(kth_rgbd rgbd_slam boost_filesystem opensift OpenNI ${OpenCV_LIBS} ${g2o_LIBRARIES} ${PCL_LIBRARIES}) 
+target_link_libraries(kth_rgbd rgbd_slam ${Boost_LIBRARIES} opensift OpenNI ${OpenCV_LIBS} ${g2o_LIBRARIES} ${PCL_LIBRARIES}) 
+
+# if errors with opensift and GTK it might be useful to link with GTK and GDK... this might depend on the distribution (Ubuntu / ArchLinux / ...)
+#target_link_libraries(kth_rgbd rgbd_slam ${Boost_LIBRARIES} opensift gtk-x11-2.0 gdk-x11-2.0 OpenNI ${OpenCV_LIBS} ${g2o_LIBRARIES} ${PCL_LIBRARIES})
+ 
