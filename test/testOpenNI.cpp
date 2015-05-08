@@ -52,7 +52,7 @@ XnUInt64 g_noSampleValue, g_shadowValue;
 
 
 // name of the configuration file where all the parameters are set
-#define CONFIG_FILENAME	"rgbd_params.cfg"
+#define CONFIG_FILENAME	"config/kth-rgbd.cfg"
 
 // -----------------------------------------------------------------------------------------------------
 //  connect
