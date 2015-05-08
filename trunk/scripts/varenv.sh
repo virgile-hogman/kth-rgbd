@@ -1,10 +1,10 @@
 #!/bin/sh
 
 #location where the output files are produced
-DIR_PROD=../rgbd_prod
+DIR_PROD=../data_prod
 
 #location of the input files
-DIR_FRAMES=../rgbd_frames
+DIR_FRAMES=../data_frames
 
 #location of the archive results
-DIR_ARCHIVE=../rgbd_archive
+DIR_ARCHIVE=../data_archive

@@ -110,7 +110,7 @@ bool PointCloud::getTransformICP(
 
 	// define the inputs
 	// we invert here in the sense we want the transfo from frameTarget to frameSource
-	icp.setInputCloud(cloudSource);
+	icp.setInputSource(cloudSource);
 	icp.setInputTarget(cloudTarget);
 
 	icp.setRANSACOutlierRejectionThreshold(Config::_MatchingMaxDistanceInlier);

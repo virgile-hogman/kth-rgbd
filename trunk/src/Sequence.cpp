@@ -771,6 +771,8 @@ void Sequence::recordFrames(bool buildMap)
         // working buffers reused for each frame (just to avoid reallocate the arrays each time)
         IplImage* imgBufferDepth = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
 
+   	  	printf("*** PRESS ANY KEY TO START // ENTER TO STOP // ESC TO ABORT ***\n");
+
     	// generate 1st frame
         while(!abort && !keyhit) {
         	if (! cameraKinect.generateFrame(frame1.getImage(), imgBufferDepth))

@@ -15,6 +15,15 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ------------------------------------------------------------------
+2015-05-08
+------------------------------------------------------------------
+Improved CMakeLists.txt files for easier build and configuration.
+Integrated sub-dependencies to VTK2 from OpenSIFT.
+Upgrade to PCL 1.7 (deprecated method SetInputCloud)
+Minor fixes and new README instructions.
+Default data folders data_frames and data_prod.
+
+------------------------------------------------------------------
 2014-09-08
 ------------------------------------------------------------------
 Boost Filesystem V3 
