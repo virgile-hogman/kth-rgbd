@@ -18,7 +18,7 @@
 #define __GRAPH_H__
 
 #include "CommonTypes.h"
-#include "g2o/core/graph_optimizer_sparse.h"
+#include "g2o/core/sparse_optimizer.h"
 #include <string>
 
 class Graph
@@ -26,12 +26,14 @@ class Graph
 public:
 	Graph();
 	
+	// initialize solver
 	void initialize();
 	
 	void addVertex(const Pose &pose);
 	void addEdge(const Transformation &transfo);
 	
-	void optimize();
+	// returns the effective nb of iterations or -1 if failed to start
+	int optimize();
 	
 	bool extractPose(Pose &pose);
 	bool extractAllPoses(PoseVector &poses);
@@ -40,6 +42,7 @@ public:
 	void save(const char *directory);
 	
 private:
+	bool					_initialized;
 	g2o::SparseOptimizer	_optimizer;
 };
 

@@ -531,27 +531,45 @@ void Sequence::buildMap()
 		//  loop closure
 		// -------------------------------------------------------------------------------------------
 		if (! detectLoopClosure(cameraPoses))
-			printf("NO LOOP CLOSURE DETECTED!\n");
+			cout << "NO LOOP CLOSURE DETECTED!\n";
 		else
 		{
 			// new constraints in initial graph, overwrite
 			_graphOptimizer.save("graph_initial.g2o");
-
-			// -------------------------------------------------------------------------------------------
-			//  optimize the graph
-			// -------------------------------------------------------------------------------------------
-			_graphOptimizer.optimize();
-			_graphOptimizer.save("graph_optimized.g2o");
-
-			// extract the updated camera positions from the optimized graph
-			_graphOptimizer.extractAllPoses(cameraPoses);
-			savePoses(cameraPoses, "poses_optimized.dat");
-
-			// generate optimized point cloud
-			if (Config::_PcdGenerateOptimized)
-				PointCloud::generatePCD(cameraPoses, "cloud_optimized");
+			// optimize the graph
+			optimizeMap();
 		}
     }
+}
+
+// -------------------------------------------------------------------------------------------
+//  OptimizeMap
+// -------------------------------------------------------------------------------------------
+void Sequence::optimizeMap() {
+	PoseVector	cameraPoses;
+
+	int ret = _graphOptimizer.optimize();
+	if (ret <= 0)
+		cout << "Failed to optimize the graph! err=" << ret << "\n";
+	else {
+		_graphOptimizer.save("graph_optimized.g2o");
+
+		// extract the updated camera positions from the optimized graph
+		_graphOptimizer.extractAllPoses(cameraPoses);
+		savePoses(cameraPoses, "poses_optimized.dat");
+
+		// generate optimized point cloud
+		if (Config::_PcdGenerateOptimized)
+			PointCloud::generatePCD(cameraPoses, "cloud_optimized");
+	}
+}
+
+// -------------------------------------------------------------------------------------------
+//  restoreInitialGraph
+// -------------------------------------------------------------------------------------------
+void Sequence::restoreInitialGraph() {
+    _graphOptimizer.initialize();
+    _graphOptimizer.load("graph_initial.g2o");
 }
 
 // -----------------------------------------------------------------------------------------------------

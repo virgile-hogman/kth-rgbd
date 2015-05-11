@@ -17,7 +17,9 @@
 ------------------------------------------------------------------
 2015-05-11
 ------------------------------------------------------------------
+Upgrade optimizer to current trunk version of g2o (no more with before-github-sync).
 Fixed bug where loop closures would be detected but not triggered in g2o.
+New -o option to perform optimization from initial graph containing loop closures.
 Improved CMakeLists.txt files for easier build and configuration.
 Integrated sub-dependencies to VTK2 from OpenSIFT.
 Upgrade to PCL 1.7 (deprecated method SetInputCloud)

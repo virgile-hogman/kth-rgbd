@@ -36,10 +36,10 @@ using namespace std;
 void printUsage(const char *name)
 {
 	printf("\nUsage: %s <options>\n", name);
-	printf("\nStandard options:\n");
-	printf(" -r:\t record data from camera, run sequence and build map\n");
-	printf(" -s <idFrom> <idTo> [ratio_frame]:\t run a sequence of frames (RGB-D files), compute transformations and build map\n");
-	printf(" -m <idFrom> <idTo>:\t build map from existing transformations (transfo.dat), generate poses, graph and PCD\n");
+	printf("\nStandard options (all successive steps):\n");
+	printf(" -r:\t record RGBD data from camera and build map\n");
+	printf(" -s [<idFrom> <idTo> [ratio_frame]]:\t from a sequence of frames (RGB-D files) compute transformations and build map\n");
+	printf(" -m [<idFrom> <idTo>]:\t build map from existing transformations (transfo.dat), generate poses, optimized graph and PCD\n");
 	printf(" -p [ratio_pcd]:\t regenerate PCD file from existing positions (poses_optimized.g2o)\n");
 	printf("\nMore options:\n");
 	printf(" -f <idFrom> <idTo>:\t compute features for each frame in given range\n");
@@ -95,6 +95,21 @@ int main(int argc, char** argv)
 
     	sequence.regeneratePCD();
     }
+    // ---------------------------------------------------------------------------------------------------
+    //  graph optimization from initial graph containing loop closures
+    // ---------------------------------------------------------------------------------------------------
+    else if (strcmp(argv[1], "-o") == 0)
+    {
+        printf("-Optimize graph containing loop closures-\n");
+
+        if ( ! boost::filesystem::exists( Config::_PathFrameSequence ) )
+            return -1;
+        if ( ! boost::filesystem::exists( Config::_PathDataProd ) )
+            return -1;
+
+        sequence.restoreInitialGraph();
+        sequence.optimizeMap();
+    }    
     // ---------------------------------------------------------------------------------------------------
     //  map reconstruction from transformations archive
     // ---------------------------------------------------------------------------------------------------

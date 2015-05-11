@@ -36,10 +36,16 @@ public:
 	// restore transformation from archive with given range
 	void restoreTransformations(int minFrameID, int maxFrameID);
 
+	// restore an initial graph
+	void restoreInitialGraph();
+
 	// build the map from the current transformation sequence
 	void buildMap();
 
-	// regenerate PCD files only from existing graph
+	// optimize map with loop closures already defined in the initial graph
+	void optimizeMap();
+
+		// regenerate PCD files only from existing graph (initial and optimized if available)
 	void regeneratePCD();
 
 private:
