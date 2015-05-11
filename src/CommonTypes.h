@@ -52,6 +52,21 @@ public:
 	int				_idDest;
 	float			_ratioInliers;
 	float			_qualityScore;
+
+	Transformation() {
+		_idOrig = -1;
+		_idDest = -1;
+		_ratioInliers = 0;
+		_matrix = Eigen::Matrix4f::Identity();
+	}
+
+	void reset() {
+		_idOrig = -1;
+		_idDest = -1;
+		_ratioInliers = 0;
+		_matrix = Eigen::Matrix4f::Identity();
+	}
+
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 // for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html
@@ -65,6 +80,12 @@ class Pose
 public:
 	Eigen::Matrix4f	_matrix;
 	int				_id;
+
+	Pose() {
+		_matrix = Eigen::Matrix4f::Identity();
+		_id = -1;
+	}
+
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 // for alignment read http://eigen.tuxfamily.org/dox/UnalignedArrayAssert.html

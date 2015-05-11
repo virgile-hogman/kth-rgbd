@@ -15,8 +15,9 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ------------------------------------------------------------------
-2015-05-08
+2015-05-11
 ------------------------------------------------------------------
+Fixed bug where loop closures would be detected but not triggered in g2o.
 Improved CMakeLists.txt files for easier build and configuration.
 Integrated sub-dependencies to VTK2 from OpenSIFT.
 Upgrade to PCL 1.7 (deprecated method SetInputCloud)
