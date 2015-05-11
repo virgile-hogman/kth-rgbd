@@ -13,8 +13,8 @@ endif(COMMAND cmake_policy)
 # !!! PATH TO CUSTOMIZE !!!
 # ----------------------------------------------------------------------------------------------------
 set(sourcepath ~/projects/slam/)
-set(g2o_SOURCE_DIR ${sourcepath}/g2o/tags/before-github-sync)	# http://openslam.org/g2o.html
-set(OpenSIFT_DIR ${sourcepath}/opensift)			# http://robwhess.github.com/opensift/
+set(g2o_SOURCE_DIR ${sourcepath}/g2o/trunk/)	# http://openslam.org/g2o.html
+set(OpenSIFT_DIR ${sourcepath}/opensift/)			# http://robwhess.github.com/opensift/
 
 # ----------------------------------------------------------------------------------------------------
 # if errors also check include directories for OpenNI and Eigen3 below.
@@ -57,7 +57,7 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 # sub-dependencies of g2o
 #set(SUITESPARSE_LIBRARIES cholmod amd colamd umfpack blas lapack suitesparseconfig)
 #set(SUITESPARSE_LIBRARIES ${CHOLMOD_LIBRARIES})
-set(g2o_LIBRARIES g2o_core g2o_math_groups g2o_solver_csparse g2o_solver_dense g2o_solver_pcg g2o_types_slam3d g2o_stuff g2o_ext_csparse ${SUITESPARSE_LIBRARIES})
+set(g2o_LIBRARIES g2o_core g2o_solver_csparse g2o_csparse_extension g2o_solver_dense g2o_solver_pcg g2o_types_slam3d g2o_stuff g2o_ext_csparse ${SUITESPARSE_LIBRARIES})
 
 # VTK2 is a sub-dependency of OpenSIFT
 find_package (PkgConfig REQUIRED)

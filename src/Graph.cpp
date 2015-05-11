@@ -14,33 +14,43 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "g2o/core/graph_optimizer_sparse.h"
+#include "g2o/core/sparse_optimizer.h"
 #include "g2o/core/block_solver.h"
-#include "g2o/core/solver.h"
+#include "g2o/core/optimization_algorithm_levenberg.h"
 #include "g2o/solvers/csparse/linear_solver_csparse.h"
-#include "g2o/math_groups/se3quat.h"
-#include "g2o/core/structure_only_solver.h"
-#include "g2o/types/slam3d/vertex_se3_quat.h"
-#include "g2o/types/slam3d/edge_se3_quat.h"
+#include "g2o/types/slam3d/se3quat.h"
+#include "g2o/types/slam3d/vertex_se3.h"
+#include "g2o/types/slam3d/edge_se3.h"
 
 #include "Config.h"
 #include "Graph.h"
 
 #include <list>
 
+#define NB_ITERATIONS 15	//  for g2o optimizer
+
 Graph::Graph()
 {
+	_initialized =false;
 }
 
 void Graph::initialize()
 {
-	_optimizer.setMethod(g2o::SparseOptimizer::LevenbergMarquardt);
-	_optimizer.setVerbose(true);
+	if (! _initialized) {	
+		_optimizer.setVerbose(true);
 
-	g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
-	linearSolver = new g2o::LinearSolverCSparse<g2o::BlockSolver_6_3::PoseMatrixType>();
-	g2o::BlockSolver_6_3 * solver_ptr = new g2o::BlockSolver_6_3(&_optimizer,linearSolver);
-	_optimizer.setSolver(solver_ptr);
+		typedef g2o::BlockSolver< g2o::BlockSolverTraits<-1, -1> >  SlamBlockSolver;
+		typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
+
+		SlamLinearSolver* linearSolver = new SlamLinearSolver();
+		linearSolver->setBlockOrdering(false);
+		SlamBlockSolver* blockSolver = new SlamBlockSolver(linearSolver);
+
+		g2o::OptimizationAlgorithmLevenberg* solverLevenberg = new g2o::OptimizationAlgorithmLevenberg(blockSolver);
+		_optimizer.setAlgorithm(solverLevenberg);
+
+		_initialized = true;
+	}
 }
 
 void Graph::addVertex(const Pose &pose)
@@ -56,7 +66,7 @@ void Graph::addVertex(const Pose &pose)
 	// add new vertex to the graph
 	g2o::VertexSE3 *vertexSE3 = new g2o::VertexSE3();
 	vertexSE3->setId(pose._id);
-	vertexSE3->estimate() = poseSE3;
+	vertexSE3->setEstimate(poseSE3);
 	
 	if (_optimizer.vertices().size()==0)
 		vertexSE3->setFixed(true);	// fix the first vertex only
@@ -79,7 +89,6 @@ void Graph::addEdge(const Transformation &transfo)
 	edgeSE3->vertices()[0] = _optimizer.vertex(transfo._idOrig);	// observer
 	edgeSE3->vertices()[1] = _optimizer.vertex(transfo._idDest);	// observed
 	edgeSE3->setMeasurement(transfoSE3.inverse());		// how to move from observer to observed => inverse transfo
-	edgeSE3->setInverseMeasurement(transfoSE3);
 
 	Eigen::Matrix<double, 6, 6, 0, 6, 6> mat;
 	mat.setIdentity(6,6);
@@ -88,13 +97,13 @@ void Graph::addEdge(const Transformation &transfo)
 	_optimizer.addEdge(edgeSE3);
 }
 
-void Graph::optimize()
+int Graph::optimize()
 {
 	// initial guess
-	_optimizer.initializeOptimization();
-	// iterations
-	_optimizer.setVerbose(true);
-	_optimizer.optimize(15);
+	if (! _optimizer.initializeOptimization())
+		return -1;
+
+	return _optimizer.optimize(NB_ITERATIONS); 	// returns the effective nb of iterations
 }
 
 bool Graph::extractPose(Pose &pose)
@@ -104,7 +113,8 @@ bool Graph::extractPose(Pose &pose)
 	vertexSE3 = (g2o::VertexSE3*)_optimizer.vertex(pose._id);
 	if (vertexSE3 != NULL)
 	{
-		Eigen::Matrix4d mat = vertexSE3->estimate().to_homogenious_matrix();
+		// get internal matrix representation through Eigen::Isometry3d
+		Eigen::Matrix4d mat = vertexSE3->estimate().matrix(); 
 		// downcast to float
 		pose._matrix = mat.cast<float>();
 		return true;
