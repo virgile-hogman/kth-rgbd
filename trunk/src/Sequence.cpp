@@ -253,7 +253,7 @@ bool Sequence::detectLoopClosure(const PoseVector	&cameraPoses)
 	FrameData frameDataCurrent;
 	vector <int>		idCandidateLC;
 	vector <FrameData*>	bufferFrameDataLC;
-	Transformation bestTransformLC;
+	Transformation bestTransformLC;	// initial ratio_inliers=0
 	Transformation transform;
 	int indexBestLC;
 	bool foundLoopClosure = false;
@@ -267,7 +267,7 @@ bool Sequence::detectLoopClosure(const PoseVector	&cameraPoses)
 
 	loadPresetLC(mapPresetLC);
 
-	// loop
+	// main loop over the full set of poses
 	for (int iPose=0; iPose<cameraPoses.size(); iPose++)
 	{
 		list<int> samples;
@@ -408,10 +408,7 @@ bool Sequence::detectLoopClosure(const PoseVector	&cameraPoses)
 
 			// reset loop closure
 			foundLoopClosure = false;
-			bestTransformLC._idOrig = -1;
-			bestTransformLC._idDest = -1;
-			bestTransformLC._ratioInliers = 0;
-			bestTransformLC._matrix = Eigen::Matrix4f::Identity();
+			bestTransformLC.reset();
 			//totalDistance = 0;
 		}
 
