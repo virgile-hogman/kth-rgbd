@@ -21,7 +21,7 @@ Main URL
 http://code.google.com/p/kth-rgbd/
 
 Checkout kth-rgbd code from SVN.
-svn co https://kth-rgbd.googlecode.com/svn/trunk/kth-rgbd
+svn co https://kth-rgbd.googlecode.com/svn/trunk kth-rgbd
 
 --------------------------------------------------------------------
 Dependencies: g2o + OpenSIFT
@@ -34,17 +34,18 @@ svn co https://svn.openslam.org/data/svn/g2o
 Build the repository version in trunk.
 Last tested with svn rev 54.
 
-!!! IMPORTANT NOTE - FORCE CSPARSE BUILD IN G2O !!!
-If csparse is found by g2o (optional package) there will be link errors.
-External csparse is not supported in kth-rgbd yet. 
-However it works with the redistribution of csparse provided by g2o.
+NOTE! CSPARSE BUILD IN G2O
+CSparse is an optional package in g2o which provides also a redistribution in EXTERNAL.
+If CSparse is not found by g2o it builds its own version called libg2o_ext_csparse.so
+kth-rgbd uses this default behavior and looks for CSparse to know which headers and libs to use.
+However this default behavior can also be changed with BUILD_CSPARSE option (using ccmake) in g2o.
+A similar option G2O_BUILD_CSPARSE exists in kth-rgbd to force using EXTERNAL version built by g2o.
+In any case kth-rgbd and g2o must be configured accordingly or there will be errors with the linker.
 
 cd g2o/trunk
-edit CMakeLists.txt and comment (#) FIND_PACKAGE(CSPARSE)
 cd build
 cmake ..
 make
-Check that lib contains libg2o_ext_csparse.so.
 
 Note: the provided configuration kth-rgbd points to the build directory of g2o.
 It is not necessary to make install g2o at system level.
@@ -54,7 +55,7 @@ http://robwhess.github.com/opensift/
 (sub-dependencies -> GTK2, OpenCV)
 git clone https://github.com/robwhess/opensift
 
-Build the library using MAKEFILE.
+Build the (static) library using MAKEFILE.
 cd opensift
 make
 
@@ -95,7 +96,7 @@ Last tested with 3.0.2-3
 HOWTO build
 --------------------------------------------------------------------
 Edit kth-rgbd/CMakeLists.txt and set the correct paths for:
-set(g2o_SOURCE_DIR .../g2o/tags/before-github-sync)
+set(g2o_SOURCE_DIR .../g2o/trunk)
 set(OpenSIFT_DIR .../opensift)
 
 The other packages should be found with standard cmake configuration files.
@@ -111,8 +112,8 @@ No installation step is required. Running scripts call the binary from the prope
 
 Troubleshooting - potential build problems
 ------------------------------------------
-PB: if SuiteSparse package is found by g2o then kth-rgbd will not link!
-SOL: disable SuiteSparse before building g2o as described above.
+PB: if CSparse package is found by g2o then kth-rgbd may not link
+SOL: configure g2o and kth-rgbd accordingly as described above. Not tested with SuiteSparse yet.
 
 PB: OpenNI headers like XnCppWrapper.h not found
 SOL: be sure to use OpenNI1 (not 2). With OpenNI<1.5 headers are in /usr/include/openni
@@ -142,21 +143,20 @@ If no loop closure is detected only the initial map is produced.
 DIR_FRAMES and DIR_PROD can be changed in scripts/var_env.sh
 
 [Short description of the scripts]
-
 record: saves a sequence and builds map
 sequence: replays a sequence from given frames previously recorded
-main: call main program with all the custom arguments (check usage)
-
+main: calls main program with all the custom arguments (check usage)
 archive_results: saves the results into a folder
 restore_results: restores the results previously saved
 clean: removes current results
 
 --------------------------------------------------------------------
-Known bugs
+Known bugs / TODO
 --------------------------------------------------------------------
 Main problem is residual drift on vertical axis (Y).
-
-Improve cmake config for g2o and opensift.
+Enable ICP alignment.
+Better keyboard handling from window.
+Redistribution of g2o and OpenSIFT?
 
 --------------------------------------------------------------------
 Contact
