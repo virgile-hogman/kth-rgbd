@@ -25,12 +25,16 @@ public:
 	Display();
 	~Display();
 
-	void hide();
-	void processEvent(int delay);
-
-	void showPreview(IplImage *pImage1, IplImage *pImage2);
-	void showFeatures(IplImage *pImage1, IplImage *pImage2, float score);
-	void showOutOfSync(IplImage *pImage1, IplImage *pImage2);
+	// returns keycode
+	int hide();
+	// returns keycode
+	int processEvent();
+	// returns keycode
+	int showPreview(IplImage *pImage1, IplImage *pImage2);
+	// returns keycode
+	int showFeatures(IplImage *pImage1, IplImage *pImage2, float score);
+	// returns keycode
+	int showOutOfSync(IplImage *pImage1, IplImage *pImage2);
 
 protected:
 	void updateScore(float score);

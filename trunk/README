@@ -133,7 +133,7 @@ cd script
 ./record.sh
 
 This will open a window displaying the features but the registration is not started.
-Commands must be run from the console terminal (not the GUI window!)
+Commands can be launched from the GUI window or console.
 To START: press any key. Frames are recorded in DIR_FRAMES.
 To STOP: press ENTER. This will create the map in DIR_PROD.
 To CANCEL: press ESC. Map is not created but the frames are kept.
@@ -155,7 +155,6 @@ Known bugs / TODO
 --------------------------------------------------------------------
 Main problem is residual drift on vertical axis (Y).
 Enable ICP alignment.
-Better keyboard handling from window.
 Redistribution of g2o and OpenSIFT?
 
 --------------------------------------------------------------------

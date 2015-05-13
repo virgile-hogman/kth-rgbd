@@ -56,7 +56,7 @@ private:
 	void stopTransform();
 
 	// add a pair of frames to the transformation sequence, the result transform is returned
-	bool addFramesTransform(int frameID1, int frameID2, Transformation &transform);
+	bool addFramesTransform(int frameID1, int frameID2, Transformation &transform, int &keywait);
 
 	// detect the loop closures and updates the graph
 	bool detectLoopClosure(const PoseVector	&cameraPoses);
