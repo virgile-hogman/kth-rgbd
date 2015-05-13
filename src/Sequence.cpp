@@ -516,7 +516,7 @@ void Sequence::buildMap()
 				keyTransform._idOrig = currentPose._id;
 			}
 
-			_display.processEvent(100);
+			_display.processEvent();
 		}
 
 		_graphOptimizer.save("graph_initial.g2o");
@@ -601,9 +601,10 @@ void Sequence::stopTransform()
 // -----------------------------------------------------------------------------------------------------
 //  addFramesTransform
 // -----------------------------------------------------------------------------------------------------
-bool Sequence::addFramesTransform(int frameID1, int frameID2, Transformation &transform)
+bool Sequence::addFramesTransform(int frameID1, int frameID2, Transformation &transform, int &keywait)
 {
 	bool match = false;
+	keywait = -1;
 
 	// match frame to frame (current with previous)
 	match = computeTransformation(
@@ -637,7 +638,7 @@ bool Sequence::addFramesTransform(int frameID1, int frameID2, Transformation &tr
 		}
 		cout << "\n";
 
-		_display.showFeatures(_bufferFrame1.getImage(), _bufferFrame2.getImage(), transform._qualityScore);
+		keywait = _display.showFeatures(_bufferFrame1.getImage(), _bufferFrame2.getImage(), transform._qualityScore);
 
 		// free data
 		_bufferFrame1.releaseData();
@@ -645,7 +646,7 @@ bool Sequence::addFramesTransform(int frameID1, int frameID2, Transformation &tr
 		_bufferFrame1.assignData(_bufferFrame2);
 	}
 	else { // out of sync !
-		_display.showOutOfSync(_bufferFrame1.getImage(), _bufferFrame2.getImage());
+		keywait = _display.showOutOfSync(_bufferFrame1.getImage(), _bufferFrame2.getImage());
 
 		// invalidate current buffer
 		_bufferFrame2.releaseData();
@@ -725,10 +726,12 @@ bool Sequence::reloadFrames(int min, int max)
 		for (int iFrame=stepFrame; iFrame<sequenceFramesID.size(); iFrame+=stepFrame)
 		{
 			// add current couple of frames
+			int keyb;
 			if (! addFramesTransform(
 					sequenceFramesID[indexLastFrame],
 					sequenceFramesID[iFrame],
-					transform))
+					transform,
+					keyb))
 			{
 				// no valid transform
 				std::cerr << transform._idOrig << "-" << transform._idDest << ": ";
@@ -777,7 +780,8 @@ void Sequence::recordFrames(bool buildMap)
     	Transformation transform;
     	bool abort = false;
     	bool keyhit = false;
-        char c;
+        char keyval;
+        int keywait;
         FrameData frame1, frame2;
 
         frame1.createImageRGB();
@@ -785,40 +789,50 @@ void Sequence::recordFrames(bool buildMap)
 
         // working buffers reused for each frame (just to avoid reallocate the arrays each time)
         IplImage* imgBufferDepth = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
+        IplImage* imgRGB = cvCreateImage(cvSize(NBPIXELS_WIDTH, NBPIXELS_HEIGHT),IPL_DEPTH_8U,3);
 
    	  	printf("*** PRESS ANY KEY TO START // ENTER TO STOP // ESC TO ABORT ***\n");
 
     	// generate 1st frame
         while(!abort && !keyhit) {
-        	if (! cameraKinect.generateFrame(frame1.getImage(), imgBufferDepth))
+        	if (! cameraKinect.generateFrame(imgRGB, imgBufferDepth))
         		break;
 
 			// recopy to data
         	frame1.setFrameID(frameID);
         	frame1.copyImageDepth(imgBufferDepth);
-
-        	keyhit = cameraKinect.getUserInput(c);
-        	if (keyhit) {
-        		printf("\n");
-        		if (c==27)
-        			abort = true;
-        		else {
-        			// save RGBD frames
-        			cameraKinect.saveImageRGB(frame1.getImage(), frameID);
-        			cameraKinect.saveImageDepth(imgBufferDepth, frameID);
-        		}
-        	}
+        	frame1.copyImageRGB(imgRGB);
 
 			// compute and draw features
         	frame1.computeFeatures();
         	frame1.drawFeatures();
 			// display RGB with features and depth
-			 _display.showPreview(frame1.getImage(), imgBufferDepth);
+			keywait = _display.showPreview(frame1.getImage(), imgBufferDepth);
+			// check keyhit first from GUI otherwise from console through camera/openni
+        	if (keywait>0) {
+        		keyhit = true;
+        		keyval = (char)keywait;
+        	}	
+        	else
+				keyhit = cameraKinect.getUserInput(keyval);
+        	if (keyhit>0) {
+        		printf("\n");
+        		if (keyval==27) // ESC
+        			abort = true;
+        		else {
+        			// save RGBD frames
+        			cameraKinect.saveImageRGB(imgRGB, frameID);
+        			cameraKinect.saveImageDepth(imgBufferDepth, frameID);
+        		}
+        	}
 		}
+		// imgRGB not needed anymore, stored directly in frame data
+        cvReleaseImage(&imgRGB);
+        imgRGB = NULL;
 
         if (!abort && keyhit) {
             // start sequence
-			tm.start();
+    		tm.start();
 			frameID++;
 			bool validate = false;
 
@@ -828,26 +842,12 @@ void Sequence::recordFrames(bool buildMap)
 				if (! cameraKinect.generateFrame(frame2.getImage(), imgBufferDepth))
 					break;
 
-	        	keyhit = cameraKinect.getUserInput(c);
-	        	if (keyhit) {
-	        		printf("\n");
-					switch (c) {
-					case 27:	// ESC
-						abort = true;
-						break;
-					case 13:	// CR
-					case 10:	// LF
-						validate = true;
-						break;
-					}
-				}
-
 				if (!validate && !abort)	{
 					// save RGBD frames
         			cameraKinect.saveImageRGB(frame2.getImage(), frameID);
         			cameraKinect.saveImageDepth(imgBufferDepth, frameID);
 					// associate with previous
-					if (! addFramesTransform(frameID-1, frameID, transform)) {
+					if (! addFramesTransform(frameID-1, frameID, transform, keywait)) {
 						printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 						printf("!!! LOW QUALITY !!! LOST SYNCHRO !!!\n");
 						printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
@@ -855,6 +855,27 @@ void Sequence::recordFrames(bool buildMap)
 					}
 					else
 						frameID++;
+
+					// check keyhit first from GUI otherwise from console through camera/openni
+					if (keywait>0) {
+						keyhit = true;
+						keyval = (char)keywait;
+					}	
+					else
+						keyhit = cameraKinect.getUserInput(keyval);
+
+					if (keyhit) {
+		        		printf("\n");
+						switch (keyval) {
+						case 27:	// ESC
+							abort = true;
+							break;
+						case 13:	// CR
+						case 10:	// LF
+							validate = true;
+							break;
+						}
+					}						
 				}
 			}
 

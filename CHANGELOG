@@ -17,6 +17,9 @@
 ------------------------------------------------------------------
 2015-05-13
 ------------------------------------------------------------------
+Keyboard commands can be activated from main window (GUI displaying features) or console.
+Faster window refresh (30ms for cvWaitKey).
+
 Improved CMakeLists.txt files for easier build and configuration.
 Upgrade optimizer to current trunk version of g2o (no more with before-github-sync).
 New CMake configuration to handle CSparse local library built by g2o or not (see README).

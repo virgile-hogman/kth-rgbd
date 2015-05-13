@@ -34,6 +34,8 @@
 #define FEAT_POSX 0
 #define FEAT_POSY 0
 
+#define CV_WAITKEY_TIMEOUT 30	// time given to refresh windows with highgui
+
 
 CvScalar getColorScore(float score)
 {
@@ -68,23 +70,23 @@ Display::~Display()
 		cvReleaseImage(&_pImgFeatures);
 }
 
-void Display::hide()
+int Display::hide()
 {
 	cvDestroyWindow("Preview");
 	cvDestroyWindow("Features");
 	cvDestroyWindow("Quality");
-	cvWaitKey(100);	// will not close until handled, no guarantee here
 	_displayingPreview = false;
 	_displayingFeatures = false;
+	return cvWaitKey(CV_WAITKEY_TIMEOUT);	// will not close until handled, no guarantee here
 }
 
-void Display::processEvent(int delay)
+int Display::processEvent()
 {
 	// this the only way with highgui... (sic)
-	cvWaitKey(delay);
+	return cvWaitKey(CV_WAITKEY_TIMEOUT);
 }
 
-void Display::showPreview(IplImage *pImage1, IplImage *pImage2)
+int Display::showPreview(IplImage *pImage1, IplImage *pImage2)
 {
 	if (Config::_FeatureDisplay) {
 		// create window if necessary
@@ -103,12 +105,14 @@ void Display::showPreview(IplImage *pImage1, IplImage *pImage2)
 			}
 		}
 		cvShowImage("Preview", _pImgFeatures);
-		cvWaitKey(100);
+		return cvWaitKey(CV_WAITKEY_TIMEOUT);
 	}
+	return -1;
 }
 
-void Display::showFeatures(IplImage *pImage1, IplImage *pImage2, float score)
+int Display::showFeatures(IplImage *pImage1, IplImage *pImage2, float score)
 {
+	int keyb = -1;
 	if (score < _minScore)
 		_minScore = score;
 	_totalScore += score;
@@ -141,7 +145,7 @@ void Display::showFeatures(IplImage *pImage1, IplImage *pImage2, float score)
 		memcpy(_pImgFeatures->imageData+(pImage1->imageSize), pImage2->imageData, pImage2->imageSize);
 		cvShowImage("Features", _pImgFeatures);
 		cvShowImage("Quality", _pImgInfo);
-		cvWaitKey(100);
+		keyb = cvWaitKey(CV_WAITKEY_TIMEOUT);
 
 		if (! Config::_FeatureDisplay) {
 			// destroy windows - asynchronous, it will be handled in event loop (cvWaitKey)
@@ -151,16 +155,19 @@ void Display::showFeatures(IplImage *pImage1, IplImage *pImage2, float score)
 			cvResizeWindow("Quality", 1, 1);
 			cvDestroyWindow("Features");
 			cvDestroyWindow("Quality");
-			cvWaitKey(100);
+			cvWaitKey(CV_WAITKEY_TIMEOUT);
 			_displayingFeatures = false;
 		}
 	}
 	// the opencv windows won't close until handled in event loop, so give a chance each time
 	// a longer timeout has no effect here...
-	cvWaitKey(1);
+	int keyb2 = cvWaitKey(1);
+	if (keyb==-1)
+		keyb = keyb2;
+	return keyb;
 }
 
-void Display::showOutOfSync(IplImage *pImage1, IplImage *pImage2)
+int Display::showOutOfSync(IplImage *pImage1, IplImage *pImage2)
 {
 	CvFont font;
 	double hScale=2;
@@ -195,7 +202,7 @@ void Display::showOutOfSync(IplImage *pImage1, IplImage *pImage2)
 	cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, hScale,vScale, 0, lineWidth);
 	cvPutText(_pImgFeatures, "SYNC LOST", cvPoint(40, NBPIXELS_HEIGHT+200), &font, cvScalar(0,0,255));
 	cvShowImage("Features", _pImgFeatures);
-	cvWaitKey(100);
+	return cvWaitKey(CV_WAITKEY_TIMEOUT);
 }
 
 void Display::updateScore(float score)
