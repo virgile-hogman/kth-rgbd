@@ -87,16 +87,17 @@ Requires Boost>=1.46
 
 Compilation
 --------------------------------------------------------------------
-- Get the source code from the main repository:  
+Get the source code from the main repository:  
 `git clone https://github.com/virgile-hogman/kth-rgbd/`
 
-- Edit `kth-rgbd/CMakeLists.txt` and set the correct paths as follows. The other packages should be found with standard cmake configuration files.
+Edit `kth-rgbd/CMakeLists.txt` and set the correct paths for g2o and OpenSIFT.
 ```
 set(g2o_SOURCE_DIR .../g2o/trunk)
 set(OpenSIFT_DIR .../opensift)
 ```
+The other packages should be found with standard cmake configuration files.
 
-- Build kth-rgbd using cmake: 
+Build kth-rgbd using cmake: 
 ```sh
 cd kth-rgbd 	#your SVN checkout directory
 mkdir build
@@ -105,7 +106,7 @@ cmake ..
 make
 ```
 
-- No installation step is required. 
+No installation step is required. 
 
 **Troubleshooting**
 - _if CSparse package is found by g2o then kth-rgbd may not link_  
