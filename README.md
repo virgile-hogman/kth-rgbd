@@ -1,19 +1,19 @@
-# kth-rgbd
---------------------------------------------------------------------
+kth-rgbd
+====================================================================
 Visual SLAM from RGB-D data  
 Copyright (C) 2011-2015  Virgile Högman  
 GNU GPL v3 License.
 
 Mail URL: https://github.com/virgile-hogman/kth-rgbd/  
 
-## Description
+Description
 --------------------------------------------------------------------
 This library developed on Linux produces a 3D map from RGB-D data using Microsoft Kinect.  
 It includes a user-friendly program with a GUI to record RGB-D data and produce the 3D map in PCL format. Additional data about the map can be exploited by developers.  
 The SLAM approach is based on visual features such as SIFT and SURF.  
 To correct the inherent drift errors, loop closures are detected and the map is adjusted with a graph-oriented optimization (using g2o). It is strongly adviced to record loop closures or the optimization cannot be done.  
 
-## License
+License
 --------------------------------------------------------------------
 Visual SLAM from RGB-D data  
 Copyright (C) 2011-2015  Virgile Högman  
@@ -31,7 +31,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-## Dependencies
+Dependencies
 --------------------------------------------------------------------
 There is no package distributed with kth-rgbd, so dependencies have to be installed correctly before building kth-rgbd.  
 OpenSIFT and g2o require manual installation (in local workspace, it is not necessary to install them at system level with root permissions).  
@@ -39,10 +39,8 @@ The others dependencies should be installed with standard package managers.
 
 ### g2o
 [g2o: A General Framework for Graph Optimization (OpenSLAM)](https://svn.openslam.org/data/svn/g2o)   
-Last tested with svn rev 54.  
+Build the repository version in trunk. Last tested with svn rev 54.  
 `svn co https://svn.openslam.org/data/svn/g2o`  
-Build the repository version in trunk.
-
 
 **NOTE! CSPARSE BUILD IN G2O**  
 CSparse is an optional package in g2o which provides also a redistribution in EXTERNAL.  
@@ -87,12 +85,12 @@ Requires PCL>=1.7 (sub-dependencies: cminpack, Flann)
 Requires Boost>=1.46
 * [Eigen3](http://eigen.tuxfamily.org/) Last tested with 3.0.2-3  
 
-## Compilation
+Compilation
 --------------------------------------------------------------------
-Get the source code from the main repository:  
+1. Get the source code from the main repository:  
 `git clone https://github.com/virgile-hogman/kth-rgbd/`
 
-Edit `kth-rgbd/CMakeLists.txt` and set the correct paths for:
+2. Edit `kth-rgbd/CMakeLists.txt` and set the correct paths for:
 ```
 set(g2o_SOURCE_DIR .../g2o/trunk)
 set(OpenSIFT_DIR .../opensift)
@@ -100,7 +98,7 @@ set(OpenSIFT_DIR .../opensift)
 
 The other packages should be found with standard cmake configuration files.
 
-Build kth-rgbd using cmake: 
+3. Build kth-rgbd using cmake: 
 ```sh
 cd kth-rgbd 	#your SVN checkout directory
 mkdir build
@@ -109,7 +107,7 @@ cmake ..
 make
 ```
 
-No installation step is required. Running scripts call the binary from the proper directory.
+No installation step is required. 
 
 **Troubleshooting**
 - _if CSparse package is found by g2o then kth-rgbd may not link_  
@@ -119,43 +117,46 @@ Be sure to use OpenNI1 (not 2). With OpenNI<1.5 headers are in `/usr/include/ope
 - _link problems with GTK and OpenSift_  
 Check instructions in `CMakeLists.txt`
 
-## Execution
+Execution
 --------------------------------------------------------------------
-Check the configuration file containing the parameters: `kth-rgbd.cfg`  
 No further configuration should be required if the scripts are used.  
-Run those from the `script` directory.  
-The main purpose is to record scenes with at least one cycle in order to create loop closures.  
+You can check the configuration file containing the parameters: `kth-rgbd.cfg`  
+The Kinect RGB-D camera should be properly setup before using the scripts.  
+
+Run the scripts from the `script` directory.  
+The user should launch the main script called `record` and move along with the camera slowly.  
+He should produce scenes with at least one cycle in order to create **loop closures**.  
+If a loop closure is detected, both initial and optimized map are produced.  
+If no loop closure is detected, only the initial map is produced and no optimization can be performed.  
 
 ```sh
 cd script
 ./record.sh
 ```
 
-This will open a window displaying the features but the registration is not started.  
-Commands can be launched from the GUI window or console.  
+This will open a window with a GUI displaying the features but the registration does not start until the user decides it.  
+Commands can be launched from the window or console.  
 - **START**: press any key. Frames are recorded in `DIR_FRAMES`.  
 - **STOP**: press ENTER. This will create the map in `DIR_PROD`.  
 - **CANCEL**: press ESC. Map is not created but the frames are kept.  
 
-If a loop closure is detected the initial and optimized map are produced.  
-If no loop closure is detected only the initial map is produced.  
 `DIR_FRAMES` and `DIR_PROD` can be changed in `scripts/var_env.sh`  
 
 **Short description of the scripts** 
-- `record`: saves a sequence and builds map  
+- `record`: main script, saves a sequence and builds map (with/without optimization depending on loop closures)  
 - `sequence`: replays a sequence from given frames previously recorded  
 - `main`: calls main program with all the custom arguments (check usage)  
 - `archive_results`: saves the results into a folder  
 - `restore_results`: restores the results previously saved  
-- `clean`: removes current results  
+- `clean`: removes current results 
 
-## Known bugs
+Known bugs
 --------------------------------------------------------------------
 - Main problem is residual drift on vertical axis (Y).
 - Enable ICP alignment.
 - Redistribution of g2o and OpenSIFT?  
 
-## Contact
+Contact
 --------------------------------------------------------------------
 Virgile Högman  
 PhD Student at CVAP, KTH Royal Institute of Technology  
